@@ -1,46 +1,107 @@
 @import "tailwindcss";
 
 :root {
-  --background: #fafafa;
-  --foreground: #1a1a1a;
-  --red: #e02020;
-  --red-dark: #b91c1c;
-  --yellow: #f59e0b;
+  --yellow: #FFD700;
+  --yellow-dark: #E6C200;
+  --yellow-light: #FFF9CC;
+  --red: #E53935;
+  --red-dark: #C62828;
+  --green: #27AE60;
+  --black: #111111;
+  --gray-dark: #1A1A1A;
+  --background: #F9F9F9;
+  --foreground: #111111;
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: system-ui, -apple-system, sans-serif;
+  font-family: var(--font-nunito), system-ui, -apple-system, sans-serif;
+  -webkit-font-smoothing: antialiased;
 }
 
 html {
   scroll-behavior: smooth;
 }
 
-* {
-  box-sizing: border-box;
-}
+* { box-sizing: border-box; }
 
-/* hide scrollbar utility */
+/* ── Scrollbar ────────────────────────────────── */
 .hide-scrollbar::-webkit-scrollbar { display: none; }
 .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
 
+/* ── Focus ring ──────────────────────────────── */
 input:focus, textarea:focus, select:focus {
-  outline: 2px solid #e02020;
+  outline: 2px solid var(--yellow);
   outline-offset: -1px;
 }
 
+/* ── Clamp utilities ─────────────────────────── */
 .line-clamp-2 {
   display: -webkit-box;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
-
 .line-clamp-3 {
   display: -webkit-box;
   -webkit-line-clamp: 3;
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
+
+/* ── Brand button ────────────────────────────── */
+.btn-brand {
+  background: var(--yellow);
+  color: var(--black);
+  font-weight: 800;
+  border-radius: 0.75rem;
+  transition: background 0.15s, transform 0.15s, box-shadow 0.15s;
+}
+.btn-brand:hover {
+  background: var(--yellow-dark);
+  transform: translateY(-1px);
+  box-shadow: 0 6px 20px rgba(255,215,0,0.35);
+}
+.btn-brand:active { transform: translateY(0); }
+
+/* ── Card hover glow ─────────────────────────── */
+.card-hover {
+  transition: box-shadow 0.2s, transform 0.2s, border-color 0.2s;
+}
+.card-hover:hover {
+  box-shadow: 0 8px 30px rgba(255,215,0,0.15), 0 2px 8px rgba(0,0,0,0.06);
+  transform: translateY(-2px);
+  border-color: #FFD700 !important;
+}
+
+/* ── Yellow glow shadow ──────────────────────── */
+.shadow-yellow {
+  box-shadow: 0 4px 24px rgba(255,215,0,0.3);
+}
+
+/* ── Shimmer skeleton ────────────────────────── */
+@keyframes shimmer {
+  0%   { background-position: -200% 0; }
+  100% { background-position:  200% 0; }
+}
+.shimmer {
+  background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.4s infinite;
+}
+
+/* ── Pulse dot ───────────────────────────────── */
+@keyframes pulse-dot {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50%       { opacity: 0.6; transform: scale(1.3); }
+}
+.pulse-dot { animation: pulse-dot 1.6s ease-in-out infinite; }
+
+/* ── Float (hero decoration) ─────────────────── */
+@keyframes float {
+  0%, 100% { transform: translateY(0px) rotate(0deg); }
+  50%       { transform: translateY(-12px) rotate(3deg); }
+}
+.float { animation: float 4s ease-in-out infinite; }
+.float-delay { animation: float 4s ease-in-out 1s infinite; }

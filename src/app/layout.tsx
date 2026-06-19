@@ -1,9 +1,17 @@
 import type { Metadata } from 'next'
+import { Nunito } from 'next/font/google'
 import './globals.css'
 import { AuthProvider } from '@/lib/auth-context'
 import { Toaster } from 'react-hot-toast'
 import Header from '@/components/Header'
 import Footer from '@/components/Footer'
+
+const nunito = Nunito({
+  subsets: ['latin'],
+  weight: ['400', '600', '700', '800', '900'],
+  variable: '--font-nunito',
+  display: 'swap',
+})
 
 export const metadata: Metadata = {
   title: 'Pizza Guys | Fresh Pizzas, Burgers & More',
@@ -14,14 +22,21 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className="h-full">
-      <body className="min-h-full flex flex-col bg-gray-50 antialiased">
+    <html lang="en" className={`h-full ${nunito.variable}`}>
+      <body className="min-h-full flex flex-col bg-[#F9F9F9] antialiased">
         <AuthProvider>
           <Toaster
             position="top-center"
             toastOptions={{
-              style: { background: '#1a1a1a', color: '#fff', borderRadius: '0.75rem' },
-              success: { iconTheme: { primary: '#22c55e', secondary: '#fff' } },
+              style: {
+                background: '#111',
+                color: '#fff',
+                borderRadius: '0.75rem',
+                border: '1px solid #FFD700',
+                fontWeight: 700,
+              },
+              success: { iconTheme: { primary: '#FFD700', secondary: '#111' } },
+              error:   { iconTheme: { primary: '#E53935', secondary: '#fff' } },
             }}
           />
           <Header />
