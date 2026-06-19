@@ -1,0 +1,77 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  // Switch to "mysql" and update DATABASE_URL when deploying to Hostinger
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String    @id @default(uuid())
+  name         String    @default("")
+  email        String    @unique
+  phone        String    @default("")
+  passwordHash String    @map("password_hash")
+  createdAt    DateTime  @default(now()) @map("created_at")
+  addresses    Address[]
+  orders       Order[]
+
+  @@map("users")
+}
+
+model Address {
+  id        String   @id @default(uuid())
+  userId    String   @map("user_id")
+  label     String   @default("Home")
+  line1     String   @default("")
+  line2     String   @default("")
+  city      String   @default("")
+  postcode  String   @default("")
+  notes     String   @default("")
+  isDefault Boolean  @default(false) @map("is_default")
+  createdAt DateTime @default(now()) @map("created_at")
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("addresses")
+}
+
+model Order {
+  id              String      @id @default(uuid())
+  orderNumber     String      @unique @map("order_number")
+  userId          String?     @map("user_id")
+  status          String      @default("pending")
+  orderType       String      @map("order_type")
+  customerName    String      @map("customer_name")
+  customerEmail   String      @map("customer_email")
+  customerPhone   String      @map("customer_phone")
+  deliveryAddress String?     @map("delivery_address")
+  subtotal        Int
+  deliveryFee     Int         @default(0) @map("delivery_fee")
+  discount        Int         @default(0)
+  total           Int
+  paymentIntentId String?     @map("payment_intent_id")
+  paymentMethod   String      @default("card") @map("payment_method")
+  scheduledTime   DateTime?   @map("scheduled_time")
+  createdAt       DateTime    @default(now()) @map("created_at")
+  user            User?       @relation(fields: [userId], references: [id], onDelete: SetNull)
+  items           OrderItem[]
+
+  @@map("orders")
+}
+
+model OrderItem {
+  id                  String @id @default(uuid())
+  orderId             String @map("order_id")
+  productId           String @map("product_id")
+  productName         String @map("product_name")
+  quantity            Int
+  unitPrice           Int    @map("unit_price")
+  modifiers           String
+  specialInstructions String @default("") @map("special_instructions")
+  itemTotal           Int    @map("item_total")
+  order               Order  @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@map("order_items")
+}
