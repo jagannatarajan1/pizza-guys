@@ -11,16 +11,22 @@ function adminOnly(req: NextRequest) {
   return null
 }
 
-export async function GET() {
+function normalize(p: { price: number; modifiers: string; allergens: string; [k: string]: unknown }) {
+  return { ...p, price: p.price / 100, modifiers: JSON.parse(p.modifiers || '[]'), allergens: JSON.parse(p.allergens || '[]') }
+}
+
+export async function GET(req: NextRequest) {
+  const deny = adminOnly(req)
+  if (deny) return deny
   const products = await prisma.product.findMany({ orderBy: { createdAt: 'desc' } })
-  return NextResponse.json({ products })
+  return NextResponse.json({ products: products.map(normalize) })
 }
 
 export async function POST(req: NextRequest) {
   const deny = adminOnly(req)
   if (deny) return deny
 
-  const { name, description, price, image, category, popular, available, allergens } = await req.json()
+  const { name, description, price, image, category, popular, available, allergens, modifiers } = await req.json()
   if (!name || price === undefined || !category) {
     return NextResponse.json({ error: 'name, price and category are required' }, { status: 400 })
   }
@@ -29,14 +35,15 @@ export async function POST(req: NextRequest) {
     data: {
       name,
       description: description ?? '',
-      price: Math.round(parseFloat(price) * 100),
-      image: image ?? '',
+      price:     Math.round(parseFloat(price) * 100),
+      image:     image     ?? '',
       category,
       popular:   popular   ?? false,
       available: available ?? true,
       allergens: JSON.stringify(allergens ?? []),
+      modifiers: JSON.stringify(modifiers ?? []),
     },
   })
 
-  return NextResponse.json({ product }, { status: 201 })
+  return NextResponse.json({ product: normalize(product) }, { status: 201 })
 }

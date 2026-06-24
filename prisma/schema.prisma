@@ -62,6 +62,17 @@ model Order {
   @@map("orders")
 }
 
+model Category {
+  id      String  @id
+  name    String
+  slug    String  @unique
+  icon    String  @default("🍽️")
+  visible Boolean @default(true)
+  order   Int     @default(0)
+
+  @@map("categories")
+}
+
 model Product {
   id          String   @id @default(uuid())
   name        String

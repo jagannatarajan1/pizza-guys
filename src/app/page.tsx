@@ -1,13 +1,13 @@
 'use client'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import Image from 'next/image'
 import { motion } from 'framer-motion'
 import { MapPin, Clock, ChevronRight, Star, Truck, Award, Heart, Zap } from 'lucide-react'
-import { categories, popularProducts, activeCoupons, openingHours, deliveryZones } from '@/lib/menu-data'
+import { activeCoupons, openingHours, deliveryZones } from '@/lib/menu-data'
 import { checkDelivery, isOpen, formatPrice } from '@/lib/utils'
 import ProductModal from '@/components/ProductModal'
-import type { Product } from '@/lib/menu-data'
+import type { Product, Category } from '@/lib/types'
 
 const fadeUp = {
   hidden: { opacity: 0, y: 32 },
@@ -23,6 +23,17 @@ export default function HomePage() {
   const [postcode, setPostcode] = useState('')
   const [deliveryResult, setDeliveryResult] = useState<{ available: boolean; fee: number; minOrder: number } | null | 'not-found'>(null)
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null)
+  const [popularProducts, setPopularProducts] = useState<Product[]>([])
+  const [categories, setCategories]           = useState<Category[]>([])
+
+  useEffect(() => {
+    fetch('/api/menu/products').then((r) => r.json()).then((d) => {
+      setPopularProducts((d.products ?? []).filter((p: Product) => p.popular))
+    })
+    fetch('/api/menu/categories').then((r) => r.json()).then((d) => {
+      setCategories(d.categories ?? [])
+    })
+  }, [])
 
   const { isOpen: open, todayHours } = isOpen(openingHours)
 
@@ -225,7 +236,7 @@ export default function HomePage() {
                 <h3 className="font-black text-gray-900 text-sm mb-2 line-clamp-1">{product.name}</h3>
                 <div className="flex items-center justify-between gap-2">
                   <span className="font-black text-gray-900 text-sm">
-                    {product.modifiers?.length ? `From ${formatPrice(product.price)}` : formatPrice(product.price)}
+                    {product.modifiers.length ? `From ${formatPrice(product.price)}` : formatPrice(product.price)}
                   </span>
                   <button
                     onClick={(e) => { e.stopPropagation(); setSelectedProduct(product) }}

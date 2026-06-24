@@ -3,8 +3,9 @@ import Link from 'next/link'
 import Image from 'next/image'
 import { motion } from 'framer-motion'
 import { Tag, Clock, ChevronRight, Copy, Check } from 'lucide-react'
-import { useState } from 'react'
-import { activeCoupons, products } from '@/lib/menu-data'
+import { useState, useEffect } from 'react'
+import { activeCoupons } from '@/lib/menu-data'
+import type { Product } from '@/lib/types'
 import { formatPrice } from '@/lib/utils'
 
 const fadeUp = {
@@ -64,9 +65,15 @@ function CouponCard({ coupon }: { coupon: typeof activeCoupons[0] }) {
 }
 
 export default function OffersPage() {
-  const deals = products.filter((p) =>
-    ['pizza-deals', 'pizza-meal', 'lunch-offers'].includes(p.category)
-  )
+  const [deals, setDeals] = useState<Product[]>([])
+
+  useEffect(() => {
+    fetch('/api/menu/products').then((r) => r.json()).then((d) => {
+      setDeals((d.products ?? []).filter((p: Product) =>
+        ['pizza-deals', 'pizza-meal', 'lunch-offers'].includes(p.category)
+      ))
+    })
+  }, [])
 
   return (
     <div>

@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
-import type { Product, ModifierOption, ModifierGroup } from './menu-data'
+import type { Product, ModifierOption, ModifierGroup } from './types'
 
 export type CartItemModifier = {
   groupId: string

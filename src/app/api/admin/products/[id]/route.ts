@@ -11,12 +11,16 @@ function adminOnly(req: NextRequest) {
   return null
 }
 
+function normalize(p: { price: number; modifiers: string; allergens: string; [k: string]: unknown }) {
+  return { ...p, price: p.price / 100, modifiers: JSON.parse(p.modifiers || '[]'), allergens: JSON.parse(p.allergens || '[]') }
+}
+
 export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const deny = adminOnly(req)
   if (deny) return deny
 
   const { id } = await params
-  const { name, description, price, image, category, popular, available, allergens } = await req.json()
+  const { name, description, price, image, category, popular, available, allergens, modifiers } = await req.json()
 
   const product = await prisma.product.update({
     where: { id },
@@ -29,10 +33,11 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
       ...(popular     !== undefined && { popular }),
       ...(available   !== undefined && { available }),
       ...(allergens   !== undefined && { allergens: JSON.stringify(allergens) }),
+      ...(modifiers   !== undefined && { modifiers: JSON.stringify(modifiers) }),
     },
   })
 
-  return NextResponse.json({ product })
+  return NextResponse.json({ product: normalize(product) })
 }
 
 export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {

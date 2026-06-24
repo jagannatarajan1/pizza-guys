@@ -2,7 +2,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import Image from 'next/image'
 import { Plus, Search, Pencil, Trash2, EyeOff, Eye, X, Loader2 } from 'lucide-react'
-import { categories } from '@/lib/menu-data'
+import type { Category } from '@/lib/types'
 import { formatPrice } from '@/lib/utils'
 import ImageUpload from '@/components/ImageUpload'
 import toast from 'react-hot-toast'
@@ -11,12 +11,12 @@ type DBProduct = {
   id: string
   name: string
   description: string
-  price: number        // stored in pence
+  price: number        // in pounds (normalized by API)
   image: string
   category: string
   popular: boolean
   available: boolean
-  allergens: string    // JSON string
+  allergens: string[]
   createdAt: string
 }
 
@@ -32,6 +32,7 @@ const emptyForm = {
 
 export default function AdminProductsPage() {
   const [products, setProducts]   = useState<DBProduct[]>([])
+  const [categories, setCategories] = useState<Category[]>([])
   const [loading, setLoading]     = useState(true)
   const [saving, setSaving]       = useState(false)
   const [search, setSearch]       = useState('')
@@ -43,9 +44,13 @@ export default function AdminProductsPage() {
   const load = useCallback(async () => {
     setLoading(true)
     try {
-      const res  = await fetch('/api/admin/products')
-      const data = await res.json()
-      setProducts(data.products ?? [])
+      const [pRes, cRes] = await Promise.all([
+        fetch('/api/admin/products'),
+        fetch('/api/menu/categories'),
+      ])
+      const [pData, cData] = await Promise.all([pRes.json(), cRes.json()])
+      setProducts(pData.products ?? [])
+      setCategories(cData.categories ?? [])
     } catch {
       toast.error('Failed to load products')
     } finally {
@@ -72,7 +77,7 @@ export default function AdminProductsPage() {
     setForm({
       name:        p.name,
       description: p.description,
-      price:       (p.price / 100).toFixed(2),
+      price:       p.price.toFixed(2),
       category:    p.category,
       image:       p.image,
       popular:     p.popular,

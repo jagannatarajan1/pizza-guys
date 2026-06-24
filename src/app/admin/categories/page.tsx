@@ -1,47 +1,46 @@
 'use client'
-import { useState } from 'react'
-import { Plus, Pencil, Trash2, EyeOff, Eye, GripVertical, X } from 'lucide-react'
-import { categories as initialCats } from '@/lib/menu-data'
-import type { Category } from '@/lib/menu-data'
+import { useState, useEffect } from 'react'
+import { Plus, Pencil, Trash2, EyeOff, Eye, GripVertical, X, Loader2 } from 'lucide-react'
+import type { Category } from '@/lib/types'
 import toast from 'react-hot-toast'
 
 export default function AdminCategoriesPage() {
-  const [cats, setCats] = useState<Category[]>([...initialCats].sort((a, b) => a.order - b.order))
+  const [cats, setCats]         = useState<Category[]>([])
+  const [loading, setLoading]   = useState(true)
+  const [saving, setSaving]     = useState(false)
   const [showForm, setShowForm] = useState(false)
-  const [editId, setEditId] = useState<string | null>(null)
-  const [form, setForm] = useState({ name: '', icon: '🍽️', visible: true })
+  const [editId, setEditId]     = useState<string | null>(null)
+  const [form, setForm]         = useState({ name: '', icon: '🍽️', visible: true })
 
-  const toggleVisible = (id: string) => {
-    setCats((prev) => prev.map((c) => c.id === id ? { ...c, visible: !c.visible } : c))
-    toast.success('Category updated')
+  const load = async () => {
+    setLoading(true)
+    const res  = await fetch('/api/admin/categories')
+    const data = await res.json()
+    setCats(data.categories ?? [])
+    setLoading(false)
   }
 
-  const deleteCat = (id: string) => {
-    if (!confirm('Delete this category?')) return
-    setCats((prev) => prev.filter((c) => c.id !== id))
-    toast.success('Category deleted')
-  }
+  useEffect(() => { load() }, [])
 
-  const save = () => {
-    if (!form.name) { toast.error('Name is required'); return }
-    if (editId) {
-      setCats((prev) => prev.map((c) => c.id === editId ? { ...c, ...form } : c))
-      toast.success('Category updated!')
-    } else {
-      const newCat: Category = {
-        id: form.name.toLowerCase().replace(/\s+/g, '-'),
-        name: form.name,
-        slug: form.name.toLowerCase().replace(/\s+/g, '-'),
-        icon: form.icon,
-        visible: form.visible,
-        order: cats.length + 1,
-      }
-      setCats((prev) => [...prev, newCat])
-      toast.success('Category added!')
+  const toggleVisible = async (cat: Category) => {
+    const res = await fetch(`/api/admin/categories/${cat.id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ visible: !cat.visible }),
+    })
+    if (res.ok) {
+      setCats((prev) => prev.map((c) => c.id === cat.id ? { ...c, visible: !c.visible } : c))
+      toast.success(cat.visible ? 'Category hidden' : 'Category visible')
     }
-    setShowForm(false)
-    setEditId(null)
-    setForm({ name: '', icon: '🍽️', visible: true })
+  }
+
+  const deleteCat = async (id: string) => {
+    if (!confirm('Delete this category? Products in this category will not be deleted.')) return
+    const res = await fetch(`/api/admin/categories/${id}`, { method: 'DELETE' })
+    if (res.ok) {
+      setCats((prev) => prev.filter((c) => c.id !== id))
+      toast.success('Category deleted')
+    }
   }
 
   const openEdit = (cat: Category) => {
@@ -50,82 +49,152 @@ export default function AdminCategoriesPage() {
     setShowForm(true)
   }
 
+  const closeForm = () => { setShowForm(false); setEditId(null); setForm({ name: '', icon: '🍽️', visible: true }) }
+
+  const save = async () => {
+    if (!form.name) { toast.error('Name is required'); return }
+    setSaving(true)
+    try {
+      if (editId) {
+        const res = await fetch(`/api/admin/categories/${editId}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(form),
+        })
+        if (!res.ok) { toast.error('Failed to save'); return }
+        toast.success('Category updated!')
+      } else {
+        const res = await fetch('/api/admin/categories', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(form),
+        })
+        if (!res.ok) { toast.error('Failed to create'); return }
+        toast.success('Category added!')
+      }
+      closeForm()
+      load()
+    } finally {
+      setSaving(false)
+    }
+  }
+
   return (
     <div>
       <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-black text-gray-900">Categories</h1>
-        <button onClick={() => { setShowForm(true); setEditId(null) }} className="flex items-center gap-2 bg-red-600 hover:bg-red-700 text-white font-bold px-4 py-2 rounded-xl text-sm transition-colors">
+        <div>
+          <h1 className="text-2xl font-black text-gray-900">Categories</h1>
+          <p className="text-sm text-gray-500 mt-0.5">{cats.length} categories in database</p>
+        </div>
+        <button
+          onClick={() => { setShowForm(true); setEditId(null) }}
+          className="flex items-center gap-2 bg-[#FFD700] hover:bg-yellow-400 text-[#111] font-black px-4 py-2 rounded-xl text-sm transition-colors"
+        >
           <Plus size={16} /> Add Category
         </button>
       </div>
 
       {showForm && (
-        <div className="bg-white rounded-2xl border border-gray-200 p-5 mb-5">
+        <div className="bg-white rounded-2xl border-2 border-[#FFD700] p-5 mb-5 shadow-lg shadow-yellow-100">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="font-bold text-gray-900">{editId ? 'Edit Category' : 'New Category'}</h2>
-            <button onClick={() => { setShowForm(false); setEditId(null) }}><X size={18} className="text-gray-400" /></button>
+            <h2 className="font-black text-gray-900">{editId ? 'Edit Category' : 'New Category'}</h2>
+            <button onClick={closeForm}><X size={18} className="text-gray-400 hover:text-gray-600" /></button>
           </div>
           <div className="grid sm:grid-cols-3 gap-4 mb-4">
             <div className="sm:col-span-2">
-              <label className="block text-xs font-semibold text-gray-700 mb-1">Category Name *</label>
-              <input value={form.name} onChange={(e) => setForm((p) => ({ ...p, name: e.target.value }))} className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-red-400" placeholder="e.g. Pizzas" />
+              <label className="block text-xs font-black text-gray-700 mb-1.5">Category Name *</label>
+              <input
+                value={form.name}
+                onChange={(e) => setForm((p) => ({ ...p, name: e.target.value }))}
+                className="w-full border-2 border-gray-100 rounded-xl px-3 py-2.5 text-sm font-semibold focus:outline-none focus:border-[#FFD700] transition-colors"
+                placeholder="e.g. Pizzas"
+              />
             </div>
             <div>
-              <label className="block text-xs font-semibold text-gray-700 mb-1">Icon (emoji)</label>
-              <input value={form.icon} onChange={(e) => setForm((p) => ({ ...p, icon: e.target.value }))} className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-red-400" placeholder="🍕" />
+              <label className="block text-xs font-black text-gray-700 mb-1.5">Icon (emoji)</label>
+              <input
+                value={form.icon}
+                onChange={(e) => setForm((p) => ({ ...p, icon: e.target.value }))}
+                className="w-full border-2 border-gray-100 rounded-xl px-3 py-2.5 text-sm font-semibold focus:outline-none focus:border-[#FFD700] transition-colors"
+                placeholder="🍕"
+              />
             </div>
           </div>
           <label className="flex items-center gap-2 mb-4 cursor-pointer">
-            <input type="checkbox" checked={form.visible} onChange={(e) => setForm((p) => ({ ...p, visible: e.target.checked }))} />
-            <span className="text-sm text-gray-700">Visible on website</span>
+            <input
+              type="checkbox"
+              checked={form.visible}
+              onChange={(e) => setForm((p) => ({ ...p, visible: e.target.checked }))}
+              className="w-4 h-4 accent-yellow-400"
+            />
+            <span className="text-sm font-bold text-gray-700">Visible on website</span>
           </label>
           <div className="flex gap-3">
-            <button onClick={save} className="bg-red-600 hover:bg-red-700 text-white font-bold px-5 py-2 rounded-xl text-sm transition-colors">Save</button>
-            <button onClick={() => { setShowForm(false); setEditId(null) }} className="bg-gray-100 text-gray-700 font-bold px-5 py-2 rounded-xl text-sm hover:bg-gray-200 transition-colors">Cancel</button>
+            <button
+              onClick={save}
+              disabled={saving}
+              className="flex items-center gap-2 bg-[#FFD700] hover:bg-yellow-400 disabled:opacity-50 text-[#111] font-black px-5 py-2.5 rounded-xl text-sm transition-colors"
+            >
+              {saving && <Loader2 size={14} className="animate-spin" />}
+              {saving ? 'Saving...' : editId ? 'Save Changes' : 'Add Category'}
+            </button>
+            <button onClick={closeForm} className="bg-gray-100 text-gray-700 font-bold px-5 py-2.5 rounded-xl text-sm hover:bg-gray-200 transition-colors">Cancel</button>
           </div>
         </div>
       )}
 
       <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
-        <table className="w-full text-sm">
-          <thead className="bg-gray-50 border-b border-gray-100">
-            <tr>
-              <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase w-8">#</th>
-              <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase">Category</th>
-              <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase hidden sm:table-cell">Slug</th>
-              <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase">Status</th>
-              <th className="text-right px-4 py-3 text-xs font-semibold text-gray-500 uppercase">Actions</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-gray-50">
-            {cats.map((cat) => (
-              <tr key={cat.id} className="hover:bg-gray-50 transition-colors">
-                <td className="px-4 py-3 text-gray-400"><GripVertical size={14} /></td>
-                <td className="px-4 py-3">
-                  <div className="flex items-center gap-3">
-                    <span className="text-xl">{cat.icon}</span>
-                    <span className="font-medium text-gray-900">{cat.name}</span>
-                  </div>
-                </td>
-                <td className="px-4 py-3 hidden sm:table-cell text-gray-500 font-mono text-xs">{cat.slug}</td>
-                <td className="px-4 py-3">
-                  <span className={`text-xs px-2 py-1 rounded-full font-medium ${cat.visible ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
-                    {cat.visible ? 'Visible' : 'Hidden'}
-                  </span>
-                </td>
-                <td className="px-4 py-3">
-                  <div className="flex items-center justify-end gap-1">
-                    <button onClick={() => toggleVisible(cat.id)} className="p-1.5 text-gray-400 hover:text-blue-600 transition-colors">
-                      {cat.visible ? <EyeOff size={15} /> : <Eye size={15} />}
-                    </button>
-                    <button onClick={() => openEdit(cat)} className="p-1.5 text-gray-400 hover:text-orange-600 transition-colors"><Pencil size={15} /></button>
-                    <button onClick={() => deleteCat(cat.id)} className="p-1.5 text-gray-400 hover:text-red-600 transition-colors"><Trash2 size={15} /></button>
-                  </div>
-                </td>
+        {loading ? (
+          <div className="flex items-center justify-center py-16 gap-2 text-gray-400">
+            <Loader2 size={20} className="animate-spin" /> Loading categories...
+          </div>
+        ) : cats.length === 0 ? (
+          <div className="text-center py-16">
+            <div className="text-4xl mb-3">📂</div>
+            <p className="font-black text-gray-900 mb-1">No categories yet</p>
+            <p className="text-gray-400 text-sm mb-4">Click "Add Category" or run the seed to get started</p>
+          </div>
+        ) : (
+          <table className="w-full text-sm">
+            <thead className="bg-gray-50 border-b border-gray-100">
+              <tr>
+                <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase w-8">#</th>
+                <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase">Category</th>
+                <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase hidden sm:table-cell">Slug</th>
+                <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase">Status</th>
+                <th className="text-right px-4 py-3 text-xs font-semibold text-gray-500 uppercase">Actions</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody className="divide-y divide-gray-50">
+              {cats.map((cat) => (
+                <tr key={cat.id} className="hover:bg-gray-50 transition-colors">
+                  <td className="px-4 py-3 text-gray-300"><GripVertical size={14} /></td>
+                  <td className="px-4 py-3">
+                    <div className="flex items-center gap-3">
+                      <span className="text-xl">{cat.icon}</span>
+                      <span className="font-bold text-gray-900">{cat.name}</span>
+                    </div>
+                  </td>
+                  <td className="px-4 py-3 hidden sm:table-cell text-gray-400 font-mono text-xs">{cat.slug}</td>
+                  <td className="px-4 py-3">
+                    <span className={`text-xs px-2 py-1 rounded-full font-bold ${cat.visible ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
+                      {cat.visible ? 'Visible' : 'Hidden'}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3">
+                    <div className="flex items-center justify-end gap-1">
+                      <button onClick={() => toggleVisible(cat)} className="p-1.5 text-gray-400 hover:text-blue-600 transition-colors" title={cat.visible ? 'Hide' : 'Show'}>
+                        {cat.visible ? <EyeOff size={15} /> : <Eye size={15} />}
+                      </button>
+                      <button onClick={() => openEdit(cat)} className="p-1.5 text-gray-400 hover:text-orange-600 transition-colors"><Pencil size={15} /></button>
+                      <button onClick={() => deleteCat(cat.id)} className="p-1.5 text-gray-400 hover:text-red-600 transition-colors"><Trash2 size={15} /></button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
       </div>
     </div>
   )

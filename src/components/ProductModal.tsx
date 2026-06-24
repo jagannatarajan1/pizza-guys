@@ -2,7 +2,7 @@
 import { useState, useEffect } from 'react'
 import Image from 'next/image'
 import { X, Plus, Minus, ChevronDown } from 'lucide-react'
-import type { Product, ModifierGroup, ModifierOption } from '@/lib/menu-data'
+import type { Product, ModifierGroup, ModifierOption } from '@/lib/types'
 import type { CartItemModifier } from '@/lib/cart-store'
 import { useCartStore } from '@/lib/cart-store'
 import { formatPrice } from '@/lib/utils'

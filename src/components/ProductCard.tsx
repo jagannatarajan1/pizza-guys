@@ -1,7 +1,7 @@
 'use client'
 import Image from 'next/image'
 import { Plus } from 'lucide-react'
-import type { Product } from '@/lib/menu-data'
+import type { Product } from '@/lib/types'
 import { formatPrice } from '@/lib/utils'
 
 type Props = {
