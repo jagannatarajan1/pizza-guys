@@ -1,7 +1,9 @@
 'use client'
+import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { motion } from 'framer-motion'
 import { Phone, Mail, MapPin, Clock, Heart, Zap, Star, Users, ChevronRight } from 'lucide-react'
+import type { Product } from '@/lib/types'
 
 const fadeUp = {
   hidden: { opacity: 0, y: 24 },
@@ -33,16 +35,20 @@ const hours = [
   { day: 'Sunday',            h: '12:00 – 23:00' },
 ]
 
-const gallery = [
-  '/images/Pizza/Meat feast.avif',
-  '/images/Pizza/Pepperoni feast.avif',
-  '/images/Pizza/Chicken tikka.avif',
-  '/images/Burgers/Bbq smash burger.avif',
-  '/images/Kebab/Chicken Kebab.avif',
-  '/images/Sides/Cheesy chips.avif',
-]
-
 export default function AboutPage() {
+  const [gallery, setGallery] = useState<string[]>([])
+
+  useEffect(() => {
+    fetch('/api/menu/products')
+      .then((r) => r.json())
+      .then((data) => {
+        const imgs = (data.products ?? [] as Product[])
+          .filter((p: Product) => p.popular && p.image)
+          .slice(0, 6)
+          .map((p: Product) => p.image)
+        setGallery(imgs)
+      })
+  }, [])
   return (
     <div>
       {/* ── Hero ─────────────────────────────────── */}

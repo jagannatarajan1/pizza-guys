@@ -51,7 +51,7 @@ export default function HomePage() {
         {/* Background pizza image */}
         <div
           className="absolute inset-0 bg-cover bg-center opacity-25"
-          style={{ backgroundImage: "url('/images/Pizza/Meat feast.avif')" }}
+          style={{ backgroundImage: popularProducts[0]?.image ? `url('${popularProducts[0].image}')` : undefined }}
         />
         {/* Gradient overlay */}
         <div className="absolute inset-0 bg-linear-to-r from-[#111] via-[#111]/80 to-transparent" />
