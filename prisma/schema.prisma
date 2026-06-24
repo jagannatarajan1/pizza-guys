@@ -14,6 +14,7 @@ model User {
   email        String    @unique
   phone        String    @default("")
   passwordHash String    @map("password_hash")
+  role         String    @default("user")
   createdAt    DateTime  @default(now()) @map("created_at")
   addresses    Address[]
   orders       Order[]
@@ -59,6 +60,23 @@ model Order {
   items           OrderItem[]
 
   @@map("orders")
+}
+
+model Product {
+  id          String   @id @default(uuid())
+  name        String
+  description String   @default("")
+  price       Int
+  image       String   @default("")
+  category    String
+  popular     Boolean  @default(false)
+  available   Boolean  @default(true)
+  modifiers   String   @default("[]")
+  allergens   String   @default("[]")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt       @map("updated_at")
+
+  @@map("products")
 }
 
 model OrderItem {

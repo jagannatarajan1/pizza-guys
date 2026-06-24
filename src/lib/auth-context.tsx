@@ -17,11 +17,13 @@ export type User = {
   name: string
   email: string
   phone: string
+  role: string
   addresses: Address[]
 }
 
 type AuthContextType = {
   user: User | null
+  isAdmin: boolean
   isLoading: boolean
   login: (email: string, password: string) => Promise<boolean>
   register: (data: { name: string; email: string; phone: string; password: string }) => Promise<boolean>
@@ -128,8 +130,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser((u) => (u ? { ...u, addresses: u.addresses.filter((a) => a.id !== id) } : u))
   }
 
+  const isAdmin = user?.role === 'admin'
+
   return (
-    <AuthContext.Provider value={{ user, isLoading, login, register, logout, updateProfile, addAddress, updateAddress, deleteAddress }}>
+    <AuthContext.Provider value={{ user, isAdmin, isLoading, login, register, logout, updateProfile, addAddress, updateAddress, deleteAddress }}>
       {children}
     </AuthContext.Provider>
   )

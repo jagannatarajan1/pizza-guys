@@ -5,7 +5,7 @@ import { NextResponse } from 'next/server'
 const SECRET = process.env.AUTH_SECRET!
 const COOKIE = 'pg_token'
 
-export type JWTPayload = { userId: string; email: string }
+export type JWTPayload = { userId: string; email: string; role: string }
 
 export function hashPassword(plain: string) {
   return bcrypt.hash(plain, 12)

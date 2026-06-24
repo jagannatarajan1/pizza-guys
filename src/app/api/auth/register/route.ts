@@ -20,7 +20,7 @@ export async function POST(req: NextRequest) {
     data: { name, email, phone, passwordHash },
   })
 
-  const token = signToken({ userId: user.id, email: user.email })
+  const token = signToken({ userId: user.id, email: user.email, role: user.role })
   const res = NextResponse.json({ ok: true })
   setAuthCookie(res, token)
   return res
