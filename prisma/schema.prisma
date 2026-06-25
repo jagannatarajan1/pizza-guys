@@ -3,9 +3,9 @@ generator client {
 }
 
 datasource db {
-  // Switch to "mysql" and update DATABASE_URL when deploying to Hostinger
-  provider = "sqlite"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
 }
 
 model User {
