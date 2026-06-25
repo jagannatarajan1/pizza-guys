@@ -90,6 +90,14 @@ model Product {
   @@map("products")
 }
 
+model SiteConfig {
+  key       String   @id
+  value     String   @default("")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("site_config")
+}
+
 model OrderItem {
   id                  String @id @default(uuid())
   orderId             String @map("order_id")

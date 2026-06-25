@@ -8,6 +8,7 @@ import { activeCoupons, openingHours, deliveryZones } from '@/lib/menu-data'
 import { checkDelivery, isOpen, formatPrice } from '@/lib/utils'
 import ProductModal from '@/components/ProductModal'
 import type { Product, Category } from '@/lib/types'
+import { useSiteConfig } from '@/context/SiteConfigContext'
 
 const fadeUp = {
   hidden: { opacity: 0, y: 32 },
@@ -20,6 +21,7 @@ const stagger = {
 }
 
 export default function HomePage() {
+  const cfg = useSiteConfig()
   const [postcode, setPostcode] = useState('')
   const [deliveryResult, setDeliveryResult] = useState<{ available: boolean; fee: number; minOrder: number } | null | 'not-found'>(null)
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null)
@@ -70,41 +72,35 @@ export default function HomePage() {
             className="max-w-2xl"
           >
             {/* Badge */}
-            <motion.div variants={fadeUp} className="inline-flex items-center gap-2 bg-[#FFD700]/15 border border-[#FFD700]/30 text-[#FFD700] text-xs sm:text-sm font-bold px-4 py-2 rounded-full mb-6">
-              🔥 Hot & Fresh Since 2009
+            <motion.div variants={fadeUp} className="inline-flex items-center gap-2 text-xs sm:text-sm font-bold px-4 py-2 rounded-full mb-6" style={{ background: 'color-mix(in srgb,var(--brand-accent) 15%,transparent)', border: '1px solid color-mix(in srgb,var(--brand-accent) 30%,transparent)', color: 'var(--brand-accent)' }}>
+              {cfg.hero_badge}
             </motion.div>
 
             {/* Headline */}
             <motion.h1 variants={fadeUp} className="text-5xl sm:text-6xl lg:text-7xl font-black leading-[0.95] mb-5 tracking-tight">
-              Real Pizza.<br />
-              <span className="text-[#FFD700]">Real Good.</span>
+              {cfg.hero_title}<br />
+              <span style={{ color: 'var(--brand-accent)' }}>{cfg.hero_title_accent}</span>
             </motion.h1>
 
             <motion.p variants={fadeUp} className="text-base sm:text-lg text-gray-300 mb-8 leading-relaxed max-w-xl">
-              Handmade pizzas, sizzling burgers & fresh kebabs delivered hot to your door in Staines & surrounding areas.
+              {cfg.hero_subtitle}
             </motion.p>
 
             {/* CTAs */}
             <motion.div variants={fadeUp} className="flex flex-wrap gap-3 mb-8">
-              <Link
-                href="/menu"
-                className="btn-brand inline-flex items-center gap-2 px-7 py-3.5 text-base rounded-xl"
-              >
-                Order Now <ChevronRight size={18} />
+              <Link href="/menu" className="btn-brand inline-flex items-center gap-2 px-7 py-3.5 text-base rounded-xl">
+                {cfg.hero_cta1} <ChevronRight size={18} />
               </Link>
-              <Link
-                href="/menu"
-                className="inline-flex items-center gap-2 px-7 py-3.5 text-base rounded-xl font-black bg-white/10 hover:bg-white/20 border border-white/20 text-white transition-all duration-150"
-              >
-                View Menu
+              <Link href="/menu" className="inline-flex items-center gap-2 px-7 py-3.5 text-base rounded-xl font-black bg-white/10 hover:bg-white/20 border border-white/20 text-white transition-all duration-150">
+                {cfg.hero_cta2}
               </Link>
             </motion.div>
 
             {/* Stats row */}
             <motion.div variants={fadeUp} className="flex flex-wrap gap-5 text-sm text-gray-400">
-              <div className="flex items-center gap-2"><Truck size={15} className="text-[#FFD700]" /> Fast delivery</div>
-              <div className="flex items-center gap-2"><Star size={15} className="text-[#FFD700]" fill="#FFD700" /> 4.8 rating</div>
-              <div className="flex items-center gap-2"><Clock size={15} className="text-[#27AE60]" /> 30–45 min</div>
+              <div className="flex items-center gap-2"><Truck size={15} style={{ color: 'var(--brand-accent)' }} /> {cfg.hero_stat1}</div>
+              <div className="flex items-center gap-2"><Star size={15} style={{ color: 'var(--brand-accent)', fill: 'var(--brand-accent)' }} /> {cfg.hero_stat2}</div>
+              <div className="flex items-center gap-2"><Clock size={15} style={{ color: 'var(--brand-success)' }} /> {cfg.hero_stat3}</div>
             </motion.div>
           </motion.div>
         </div>

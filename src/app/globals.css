@@ -1,16 +1,23 @@
 @import "tailwindcss";
 
 :root {
-  --yellow: #FFD700;
-  --yellow-dark: #E6C200;
-  --yellow-light: #FFF9CC;
-  --red: #E53935;
-  --red-dark: #C62828;
-  --green: #27AE60;
-  --black: #111111;
-  --gray-dark: #1A1A1A;
-  --background: #F9F9F9;
-  --foreground: #111111;
+  /* ── Brand theme — overridden by ThemeScript injected from DB ── */
+  --brand-primary:  #E53935;
+  --brand-accent:   #FFD700;
+  --brand-success:  #27AE60;
+  --brand-dark:     #111111;
+
+  /* ── Semantic aliases (reference brand vars) ─────────────────── */
+  --yellow:         var(--brand-accent);
+  --yellow-dark:    color-mix(in srgb, var(--brand-accent) 82%, black);
+  --yellow-light:   color-mix(in srgb, var(--brand-accent) 15%, white);
+  --red:            var(--brand-primary);
+  --red-dark:       color-mix(in srgb, var(--brand-primary) 80%, black);
+  --green:          var(--brand-success);
+  --black:          var(--brand-dark);
+  --gray-dark:      #1A1A1A;
+  --background:     #F9F9F9;
+  --foreground:     #111111;
 }
 
 body {
@@ -20,10 +27,7 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
-html {
-  scroll-behavior: smooth;
-}
-
+html { scroll-behavior: smooth; }
 * { box-sizing: border-box; }
 
 /* ── Scrollbar ────────────────────────────────── */
@@ -32,7 +36,7 @@ html {
 
 /* ── Focus ring ──────────────────────────────── */
 input:focus, textarea:focus, select:focus {
-  outline: 2px solid var(--yellow);
+  outline: 2px solid var(--brand-accent);
   outline-offset: -1px;
 }
 
@@ -52,16 +56,16 @@ input:focus, textarea:focus, select:focus {
 
 /* ── Brand button ────────────────────────────── */
 .btn-brand {
-  background: var(--yellow);
-  color: var(--black);
+  background: var(--brand-accent);
+  color: var(--brand-dark);
   font-weight: 800;
   border-radius: 0.75rem;
-  transition: background 0.15s, transform 0.15s, box-shadow 0.15s;
+  transition: filter 0.15s, transform 0.15s, box-shadow 0.15s;
 }
 .btn-brand:hover {
-  background: var(--yellow-dark);
+  filter: brightness(0.9);
   transform: translateY(-1px);
-  box-shadow: 0 6px 20px rgba(255,215,0,0.35);
+  box-shadow: 0 6px 20px color-mix(in srgb, var(--brand-accent) 40%, transparent);
 }
 .btn-brand:active { transform: translateY(0); }
 
@@ -70,14 +74,14 @@ input:focus, textarea:focus, select:focus {
   transition: box-shadow 0.2s, transform 0.2s, border-color 0.2s;
 }
 .card-hover:hover {
-  box-shadow: 0 8px 30px rgba(255,215,0,0.15), 0 2px 8px rgba(0,0,0,0.06);
+  box-shadow: 0 8px 30px color-mix(in srgb, var(--brand-accent) 18%, transparent), 0 2px 8px rgba(0,0,0,0.06);
   transform: translateY(-2px);
-  border-color: #FFD700 !important;
+  border-color: var(--brand-accent) !important;
 }
 
-/* ── Yellow glow shadow ──────────────────────── */
+/* ── Brand glow shadow ──────────────────────── */
 .shadow-yellow {
-  box-shadow: 0 4px 24px rgba(255,215,0,0.3);
+  box-shadow: 0 4px 24px color-mix(in srgb, var(--brand-accent) 30%, transparent);
 }
 
 /* ── Shimmer skeleton ────────────────────────── */

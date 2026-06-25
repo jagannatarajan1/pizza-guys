@@ -1,9 +1,11 @@
 'use client'
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
+import Image from 'next/image'
 import { motion } from 'framer-motion'
 import { Phone, Mail, MapPin, Clock, Heart, Zap, Star, Users, ChevronRight } from 'lucide-react'
 import type { Product } from '@/lib/types'
+import { useSiteConfig } from '@/context/SiteConfigContext'
 
 const fadeUp = {
   hidden: { opacity: 0, y: 24 },
@@ -15,27 +17,15 @@ const stagger = {
   show:   { transition: { staggerChildren: 0.09 } },
 }
 
-const stats = [
-  { value: '15+',    label: 'Years in Business' },
-  { value: '200K+',  label: 'Meals Served'      },
-  { value: '4.8★',   label: 'Average Rating'    },
-  { value: '30 min', label: 'Avg Delivery'      },
-]
-
 const whyUs = [
-  { icon: Heart, bg: 'bg-pink-50',   color: 'text-pink-500',     title: 'Fresh Ingredients', desc: 'We source fresh, quality ingredients daily and never compromise on flavour.'           },
-  { icon: Zap,   bg: 'bg-yellow-50', color: 'text-[#FFD700]',    title: 'Fast Delivery',     desc: 'Hot food at your door in 30–45 minutes. We guarantee it arrives fresh.'             },
-  { icon: Star,  bg: 'bg-red-50',    color: 'text-[#E53935]',    title: 'Quality Service',   desc: 'Our friendly team is always ready to help — before, during and after your order.'   },
-  { icon: Users, bg: 'bg-green-50',  color: 'text-[#27AE60]',    title: 'Customer First',    desc: 'Over 2,000 five-star reviews from happy customers across our community.'            },
-]
-
-const hours = [
-  { day: 'Monday – Thursday', h: '11:00 – 23:00' },
-  { day: 'Friday – Saturday', h: '11:00 – 23:30' },
-  { day: 'Sunday',            h: '12:00 – 23:00' },
+  { icon: Heart, bg: 'bg-pink-50',   color: 'text-pink-500',  title: 'Fresh Ingredients', desc: 'We source fresh, quality ingredients daily and never compromise on flavour.'         },
+  { icon: Zap,   bg: 'bg-yellow-50', color: '',               title: 'Fast Delivery',     desc: 'Hot food at your door in 30–45 minutes. We guarantee it arrives fresh.'           },
+  { icon: Star,  bg: 'bg-red-50',    color: '',               title: 'Quality Service',   desc: 'Our friendly team is always ready to help — before, during and after your order.' },
+  { icon: Users, bg: 'bg-green-50',  color: '',               title: 'Customer First',    desc: 'Over 2,000 five-star reviews from happy customers across our community.'          },
 ]
 
 export default function AboutPage() {
+  const cfg = useSiteConfig()
   const [gallery, setGallery] = useState<string[]>([])
 
   useEffect(() => {
@@ -60,7 +50,8 @@ export default function AboutPage() {
             initial={{ opacity: 0, y: -12 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5 }}
-            className="inline-flex items-center gap-2 bg-[#FFD700]/15 border border-[#FFD700]/30 text-[#FFD700] text-xs font-bold px-4 py-2 rounded-full mb-5"
+            className="inline-flex items-center gap-2 text-xs font-bold px-4 py-2 rounded-full mb-5"
+            style={{ background: 'color-mix(in srgb,var(--brand-accent) 15%,transparent)', border: '1px solid color-mix(in srgb,var(--brand-accent) 30%,transparent)', color: 'var(--brand-accent)' }}
           >
             ❤️ Family-Run Since 2009
           </motion.div>
@@ -94,28 +85,27 @@ export default function AboutPage() {
         >
           <motion.div variants={fadeUp}>
             <h2 className="text-3xl font-black text-gray-900 mb-5">From Our Family to Yours</h2>
-            <p className="text-gray-500 leading-relaxed mb-4">
-              Pizza Guys was founded in 2009 with a simple mission: to serve the best handmade pizzas, burgers, and kebabs to the families of Staines and surrounding areas. What started as a small local takeaway has grown into a much-loved institution in our community.
-            </p>
-            <p className="text-gray-500 leading-relaxed mb-4">
-              We believe that great food starts with great ingredients. That&apos;s why we source fresh produce daily, make our dough in-house every morning, and use authentic recipes refined over 15+ years.
-            </p>
-            <p className="text-gray-500 leading-relaxed mb-6">
-              Today, we&apos;re proud to have served over 200,000 meals and counting. From birthday parties to weeknight dinners, Pizza Guys has been part of thousands of family moments across Surrey and Middlesex.
-            </p>
+            {cfg.about_story.split('\n\n').map((para, i) => (
+              <p key={i} className="text-gray-500 leading-relaxed mb-4">{para}</p>
+            ))}
             <Link href="/menu" className="btn-brand inline-flex items-center gap-2 px-6 py-3 rounded-xl text-sm">
               Order Now <ChevronRight size={14} />
             </Link>
           </motion.div>
 
           {/* Stats grid */}
-          <motion.div variants={fadeUp} className="relative bg-[#111] rounded-2xl p-8 overflow-hidden border border-white/8">
-            <div className="absolute top-0 left-0 right-0 h-1 bg-linear-to-r from-[#E53935] via-[#FFD700] to-[#27AE60]" />
+          <motion.div variants={fadeUp} className="relative rounded-2xl p-8 overflow-hidden border border-white/8" style={{ background: 'var(--brand-dark)' }}>
+            <div className="absolute top-0 left-0 right-0 h-1" style={{ background: `linear-gradient(to right, var(--brand-primary), var(--brand-accent), var(--brand-success))` }} />
             <div className="grid grid-cols-2 gap-6 text-center">
-              {stats.map((s) => (
-                <div key={s.label} className="py-2">
-                  <div className="text-3xl font-black text-[#FFD700] mb-1">{s.value}</div>
-                  <div className="text-gray-400 text-sm">{s.label}</div>
+              {[
+                { val: cfg.about_stat1_val, lbl: cfg.about_stat1_lbl },
+                { val: cfg.about_stat2_val, lbl: cfg.about_stat2_lbl },
+                { val: cfg.about_stat3_val, lbl: cfg.about_stat3_lbl },
+                { val: cfg.about_stat4_val, lbl: cfg.about_stat4_lbl },
+              ].map((s) => (
+                <div key={s.lbl} className="py-2">
+                  <div className="text-3xl font-black mb-1" style={{ color: 'var(--brand-accent)' }}>{s.val}</div>
+                  <div className="text-gray-400 text-sm">{s.lbl}</div>
                 </div>
               ))}
             </div>
@@ -139,10 +129,14 @@ export default function AboutPage() {
               <motion.div
                 key={item.title}
                 variants={fadeUp}
-                className="bg-white rounded-2xl p-5 border-2 border-gray-100 text-center hover:border-[#FFD700] hover:shadow-lg hover:shadow-yellow-100 transition-all duration-200"
+                className="bg-white rounded-2xl p-5 border-2 border-gray-100 text-center card-hover transition-all duration-200"
               >
                 <div className={`w-12 h-12 ${item.bg} rounded-xl flex items-center justify-center mx-auto mb-4`}>
-                  <item.icon className={item.color} size={22} />
+                  <item.icon
+                    size={22}
+                    className={item.color || undefined}
+                    style={!item.color ? { color: 'var(--brand-accent)' } : undefined}
+                  />
                 </div>
                 <h3 className="font-black text-gray-900 mb-2">{item.title}</h3>
                 <p className="text-gray-500 text-sm leading-relaxed">{item.desc}</p>
@@ -168,9 +162,9 @@ export default function AboutPage() {
               <motion.div
                 key={i}
                 variants={fadeUp}
-                className="aspect-square rounded-2xl overflow-hidden bg-gray-100 card-hover"
+                className="relative aspect-square rounded-2xl overflow-hidden bg-gray-100 card-hover"
               >
-                <img src={src} alt="Food" className="w-full h-full object-cover" />
+                <Image src={src} alt="Food" fill className="object-cover" />
               </motion.div>
             ))}
           </motion.div>
@@ -185,16 +179,20 @@ export default function AboutPage() {
           className="grid sm:grid-cols-2 gap-6"
         >
           {/* Hours */}
-          <motion.div variants={fadeUp} className="relative bg-[#111] text-white rounded-2xl p-6 overflow-hidden border border-white/8">
-            <div className="absolute top-0 left-0 right-0 h-1 bg-linear-to-r from-[#E53935] via-[#FFD700] to-[#27AE60]" />
+          <motion.div variants={fadeUp} className="relative text-white rounded-2xl p-6 overflow-hidden border border-white/8" style={{ background: 'var(--brand-dark)' }}>
+            <div className="absolute top-0 left-0 right-0 h-1" style={{ background: `linear-gradient(to right, var(--brand-primary), var(--brand-accent), var(--brand-success))` }} />
             <h3 className="font-black text-base mb-4 flex items-center gap-2">
-              <Clock size={16} className="text-[#FFD700]" /> Opening Hours
+              <Clock size={16} style={{ color: 'var(--brand-accent)' }} /> Opening Hours
             </h3>
             <div className="space-y-2.5 text-sm">
-              {hours.map((h) => (
-                <div key={h.day} className="flex justify-between">
-                  <span className="text-gray-400">{h.day}</span>
-                  <span className="font-bold text-white">{h.h}</span>
+              {[
+                { day: 'Monday – Thursday', h: cfg.hours_mon_thu },
+                { day: 'Friday – Saturday', h: cfg.hours_fri_sat },
+                { day: 'Sunday',            h: cfg.hours_sun },
+              ].map((row) => (
+                <div key={row.day} className="flex justify-between">
+                  <span className="text-gray-400">{row.day}</span>
+                  <span className="font-bold text-white">{row.h}</span>
                 </div>
               ))}
             </div>
@@ -205,16 +203,16 @@ export default function AboutPage() {
             <h3 className="font-black text-gray-900 text-base mb-4">Contact Us</h3>
             <div className="space-y-3 text-sm">
               <div className="flex items-start gap-3">
-                <div className="w-8 h-8 bg-red-50 rounded-lg flex items-center justify-center shrink-0"><MapPin size={14} className="text-[#E53935]" /></div>
-                <span className="text-gray-500 leading-snug">209 Laleham Road, Staines-upon-Thames, Surrey, TW18 2EA</span>
+                <div className="w-8 h-8 bg-red-50 rounded-lg flex items-center justify-center shrink-0"><MapPin size={14} style={{ color: 'var(--brand-primary)' }} /></div>
+                <span className="text-gray-500 leading-snug">{cfg.biz_address}</span>
               </div>
               <div className="flex items-center gap-3">
-                <div className="w-8 h-8 bg-yellow-50 rounded-lg flex items-center justify-center shrink-0"><Phone size={14} className="text-[#FFD700]" /></div>
-                <a href="tel:01784452888" className="text-gray-500 hover:text-[#E53935] font-semibold transition-colors">01784 452 888</a>
+                <div className="w-8 h-8 bg-yellow-50 rounded-lg flex items-center justify-center shrink-0"><Phone size={14} style={{ color: 'var(--brand-accent)' }} /></div>
+                <a href={`tel:${cfg.biz_phone.replace(/\s/g, '')}`} className="text-gray-500 hover:text-(--brand-primary) font-semibold transition-colors">{cfg.biz_phone}</a>
               </div>
               <div className="flex items-center gap-3">
-                <div className="w-8 h-8 bg-green-50 rounded-lg flex items-center justify-center shrink-0"><Mail size={14} className="text-[#27AE60]" /></div>
-                <a href="mailto:info@pizzaguys.co.uk" className="text-gray-500 hover:text-[#E53935] font-semibold transition-colors">info@pizzaguys.co.uk</a>
+                <div className="w-8 h-8 bg-green-50 rounded-lg flex items-center justify-center shrink-0"><Mail size={14} style={{ color: 'var(--brand-success)' }} /></div>
+                <a href={`mailto:${cfg.biz_email}`} className="text-gray-500 hover:text-(--brand-primary) font-semibold transition-colors">{cfg.biz_email}</a>
               </div>
             </div>
           </motion.div>

@@ -1,6 +1,8 @@
+'use client'
 import Link from 'next/link'
 import { Phone, Mail, MapPin, Clock } from 'lucide-react'
 import BrandLogo from '@/components/BrandLogo'
+import { useSiteConfig } from '@/context/SiteConfigContext'
 
 const quickLinks = [
   { href: '/',        label: 'Home' },
@@ -18,10 +20,18 @@ const infoLinks = [
 ]
 
 export default function Footer() {
+  const cfg = useSiteConfig()
+
+  const socials = [
+    { label: 'f',  title: 'Facebook',   href: cfg.social_facebook  },
+    { label: 'ig', title: 'Instagram',  href: cfg.social_instagram },
+    { label: '𝕏',  title: 'X/Twitter', href: cfg.social_twitter   },
+  ].filter((s) => s.href)
+
   return (
-    <footer className="bg-[#111] text-gray-400 mt-20">
-      {/* Top yellow bar */}
-      <div className="h-1 bg-linear-to-r from-[#E53935] via-[#FFD700] to-[#27AE60]" />
+    <footer className="text-gray-400 mt-20" style={{ background: 'var(--brand-dark)' }}>
+      {/* Top colour bar */}
+      <div className="h-1" style={{ background: `linear-gradient(to right, var(--brand-primary), var(--brand-accent), var(--brand-success))` }} />
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 py-14">
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-10">
@@ -32,25 +42,27 @@ export default function Footer() {
               <BrandLogo size="md" />
             </div>
             <p className="text-sm text-gray-500 leading-relaxed mb-5">
-              Fresh handmade pizzas, juicy burgers & sizzling kebabs delivered hot to your door. Family-run since 2009.
+              {cfg.biz_tagline}
             </p>
-            {/* Social icons */}
-            <div className="flex gap-2">
-              {[
-                { label: 'f',   title: 'Facebook' },
-                { label: 'ig',  title: 'Instagram' },
-                { label: '𝕏',   title: 'X / Twitter' },
-              ].map((s) => (
-                <a
-                  key={s.title}
-                  href="#"
-                  title={s.title}
-                  className="w-9 h-9 bg-white/6 hover:bg-[#FFD700] hover:text-[#111] text-gray-400 rounded-xl flex items-center justify-center transition-all duration-150 text-xs font-black"
-                >
-                  {s.label}
-                </a>
-              ))}
-            </div>
+            {socials.length > 0 && (
+              <div className="flex gap-2">
+                {socials.map((s) => (
+                  <a
+                    key={s.title}
+                    href={s.href}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    title={s.title}
+                    className="w-9 h-9 bg-white/6 text-gray-400 rounded-xl flex items-center justify-center transition-all duration-150 text-xs font-black hover:text-(--brand-dark)"
+                    style={{ ['--hover-bg' as string]: 'var(--brand-accent)' }}
+                    onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = 'var(--brand-accent)' }}
+                    onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = '' }}
+                  >
+                    {s.label}
+                  </a>
+                ))}
+              </div>
+            )}
           </div>
 
           {/* Quick links */}
@@ -59,8 +71,8 @@ export default function Footer() {
             <ul className="space-y-2.5 text-sm">
               {quickLinks.map((l) => (
                 <li key={l.href}>
-                  <Link href={l.href} className="hover:text-[#FFD700] transition-colors flex items-center gap-2 group">
-                    <span className="w-1 h-1 rounded-full bg-[#FFD700] opacity-0 group-hover:opacity-100 transition-opacity" />
+                  <Link href={l.href} className="hover:text-(--brand-accent) transition-colors flex items-center gap-2 group">
+                    <span className="w-1 h-1 rounded-full opacity-0 group-hover:opacity-100 transition-opacity" style={{ background: 'var(--brand-accent)' }} />
                     {l.label}
                   </Link>
                 </li>
@@ -74,8 +86,8 @@ export default function Footer() {
             <ul className="space-y-2.5 text-sm">
               {infoLinks.map((l) => (
                 <li key={l.href}>
-                  <Link href={l.href} className="hover:text-[#FFD700] transition-colors flex items-center gap-2 group">
-                    <span className="w-1 h-1 rounded-full bg-[#FFD700] opacity-0 group-hover:opacity-100 transition-opacity" />
+                  <Link href={l.href} className="hover:text-(--brand-accent) transition-colors flex items-center gap-2 group">
+                    <span className="w-1 h-1 rounded-full opacity-0 group-hover:opacity-100 transition-opacity" style={{ background: 'var(--brand-accent)' }} />
                     {l.label}
                   </Link>
                 </li>
@@ -88,35 +100,34 @@ export default function Footer() {
             <h3 className="font-black text-white mb-4 text-sm uppercase tracking-widest">Get In Touch</h3>
             <ul className="space-y-3 text-sm mb-5">
               <li className="flex items-start gap-3">
-                <MapPin size={15} className="text-[#FFD700] shrink-0 mt-0.5" />
-                <span className="leading-snug">209 Laleham Road, Staines-upon-Thames, Surrey, TW18 2EA</span>
+                <MapPin size={15} className="shrink-0 mt-0.5" style={{ color: 'var(--brand-accent)' }} />
+                <span className="leading-snug">{cfg.biz_address}</span>
               </li>
               <li className="flex items-center gap-3">
-                <Phone size={15} className="text-[#FFD700] shrink-0" />
-                <a href="tel:01784452888" className="hover:text-[#FFD700] transition-colors">01784 452 888</a>
+                <Phone size={15} className="shrink-0" style={{ color: 'var(--brand-accent)' }} />
+                <a href={`tel:${cfg.biz_phone.replace(/\s/g, '')}`} className="hover:text-(--brand-accent) transition-colors">{cfg.biz_phone}</a>
               </li>
               <li className="flex items-center gap-3">
-                <Mail size={15} className="text-[#FFD700] shrink-0" />
-                <a href="mailto:info@pizzaguys.co.uk" className="hover:text-[#FFD700] transition-colors">info@pizzaguys.co.uk</a>
+                <Mail size={15} className="shrink-0" style={{ color: 'var(--brand-accent)' }} />
+                <a href={`mailto:${cfg.biz_email}`} className="hover:text-(--brand-accent) transition-colors">{cfg.biz_email}</a>
               </li>
             </ul>
 
             <div className="bg-white/5 rounded-xl p-4 text-xs border border-white/8">
               <div className="flex items-center gap-2 font-black text-white mb-2">
-                <Clock size={13} className="text-[#FFD700]" /> Opening Hours
+                <Clock size={13} style={{ color: 'var(--brand-accent)' }} /> Opening Hours
               </div>
               <div className="space-y-1 text-gray-400">
-                <div className="flex justify-between"><span>Mon – Thu</span><span>11:00 – 23:00</span></div>
-                <div className="flex justify-between"><span>Fri – Sat</span><span>11:00 – 23:30</span></div>
-                <div className="flex justify-between"><span>Sunday</span><span>12:00 – 23:00</span></div>
+                <div className="flex justify-between"><span>Mon – Thu</span><span>{cfg.hours_mon_thu}</span></div>
+                <div className="flex justify-between"><span>Fri – Sat</span><span>{cfg.hours_fri_sat}</span></div>
+                <div className="flex justify-between"><span>Sunday</span><span>{cfg.hours_sun}</span></div>
               </div>
             </div>
           </div>
         </div>
 
-        {/* Bottom bar */}
         <div className="border-t border-white/8 mt-12 pt-6 flex flex-col sm:flex-row justify-between items-center gap-2 text-xs text-gray-600">
-          <p>© {new Date().getFullYear()} Pizza Guys. All rights reserved.</p>
+          <p>© {new Date().getFullYear()} {cfg.biz_name}. All rights reserved.</p>
           <p>Registered in England & Wales</p>
         </div>
       </div>

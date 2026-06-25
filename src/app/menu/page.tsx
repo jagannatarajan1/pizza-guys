@@ -7,6 +7,7 @@ import { Search, X } from 'lucide-react'
 import type { Product, Category } from '@/lib/types'
 import { formatPrice } from '@/lib/utils'
 import ProductModal from '@/components/ProductModal'
+import { useSiteConfig } from '@/context/SiteConfigContext'
 
 const fadeUp = {
   hidden: { opacity: 0, y: 20 },
@@ -38,7 +39,7 @@ function ProductItem({ product, onSelect }: { product: Product; onSelect: (p: Pr
           <div className="w-full h-full flex items-center justify-center text-5xl">🍕</div>
         )}
         {product.popular && (
-          <span className="absolute top-2 left-2 bg-[#FFD700] text-[#111] text-[10px] font-black px-2 py-0.5 rounded-full">
+          <span className="absolute top-2 left-2 text-[10px] font-black px-2 py-0.5 rounded-full" style={{ background: 'var(--brand-accent)', color: 'var(--brand-dark)' }}>
             Popular
           </span>
         )}
@@ -83,6 +84,7 @@ function SkeletonCard() {
 }
 
 function MenuContent() {
+  const cfg             = useSiteConfig()
   const searchParams    = useSearchParams()
   const initialCategory = searchParams.get('category') || 'all'
 
@@ -175,7 +177,8 @@ function MenuContent() {
           <div className="flex gap-1.5 px-4 sm:px-6 py-2.5 min-w-max">
             <button
               onClick={() => { setActiveCategory('all'); setSearch(''); window.scrollTo({ top: 0, behavior: 'smooth' }) }}
-              className={`px-4 py-1.5 rounded-full text-sm font-black whitespace-nowrap transition-all duration-150 ${activeCategory === 'all' ? 'bg-[#FFD700] text-[#111]' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
+              className={`px-4 py-1.5 rounded-full text-sm font-black whitespace-nowrap transition-all duration-150 ${activeCategory === 'all' ? '' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
+              style={activeCategory === 'all' ? { background: 'var(--brand-accent)', color: 'var(--brand-dark)' } : undefined}
             >
               All
             </button>
@@ -183,7 +186,8 @@ function MenuContent() {
               <button
                 key={cat.id}
                 onClick={() => scrollToCategory(cat.slug)}
-                className={`px-4 py-1.5 rounded-full text-sm font-black whitespace-nowrap transition-all duration-150 flex items-center gap-1.5 ${activeCategory === cat.slug ? 'bg-[#FFD700] text-[#111]' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
+                className={`px-4 py-1.5 rounded-full text-sm font-black whitespace-nowrap transition-all duration-150 flex items-center gap-1.5 ${activeCategory === cat.slug ? '' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
+                style={activeCategory === cat.slug ? { background: 'var(--brand-accent)', color: 'var(--brand-dark)' } : undefined}
               >
                 <span>{cat.icon}</span>
                 {cat.name}

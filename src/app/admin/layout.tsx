@@ -4,21 +4,22 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import {
   LayoutDashboard, ShoppingBag, Package, Grid3X3, Settings,
-  Tag, Users, Truck, Clock, BarChart2, ChevronLeft, Menu, X, CloudUpload
+  Tag, Users, Truck, Clock, BarChart2, ChevronLeft, Menu, X, CloudUpload, SlidersHorizontal
 } from 'lucide-react'
 
 const NAV = [
-  { href: '/admin',          label: 'Dashboard',     icon: LayoutDashboard },
-  { href: '/admin/orders',   label: 'Orders',        icon: ShoppingBag },
-  { href: '/admin/products', label: 'Products',      icon: Package },
-  { href: '/admin/categories', label: 'Categories',  icon: Grid3X3 },
-  { href: '/admin/modifiers', label: 'Modifiers',    icon: Settings },
-  { href: '/admin/offers',   label: 'Offers',        icon: Tag },
-  { href: '/admin/customers', label: 'Customers',    icon: Users },
-  { href: '/admin/delivery', label: 'Delivery',      icon: Truck },
-  { href: '/admin/hours',    label: 'Opening Hours', icon: Clock },
-  { href: '/admin/migrate',  label: 'Migrate Images',icon: CloudUpload },
-  { href: '/admin/reports',  label: 'Reports',       icon: BarChart2 },
+  { href: '/admin',            label: 'Dashboard',     icon: LayoutDashboard },
+  { href: '/admin/orders',     label: 'Orders',        icon: ShoppingBag },
+  { href: '/admin/products',   label: 'Products',      icon: Package },
+  { href: '/admin/categories', label: 'Categories',    icon: Grid3X3 },
+  { href: '/admin/modifiers',  label: 'Modifiers',     icon: Settings },
+  { href: '/admin/offers',     label: 'Offers',        icon: Tag },
+  { href: '/admin/customers',  label: 'Customers',     icon: Users },
+  { href: '/admin/delivery',   label: 'Delivery',      icon: Truck },
+  { href: '/admin/hours',      label: 'Opening Hours', icon: Clock },
+  { href: '/admin/settings',   label: 'Site Settings', icon: SlidersHorizontal },
+  { href: '/admin/migrate',    label: 'Migrate Images',icon: CloudUpload },
+  { href: '/admin/reports',    label: 'Reports',       icon: BarChart2 },
 ]
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
