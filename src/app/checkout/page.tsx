@@ -3,7 +3,7 @@ import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { Elements, PaymentElement, useStripe, useElements } from '@stripe/react-stripe-js'
-import { Check, MapPin, User, Clock, CreditCard, ShoppingBag, ArrowLeft, ChevronRight } from 'lucide-react'
+import { Check, MapPin, User, Clock, CreditCard, ShoppingBag, ArrowLeft, ChevronRight, Loader2 } from 'lucide-react'
 import { useCartStore } from '@/lib/cart-store'
 import { useAuth } from '@/lib/auth-context'
 import { getStripe } from '@/lib/stripe-client'
@@ -157,7 +157,7 @@ function CashForm({ total, orderPayload, onSuccess }: CashFormProps) {
 export default function CheckoutPage() {
   const router = useRouter()
   const { user } = useAuth()
-  const { items, couponDiscount, deliveryFee, getSubtotal, clearCart } = useCartStore()
+  const { items, couponDiscount, deliveryFee, getSubtotal, clearCart, setDeliveryFee } = useCartStore()
 
   const [step, setStep] = useState(1)
   const [orderType, setOrderType] = useState<'delivery' | 'collection'>('delivery')
@@ -172,6 +172,8 @@ export default function CheckoutPage() {
   const [timing, setTiming] = useState<'asap' | 'scheduled'>('asap')
   const [scheduledTime, setScheduledTime] = useState('')
   const [paymentMethod, setPaymentMethod] = useState<'card' | 'cash'>('card')
+  const [zoneError, setZoneError] = useState('')
+  const [advancingStep, setAdvancingStep] = useState(false)
 
   const subtotal = getSubtotal()
   const total = Math.max(0, subtotal - couponDiscount + (orderType === 'delivery' ? deliveryFee : 0))
@@ -184,6 +186,35 @@ export default function CheckoutPage() {
   const resolvedAddress = useNewAddress
     ? newAddress
     : user?.addresses.find((a) => a.id === selectedAddressId) ?? null
+
+  const lookupDeliveryFee = async (postcode: string) => {
+    const res  = await fetch('/api/delivery-zones')
+    const data = await res.json()
+    const prefix = postcode.trim().toUpperCase().replace(/\s+.*/,'')
+    const zone = (data.zones ?? []).find((z: { postcode: string; minOrder: number; deliveryFee: number }) => z.postcode === prefix)
+    return zone ?? null
+  }
+
+  const nextStep = async () => {
+    if (step === 2 && orderType === 'delivery') {
+      const addr = resolvedAddress
+      if (!addr?.postcode || !addr?.line1 || !addr?.city) {
+        toast.error('Please complete your delivery address')
+        return
+      }
+      setAdvancingStep(true)
+      setZoneError('')
+      try {
+        const zone = await lookupDeliveryFee(addr.postcode)
+        if (!zone) { setZoneError(`Sorry, we don't deliver to ${addr.postcode.split(/\s/)[0].toUpperCase()} postcodes yet.`); return }
+        if (subtotal < zone.minOrder) { setZoneError(`Minimum order for your area is ${formatPrice(zone.minOrder)}`); return }
+        setDeliveryFee(zone.deliveryFee)
+      } finally { setAdvancingStep(false) }
+    }
+    setStep((s) => Math.min(5, s + 1))
+  }
+
+  const prevStep = () => setStep((s) => Math.max(1, s - 1))
 
   const orderPayload = {
     userId: user?.id ?? null,
@@ -223,8 +254,6 @@ export default function CheckoutPage() {
     )
   }
 
-  const nextStep = () => setStep((s) => Math.min(5, s + 1))
-  const prevStep = () => setStep((s) => Math.max(1, s - 1))
 
   return (
     <div className="max-w-3xl mx-auto px-4 sm:px-6 py-8">
@@ -301,7 +330,7 @@ export default function CheckoutPage() {
                     {user.addresses.map((addr) => (
                       <button
                         key={addr.id}
-                        onClick={() => { setSelectedAddressId(addr.id); setUseNewAddress(false) }}
+                        onClick={() => { setSelectedAddressId(addr.id); setUseNewAddress(false); setZoneError('') }}
                         className={`w-full text-left p-4 rounded-xl border-2 transition-all ${!useNewAddress && selectedAddressId === addr.id ? 'border-red-500 bg-red-50' : 'border-gray-100 hover:border-gray-300'}`}
                       >
                         <div className="font-bold text-gray-900 text-sm">{addr.label || 'Home'}</div>
@@ -323,7 +352,7 @@ export default function CheckoutPage() {
                         <label className="block text-xs font-semibold text-gray-700 mb-1">Postcode *</label>
                         <input
                           value={newAddress.postcode}
-                          onChange={(e) => setNewAddress((p) => ({ ...p, postcode: e.target.value.toUpperCase() }))}
+                          onChange={(e) => { setNewAddress((p) => ({ ...p, postcode: e.target.value.toUpperCase() })); setZoneError('') }}
                           placeholder="TW18 1AB"
                           className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-red-400"
                         />
@@ -365,6 +394,11 @@ export default function CheckoutPage() {
                         className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-red-400"
                       />
                     </div>
+                  </div>
+                )}
+                {zoneError && (
+                  <div className="mt-3 p-3 bg-red-50 border border-red-100 rounded-xl text-sm text-red-600 font-medium">
+                    {zoneError}
                   </div>
                 )}
               </div>
@@ -519,9 +553,10 @@ export default function CheckoutPage() {
           )}
           <button
             onClick={nextStep}
-            className="flex-1 py-3 rounded-xl bg-red-600 hover:bg-red-700 text-white font-bold transition-colors flex items-center justify-center gap-2"
+            disabled={advancingStep}
+            className="flex-1 py-3 rounded-xl bg-red-600 hover:bg-red-700 disabled:opacity-60 text-white font-bold transition-colors flex items-center justify-center gap-2"
           >
-            Continue <ChevronRight size={16} />
+            {advancingStep ? <Loader2 size={16} className="animate-spin" /> : <>Continue <ChevronRight size={16} /></>}
           </button>
         </div>
       )}

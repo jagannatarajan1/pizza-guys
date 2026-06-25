@@ -4,8 +4,9 @@ import Image from 'next/image'
 import { motion } from 'framer-motion'
 import { Tag, Clock, ChevronRight, Copy, Check } from 'lucide-react'
 import { useState, useEffect } from 'react'
-import { activeCoupons } from '@/lib/menu-data'
 import type { Product } from '@/lib/types'
+
+type LiveCoupon = { code: string; type: string; value: number; minOrder: number; description: string }
 import { formatPrice } from '@/lib/utils'
 
 const fadeUp = {
@@ -18,7 +19,7 @@ const stagger = {
   show:   { transition: { staggerChildren: 0.08 } },
 }
 
-function CouponCard({ coupon }: { coupon: typeof activeCoupons[0] }) {
+function CouponCard({ coupon }: { coupon: LiveCoupon }) {
   const [copied, setCopied] = useState(false)
   const copy = () => {
     navigator.clipboard.writeText(coupon.code)
@@ -65,7 +66,8 @@ function CouponCard({ coupon }: { coupon: typeof activeCoupons[0] }) {
 }
 
 export default function OffersPage() {
-  const [deals, setDeals] = useState<Product[]>([])
+  const [deals, setDeals]         = useState<Product[]>([])
+  const [coupons, setCoupons]     = useState<LiveCoupon[]>([])
 
   useEffect(() => {
     fetch('/api/menu/products').then((r) => r.json()).then((d) => {
@@ -73,6 +75,9 @@ export default function OffersPage() {
         ['pizza-deals', 'pizza-meal', 'lunch-offers'].includes(p.category)
       ))
     })
+    fetch('/api/coupons').then((r) => r.json()).then((d) => {
+      setCoupons(d.coupons ?? [])
+    }).catch(() => {})
   }, [])
 
   return (
@@ -129,7 +134,7 @@ export default function OffersPage() {
             animate="show"
             className="grid sm:grid-cols-3 gap-4"
           >
-            {activeCoupons.map((coupon) => (
+            {coupons.map((coupon) => (
               <CouponCard key={coupon.code} coupon={coupon} />
             ))}
           </motion.div>

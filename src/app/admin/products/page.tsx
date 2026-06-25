@@ -11,14 +11,17 @@ type DBProduct = {
   id: string
   name: string
   description: string
-  price: number        // in pounds (normalized by API)
+  price: number
   image: string
   category: string
   popular: boolean
   available: boolean
   allergens: string[]
+  modifiers: { id: string; name: string }[]
   createdAt: string
 }
+
+type ModGroup = { id: string; name: string; required: boolean; multiSelect: boolean; min: number; max: number; options: { id: string; name: string; price: number }[] }
 
 const emptyForm = {
   name: '',
@@ -31,26 +34,30 @@ const emptyForm = {
 }
 
 export default function AdminProductsPage() {
-  const [products, setProducts]   = useState<DBProduct[]>([])
+  const [products, setProducts]     = useState<DBProduct[]>([])
   const [categories, setCategories] = useState<Category[]>([])
-  const [loading, setLoading]     = useState(true)
-  const [saving, setSaving]       = useState(false)
-  const [search, setSearch]       = useState('')
-  const [catFilter, setCatFilter] = useState('all')
-  const [showForm, setShowForm]   = useState(false)
-  const [editId, setEditId]       = useState<string | null>(null)
-  const [form, setForm]           = useState(emptyForm)
+  const [modGroups, setModGroups]   = useState<ModGroup[]>([])
+  const [selGroupIds, setSelGroupIds] = useState<string[]>([])
+  const [loading, setLoading]       = useState(true)
+  const [saving, setSaving]         = useState(false)
+  const [search, setSearch]         = useState('')
+  const [catFilter, setCatFilter]   = useState('all')
+  const [showForm, setShowForm]     = useState(false)
+  const [editId, setEditId]         = useState<string | null>(null)
+  const [form, setForm]             = useState(emptyForm)
 
   const load = useCallback(async () => {
     setLoading(true)
     try {
-      const [pRes, cRes] = await Promise.all([
+      const [pRes, cRes, mRes] = await Promise.all([
         fetch('/api/admin/products'),
         fetch('/api/menu/categories'),
+        fetch('/api/admin/modifier-groups'),
       ])
-      const [pData, cData] = await Promise.all([pRes.json(), cRes.json()])
+      const [pData, cData, mData] = await Promise.all([pRes.json(), cRes.json(), mRes.json()])
       setProducts(pData.products ?? [])
       setCategories(cData.categories ?? [])
+      setModGroups(mData.groups ?? [])
     } catch {
       toast.error('Failed to load products')
     } finally {
@@ -69,6 +76,7 @@ export default function AdminProductsPage() {
   const openAdd = () => {
     setEditId(null)
     setForm(emptyForm)
+    setSelGroupIds([])
     setShowForm(true)
   }
 
@@ -83,21 +91,26 @@ export default function AdminProductsPage() {
       popular:     p.popular,
       available:   p.available,
     })
+    setSelGroupIds((p.modifiers ?? []).map((m) => m.id))
     setShowForm(true)
   }
 
-  const closeForm = () => { setShowForm(false); setEditId(null); setForm(emptyForm) }
+  const closeForm = () => { setShowForm(false); setEditId(null); setForm(emptyForm); setSelGroupIds([]) }
+
+  const toggleGroup = (id: string) =>
+    setSelGroupIds((p) => p.includes(id) ? p.filter((x) => x !== id) : [...p, id])
 
   const saveProduct = async () => {
     if (!form.name.trim() || !form.price) { toast.error('Name and price are required'); return }
     setSaving(true)
     try {
+      const selectedGroups = modGroups.filter((g) => selGroupIds.includes(g.id))
       const url    = editId ? `/api/admin/products/${editId}` : '/api/admin/products'
       const method = editId ? 'PUT' : 'POST'
       const res    = await fetch(url, {
         method,
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(form),
+        body: JSON.stringify({ ...form, modifiers: selectedGroups }),
       })
       if (!res.ok) { toast.error('Failed to save product'); return }
       toast.success(editId ? 'Product updated!' : 'Product added!')
@@ -234,6 +247,28 @@ export default function AdminProductsPage() {
                   placeholder="Product description..."
                 />
               </div>
+              {modGroups.length > 0 && (
+                <div>
+                  <label className="block text-xs font-black text-gray-700 mb-1.5">Modifier Groups</label>
+                  <div className="space-y-1.5">
+                    {modGroups.map((g) => (
+                      <label key={g.id} className="flex items-center gap-2 cursor-pointer group">
+                        <input
+                          type="checkbox"
+                          checked={selGroupIds.includes(g.id)}
+                          onChange={() => toggleGroup(g.id)}
+                          className="w-4 h-4 accent-[#FFD700]"
+                        />
+                        <span className="text-sm font-semibold text-gray-700 group-hover:text-gray-900">
+                          {g.name}
+                          {g.required && <span className="ml-1 text-xs text-red-500">Required</span>}
+                        </span>
+                        <span className="text-xs text-gray-400">{g.options.length} options</span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Right column — image upload */}

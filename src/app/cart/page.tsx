@@ -6,7 +6,7 @@ import { Trash2, Plus, Minus, Tag, ShoppingBag, ArrowLeft, Edit2 } from 'lucide-
 import { useCartStore } from '@/lib/cart-store'
 import { formatPrice } from '@/lib/utils'
 import ProductModal from '@/components/ProductModal'
-import type { Product } from '@/lib/menu-data'
+import type { Product } from '@/lib/types'
 import toast from 'react-hot-toast'
 
 export default function CartPage() {
