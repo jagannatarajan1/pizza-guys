@@ -4,7 +4,6 @@ import Link from 'next/link'
 import Image from 'next/image'
 import { Trash2, Plus, Minus, Tag, ShoppingBag, ArrowLeft, Edit2 } from 'lucide-react'
 import { useCartStore } from '@/lib/cart-store'
-import { activeCoupons } from '@/lib/menu-data'
 import { formatPrice } from '@/lib/utils'
 import ProductModal from '@/components/ProductModal'
 import type { Product } from '@/lib/menu-data'
@@ -12,30 +11,36 @@ import toast from 'react-hot-toast'
 
 export default function CartPage() {
   const { items, couponCode, couponDiscount, deliveryFee, removeItem, updateQuantity, applyCoupon, removeCoupon, getSubtotal } = useCartStore()
-  const [couponInput, setCouponInput] = useState('')
-  const [couponError, setCouponError] = useState('')
+  const [couponInput, setCouponInput]     = useState('')
+  const [couponError, setCouponError]     = useState('')
+  const [couponLoading, setCouponLoading] = useState(false)
   const [editingProduct, setEditingProduct] = useState<Product | null>(null)
 
   const subtotal = getSubtotal()
   const total = Math.max(0, subtotal - couponDiscount + deliveryFee)
 
-  const handleApplyCoupon = () => {
+  const handleApplyCoupon = async () => {
     const code = couponInput.toUpperCase().trim()
-    const coupon = activeCoupons.find((c) => c.code === code)
-    if (!coupon) {
-      setCouponError('Invalid coupon code')
-      return
-    }
-    if (subtotal < coupon.minOrder) {
-      setCouponError(`Minimum order of ${formatPrice(coupon.minOrder)} required`)
-      return
-    }
-    let discount = 0
-    if (coupon.type === 'percentage') discount = (subtotal * coupon.value) / 100
-    else if (coupon.type === 'fixed') discount = coupon.value
-    applyCoupon(code, discount)
+    if (!code) return
+    setCouponLoading(true)
     setCouponError('')
-    toast.success(`Coupon "${code}" applied!`)
+    try {
+      const res  = await fetch('/api/coupons/validate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code, subtotal }),
+      })
+      const data = await res.json()
+      if (!res.ok) { setCouponError(data.error ?? 'Invalid coupon'); return }
+      // freeDelivery discount is applied at checkout (delivery fee waived)
+      const discount = data.type === 'freeDelivery' ? 0 : data.discountAmount
+      applyCoupon(code, discount)
+      toast.success(`Coupon "${code}" applied!`)
+    } catch {
+      setCouponError('Could not validate coupon. Please try again.')
+    } finally {
+      setCouponLoading(false)
+    }
   }
 
   if (items.length === 0) {
@@ -148,26 +153,13 @@ export default function CartPage() {
                     />
                     <button
                       onClick={handleApplyCoupon}
-                      className="bg-gray-900 hover:bg-gray-700 text-white font-bold px-4 py-2 rounded-xl text-sm transition-colors"
+                      disabled={couponLoading}
+                      className="bg-gray-900 hover:bg-gray-700 disabled:opacity-50 text-white font-bold px-4 py-2 rounded-xl text-sm transition-colors"
                     >
-                      Apply
+                      {couponLoading ? '…' : 'Apply'}
                     </button>
                   </div>
                   {couponError && <p className="text-red-500 text-xs mt-1.5">{couponError}</p>}
-                  <div className="mt-3">
-                    <p className="text-xs text-gray-400 mb-1">Available codes:</p>
-                    <div className="flex flex-wrap gap-1">
-                      {activeCoupons.map((c) => (
-                        <button
-                          key={c.code}
-                          onClick={() => setCouponInput(c.code)}
-                          className="text-xs bg-gray-100 hover:bg-red-50 text-gray-600 hover:text-red-600 px-2 py-1 rounded-lg font-mono transition-colors"
-                        >
-                          {c.code}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
                 </div>
               )}
             </div>

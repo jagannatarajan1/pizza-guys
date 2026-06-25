@@ -1,6 +1,6 @@
 'use client'
 import { useState, useEffect } from 'react'
-import { Plus, Pencil, Trash2, EyeOff, Eye, GripVertical, X, Loader2 } from 'lucide-react'
+import { Plus, Pencil, Trash2, EyeOff, Eye, GripVertical, X, Loader2, Copy } from 'lucide-react'
 import type { Category } from '@/lib/types'
 import toast from 'react-hot-toast'
 
@@ -32,6 +32,16 @@ export default function AdminCategoriesPage() {
       setCats((prev) => prev.map((c) => c.id === cat.id ? { ...c, visible: !c.visible } : c))
       toast.success(cat.visible ? 'Category hidden' : 'Category visible')
     }
+  }
+
+  const duplicateCat = async (cat: Category) => {
+    const res = await fetch('/api/admin/categories', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: `${cat.name} (Copy)`, icon: cat.icon, visible: false }),
+    })
+    if (res.ok) { toast.success('Category duplicated — edit the name and enable when ready'); load() }
+    else toast.error('Failed to duplicate')
   }
 
   const deleteCat = async (id: string) => {
@@ -186,7 +196,8 @@ export default function AdminCategoriesPage() {
                       <button onClick={() => toggleVisible(cat)} className="p-1.5 text-gray-400 hover:text-blue-600 transition-colors" title={cat.visible ? 'Hide' : 'Show'}>
                         {cat.visible ? <EyeOff size={15} /> : <Eye size={15} />}
                       </button>
-                      <button onClick={() => openEdit(cat)} className="p-1.5 text-gray-400 hover:text-orange-600 transition-colors"><Pencil size={15} /></button>
+                      <button onClick={() => duplicateCat(cat)} className="p-1.5 text-gray-400 hover:text-purple-600 transition-colors" title="Duplicate"><Copy size={15} /></button>
+                      <button onClick={() => openEdit(cat)} className="p-1.5 text-gray-400 hover:text-orange-600 transition-colors" title="Edit"><Pencil size={15} /></button>
                       <button onClick={() => deleteCat(cat.id)} className="p-1.5 text-gray-400 hover:text-red-600 transition-colors"><Trash2 size={15} /></button>
                     </div>
                   </td>

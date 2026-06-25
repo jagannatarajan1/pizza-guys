@@ -87,12 +87,13 @@ function MenuContent() {
   const cfg             = useSiteConfig()
   const searchParams    = useSearchParams()
   const initialCategory = searchParams.get('category') || 'all'
+  const initialSearch   = searchParams.get('search')   || ''
 
   const [products, setProducts]         = useState<Product[]>([])
   const [categories, setCategories]     = useState<Category[]>([])
   const [loading, setLoading]           = useState(true)
-  const [activeCategory, setActiveCategory] = useState(initialCategory)
-  const [search, setSearch]             = useState('')
+  const [activeCategory, setActiveCategory] = useState(initialSearch ? 'all' : initialCategory)
+  const [search, setSearch]             = useState(initialSearch)
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null)
   const sectionRefs = useRef<Record<string, HTMLElement | null>>({})
 

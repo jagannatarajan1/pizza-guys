@@ -1,7 +1,7 @@
 'use client'
 import { useState, useEffect, useCallback } from 'react'
 import Image from 'next/image'
-import { Plus, Search, Pencil, Trash2, EyeOff, Eye, X, Loader2 } from 'lucide-react'
+import { Plus, Search, Pencil, Trash2, EyeOff, Eye, X, Loader2, Copy } from 'lucide-react'
 import type { Category } from '@/lib/types'
 import { formatPrice } from '@/lib/utils'
 import ImageUpload from '@/components/ImageUpload'
@@ -127,6 +127,24 @@ export default function AdminProductsPage() {
       setProducts((prev) => prev.filter((p) => p.id !== id))
       toast.success('Product deleted')
     }
+  }
+
+  const duplicateProduct = async (p: DBProduct) => {
+    const res = await fetch('/api/admin/products', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        name: `${p.name} (Copy)`,
+        description: p.description,
+        price: p.price.toString(),
+        category: p.category,
+        image: p.image,
+        popular: false,
+        available: false,
+      }),
+    })
+    if (res.ok) { toast.success('Product duplicated — set it to Available when ready'); load() }
+    else toast.error('Failed to duplicate product')
   }
 
   return (
@@ -340,10 +358,13 @@ export default function AdminProductsPage() {
                         >
                           {p.available ? <EyeOff size={15} /> : <Eye size={15} />}
                         </button>
-                        <button onClick={() => openEdit(p)} className="p-1.5 text-gray-400 hover:text-orange-600 transition-colors">
+                        <button onClick={() => duplicateProduct(p)} className="p-1.5 text-gray-400 hover:text-purple-600 transition-colors" title="Duplicate">
+                          <Copy size={15} />
+                        </button>
+                        <button onClick={() => openEdit(p)} className="p-1.5 text-gray-400 hover:text-orange-600 transition-colors" title="Edit">
                           <Pencil size={15} />
                         </button>
-                        <button onClick={() => deleteProduct(p.id)} className="p-1.5 text-gray-400 hover:text-red-600 transition-colors">
+                        <button onClick={() => deleteProduct(p.id)} className="p-1.5 text-gray-400 hover:text-red-600 transition-colors" title="Delete">
                           <Trash2 size={15} />
                         </button>
                       </div>

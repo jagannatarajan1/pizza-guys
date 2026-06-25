@@ -4,18 +4,20 @@ import { verifyPassword, signToken, setAuthCookie } from '@/lib/auth-utils'
 
 export async function POST(req: NextRequest) {
   const { email, password } = await req.json()
+  const identifier = (email ?? '').trim()
 
-  if (!email || !password) {
-    return NextResponse.json({ error: 'Email and password are required' }, { status: 400 })
+  if (!identifier || !password) {
+    return NextResponse.json({ error: 'Email/phone and password are required' }, { status: 400 })
   }
 
-  const user = await prisma.user.findUnique({
-    where: { email },
+  // Accept email address OR mobile number
+  const user = await prisma.user.findFirst({
+    where: { OR: [{ email: identifier }, { phone: identifier }] },
     include: { addresses: { orderBy: { isDefault: 'desc' } } },
   })
 
   if (!user || !(await verifyPassword(password, user.passwordHash))) {
-    return NextResponse.json({ error: 'Invalid email or password' }, { status: 401 })
+    return NextResponse.json({ error: 'Invalid email/phone or password' }, { status: 401 })
   }
 
   const token = signToken({ userId: user.id, email: user.email, role: user.role })

@@ -2,43 +2,124 @@
 import { useState, useEffect, Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
 import Link from 'next/link'
-import { CheckCircle, Clock, Package, ChefHat, Bike, Home } from 'lucide-react'
+import { CheckCircle, Clock, Package, ChefHat, Bike, Home, Loader2, AlertCircle } from 'lucide-react'
+import { formatPrice } from '@/lib/utils'
 
 const STAGES = [
-  { id: 0, label: 'Order Received', desc: 'We have received your order', icon: Package },
-  { id: 1, label: 'Accepted', desc: 'Restaurant has confirmed your order', icon: CheckCircle },
-  { id: 2, label: 'Preparing', desc: 'Our chefs are making your food', icon: ChefHat },
-  { id: 3, label: 'Out for Delivery', desc: 'Your order is on the way', icon: Bike },
-  { id: 4, label: 'Delivered', desc: 'Enjoy your meal!', icon: Home },
+  { id: 0, label: 'Order Received',    desc: 'We have received your order',          icon: Package  },
+  { id: 1, label: 'Accepted',          desc: 'Restaurant has confirmed your order',   icon: CheckCircle },
+  { id: 2, label: 'Preparing',         desc: 'Our chefs are making your food',        icon: ChefHat  },
+  { id: 3, label: 'Out for Delivery',  desc: 'Your order is on the way',              icon: Bike     },
+  { id: 4, label: 'Delivered',         desc: 'Enjoy your meal!',                      icon: Home     },
 ]
 
+const COLLECTION_STAGES = [
+  { id: 0, label: 'Order Received', desc: 'We have received your order',   icon: Package     },
+  { id: 1, label: 'Accepted',       desc: 'Your order has been confirmed', icon: CheckCircle },
+  { id: 2, label: 'Preparing',      desc: 'Our chefs are making your food', icon: ChefHat    },
+  { id: 3, label: 'Ready',          desc: 'Your order is ready to collect', icon: Bike       },
+  { id: 4, label: 'Collected',      desc: 'Enjoy your meal!',              icon: Home        },
+]
+
+type OrderData = {
+  orderNumber: string
+  status: string
+  stage: number
+  orderType: string
+  customerName: string
+  total: number
+  createdAt: string
+  items: { name: string; quantity: number; itemTotal: number }[]
+}
+
+const EST_MINUTES_BY_STAGE = [40, 30, 20, 10, 0]
+
 function TrackingContent() {
-  const searchParams = useSearchParams()
-  const orderNo = searchParams.get('order') || 'PG123456'
-  const [stage, setStage] = useState(0)
+  const searchParams   = useSearchParams()
+  const orderNo        = searchParams.get('order') || ''
+  const [order, setOrder]   = useState<OrderData | null>(null)
+  const [loading, setLoading] = useState(!!orderNo)
+  const [error, setError]   = useState(false)
 
-  // Simulate progress for demo
+  const fetchOrder = async () => {
+    if (!orderNo) return
+    try {
+      const res  = await fetch(`/api/orders/${orderNo}`)
+      if (!res.ok) { setError(true); return }
+      const data = await res.json()
+      setOrder(data)
+    } catch {
+      setError(true)
+    } finally {
+      setLoading(false)
+    }
+  }
+
   useEffect(() => {
-    const timers = [
-      setTimeout(() => setStage(1), 3000),
-      setTimeout(() => setStage(2), 7000),
-      setTimeout(() => setStage(3), 12000),
-      setTimeout(() => setStage(4), 18000),
-    ]
-    return () => timers.forEach(clearTimeout)
-  }, [])
+    fetchOrder()
+    // Poll every 20 s while order is active
+    const iv = setInterval(() => {
+      if (order && (order.status === 'Completed' || order.status === 'Cancelled')) return
+      fetchOrder()
+    }, 20_000)
+    return () => clearInterval(iv)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [orderNo])
 
-  const estMinutes = Math.max(5, 40 - stage * 8)
+  if (!orderNo) {
+    return (
+      <div className="max-w-lg mx-auto px-4 py-16 text-center">
+        <div className="text-5xl mb-4">🍕</div>
+        <h1 className="text-2xl font-black text-gray-900 mb-2">Track Your Order</h1>
+        <p className="text-gray-500 text-sm">No order number provided.</p>
+        <Link href="/" className="mt-6 inline-block bg-red-600 text-white font-bold px-6 py-3 rounded-xl text-sm hover:bg-red-700 transition-colors">
+          Go Home
+        </Link>
+      </div>
+    )
+  }
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-[60vh] text-gray-400">
+        <Loader2 size={28} className="animate-spin mr-3" /> Loading order…
+      </div>
+    )
+  }
+
+  if (error || !order) {
+    return (
+      <div className="max-w-lg mx-auto px-4 py-16 text-center">
+        <AlertCircle size={40} className="text-red-400 mx-auto mb-4" />
+        <h1 className="text-xl font-black text-gray-900 mb-2">Order Not Found</h1>
+        <p className="text-gray-500 text-sm mb-6">We couldn&apos;t find order #{orderNo}. Please check the number and try again, or contact us.</p>
+        <Link href="/" className="bg-red-600 text-white font-bold px-6 py-3 rounded-xl text-sm hover:bg-red-700 transition-colors">
+          Go Home
+        </Link>
+      </div>
+    )
+  }
+
+  const isCollection = order.orderType === 'collection'
+  const stages = isCollection ? COLLECTION_STAGES : STAGES
+  const stage  = order.stage
+  const isCancelled = order.status === 'Cancelled'
+  const estMinutes  = EST_MINUTES_BY_STAGE[Math.min(stage, 4)]
 
   return (
     <div className="max-w-lg mx-auto px-4 py-10">
       <div className="text-center mb-8">
-        <div className="inline-flex items-center justify-center w-16 h-16 bg-green-100 rounded-2xl mb-4">
-          <CheckCircle className="text-green-500" size={32} />
+        <div className={`inline-flex items-center justify-center w-16 h-16 rounded-2xl mb-4 ${isCancelled ? 'bg-red-100' : 'bg-green-100'}`}>
+          {isCancelled
+            ? <span className="text-3xl">❌</span>
+            : <CheckCircle className="text-green-500" size={32} />
+          }
         </div>
-        <h1 className="text-2xl font-black text-gray-900 mb-1">Order Confirmed!</h1>
-        <p className="text-gray-500 text-sm">Order #{orderNo}</p>
-        {stage < 4 && (
+        <h1 className="text-2xl font-black text-gray-900 mb-1">
+          {isCancelled ? 'Order Cancelled' : stage === 4 ? 'Order Complete!' : 'Order Confirmed!'}
+        </h1>
+        <p className="text-gray-500 text-sm">Order #{order.orderNumber}</p>
+        {!isCancelled && stage < 4 && (
           <div className="inline-flex items-center gap-2 mt-3 bg-orange-50 text-orange-600 px-4 py-2 rounded-xl font-semibold text-sm">
             <Clock size={16} /> Est. {estMinutes} min remaining
           </div>
@@ -46,23 +127,21 @@ function TrackingContent() {
       </div>
 
       {/* Progress tracker */}
-      <div className="bg-white rounded-2xl border border-gray-100 p-6 mb-6">
-        <div className="space-y-0">
-          {STAGES.map((s, i) => {
-            const done = stage > s.id
+      {!isCancelled && (
+        <div className="bg-white rounded-2xl border border-gray-100 p-6 mb-6">
+          {stages.map((s, i) => {
+            const done   = stage > s.id
             const active = stage === s.id
-            const Icon = s.icon
+            const Icon   = s.icon
             return (
               <div key={s.id} className="flex gap-4">
                 <div className="flex flex-col items-center">
-                  <div
-                    className={`w-10 h-10 rounded-full flex items-center justify-center transition-all ${
-                      done ? 'bg-green-500 text-white' : active ? 'bg-red-600 text-white' : 'bg-gray-100 text-gray-400'
-                    }`}
-                  >
+                  <div className={`w-10 h-10 rounded-full flex items-center justify-center transition-all ${
+                    done ? 'bg-green-500 text-white' : active ? 'bg-red-600 text-white' : 'bg-gray-100 text-gray-400'
+                  }`}>
                     {done ? <CheckCircle size={20} /> : <Icon size={20} />}
                   </div>
-                  {i < STAGES.length - 1 && (
+                  {i < stages.length - 1 && (
                     <div className={`w-0.5 h-10 ${done ? 'bg-green-400' : 'bg-gray-200'} transition-colors`} />
                   )}
                 </div>
@@ -77,13 +156,29 @@ function TrackingContent() {
             )
           })}
         </div>
+      )}
+
+      {/* Order summary */}
+      <div className="bg-white rounded-2xl border border-gray-100 p-5 mb-5">
+        <h3 className="font-bold text-gray-900 mb-3">Order Summary</h3>
+        <div className="space-y-1.5 text-sm mb-3">
+          {order.items.map((item, i) => (
+            <div key={i} className="flex justify-between text-gray-600">
+              <span>{item.quantity}× {item.name}</span>
+              <span>{formatPrice(item.itemTotal)}</span>
+            </div>
+          ))}
+        </div>
+        <div className="flex justify-between font-black text-gray-900 border-t border-gray-100 pt-2">
+          <span>Total</span><span>{formatPrice(order.total)}</span>
+        </div>
       </div>
 
-      {/* Delivery info */}
+      {/* Contact */}
       <div className="bg-gray-900 text-white rounded-2xl p-5 mb-5">
-        <h3 className="font-bold mb-3">Delivery Information</h3>
+        <h3 className="font-bold mb-3">Need Help?</h3>
         <div className="space-y-1 text-sm text-gray-400">
-          <div className="flex justify-between"><span>Order number</span><span className="text-white font-mono">#{orderNo}</span></div>
+          <div className="flex justify-between"><span>Order</span><span className="text-white font-mono">#{order.orderNumber}</span></div>
           <div className="flex justify-between"><span>Restaurant</span><span className="text-white">Pizza Guys</span></div>
           <div className="flex justify-between"><span>Phone</span><span className="text-white">01784 452 888</span></div>
         </div>
@@ -103,7 +198,7 @@ function TrackingContent() {
 
 export default function OrderTrackingPage() {
   return (
-    <Suspense fallback={<div className="flex items-center justify-center min-h-screen text-gray-500">Loading...</div>}>
+    <Suspense fallback={<div className="flex items-center justify-center min-h-screen text-gray-500"><Loader2 size={24} className="animate-spin mr-2" /> Loading…</div>}>
       <TrackingContent />
     </Suspense>
   )

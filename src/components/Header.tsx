@@ -1,12 +1,15 @@
 'use client'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import Link from 'next/link'
-import { usePathname } from 'next/navigation'
-import { ShoppingCart, Menu, X, User, ChevronDown, LogOut, LayoutDashboard, ClipboardList } from 'lucide-react'
+import Image from 'next/image'
+import { usePathname, useRouter } from 'next/navigation'
+import { ShoppingCart, Menu, X, User, ChevronDown, LogOut, LayoutDashboard, ClipboardList, Search } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useCartStore } from '@/lib/cart-store'
 import { useAuth } from '@/lib/auth-context'
 import BrandLogo from '@/components/BrandLogo'
+import { formatPrice } from '@/lib/utils'
+import type { Product } from '@/lib/types'
 
 const navLinks = [
   { href: '/',        label: 'Home' },
@@ -16,10 +19,127 @@ const navLinks = [
   { href: '/contact', label: 'Contact' },
 ]
 
+function SearchBar() {
+  const router = useRouter()
+  const [query, setQuery]       = useState('')
+  const [results, setResults]   = useState<Product[]>([])
+  const [open, setOpen]         = useState(false)
+  const [loading, setLoading]   = useState(false)
+  const inputRef = useRef<HTMLInputElement>(null)
+  const wrapRef  = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!query.trim()) { setResults([]); setOpen(false); return }
+    setLoading(true)
+    const t = setTimeout(async () => {
+      try {
+        const res  = await fetch('/api/menu/products')
+        const data = await res.json()
+        const q    = query.toLowerCase()
+        const hits: Product[] = (data.products ?? []).filter((p: Product) =>
+          p.name.toLowerCase().includes(q) || p.description.toLowerCase().includes(q)
+        ).slice(0, 6)
+        setResults(hits)
+        setOpen(hits.length > 0)
+      } finally {
+        setLoading(false)
+      }
+    }, 250)
+    return () => clearTimeout(t)
+  }, [query])
+
+  // Close on outside click
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (wrapRef.current && !wrapRef.current.contains(e.target as Node)) {
+        setOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [])
+
+  const handleSelect = (product: Product) => {
+    setOpen(false)
+    setQuery('')
+    router.push(`/menu?search=${encodeURIComponent(product.name)}`)
+  }
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!query.trim()) return
+    setOpen(false)
+    router.push(`/menu?search=${encodeURIComponent(query.trim())}`)
+    setQuery('')
+  }
+
+  return (
+    <div ref={wrapRef} className="relative">
+      <form onSubmit={handleSubmit} className="relative">
+        <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+        <input
+          ref={inputRef}
+          type="search"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          onFocus={() => results.length > 0 && setOpen(true)}
+          placeholder="Search menu…"
+          className="w-40 lg:w-52 xl:w-64 bg-white/8 border border-white/10 text-white placeholder-gray-500 text-xs rounded-xl pl-8 pr-3 py-2 focus:outline-none focus:border-white/30 focus:w-56 lg:focus:w-64 xl:focus:w-72 transition-all duration-200"
+        />
+        {query && (
+          <button
+            type="button"
+            onClick={() => { setQuery(''); setResults([]); setOpen(false) }}
+            className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-300"
+          >
+            <X size={12} />
+          </button>
+        )}
+      </form>
+
+      <AnimatePresence>
+        {open && (
+          <motion.div
+            initial={{ opacity: 0, y: -6, scale: 0.98 }}
+            animate={{ opacity: 1, y: 0,  scale: 1 }}
+            exit={{ opacity: 0, y: -6, scale: 0.98 }}
+            transition={{ duration: 0.15 }}
+            className="absolute right-0 top-10 w-72 bg-[#1A1A1A] border border-white/10 rounded-2xl shadow-2xl overflow-hidden z-50"
+          >
+            {loading ? (
+              <div className="p-4 text-center text-xs text-gray-400">Searching…</div>
+            ) : (
+              results.map((p) => (
+                <button
+                  key={p.id}
+                  onClick={() => handleSelect(p)}
+                  className="w-full flex items-center gap-3 px-3 py-2.5 hover:bg-white/6 transition-colors text-left"
+                >
+                  <div className="w-10 h-10 rounded-xl overflow-hidden bg-gray-800 shrink-0">
+                    {p.image ? (
+                      <Image src={p.image} alt={p.name} width={40} height={40} className="object-cover w-full h-full" />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center text-lg">🍕</div>
+                    )}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="text-sm font-bold text-white truncate">{p.name}</div>
+                    <div className="text-xs text-gray-400">{formatPrice(p.price)}</div>
+                  </div>
+                </button>
+              ))
+            )}
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  )
+}
+
 export default function Header() {
-  const [mobileOpen, setMobileOpen]   = useState(false)
+  const [mobileOpen, setMobileOpen]     = useState(false)
   const [userMenuOpen, setUserMenuOpen] = useState(false)
-  const [scrolled, setScrolled]       = useState(false)
+  const [scrolled, setScrolled]         = useState(false)
   const pathname   = usePathname()
   const itemCount  = useCartStore((s) => s.getItemCount())
   const { user, logout } = useAuth()
@@ -39,7 +159,7 @@ export default function Header() {
         : 'bg-[#111]'
     }`}>
       <div className="max-w-7xl mx-auto px-4 sm:px-6">
-        <div className="flex items-center justify-between h-16 sm:h-18">
+        <div className="flex items-center justify-between h-16 sm:h-18 gap-3">
 
           {/* ── Logo ─────────────────────────────────── */}
           <BrandLogo size="sm" />
@@ -67,6 +187,11 @@ export default function Header() {
               )
             })}
           </nav>
+
+          {/* ── Search ───────────────────────────────── */}
+          <div className="hidden sm:block flex-1 max-w-xs">
+            <SearchBar />
+          </div>
 
           {/* ── Right side ───────────────────────────── */}
           <div className="flex items-center gap-2">
@@ -168,7 +293,11 @@ export default function Header() {
             transition={{ duration: 0.25, ease: 'easeInOut' }}
             className="lg:hidden overflow-hidden border-t border-white/8"
           >
-            <div className="bg-[#111] px-4 pb-5 pt-2">
+            <div className="bg-[#111] px-4 pb-5 pt-3">
+              {/* Mobile search */}
+              <div className="mb-3">
+                <SearchBar />
+              </div>
               <nav className="flex flex-col gap-0.5 mb-3">
                 {navLinks.map((link, i) => (
                   <motion.div

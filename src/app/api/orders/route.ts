@@ -1,6 +1,38 @@
 import { NextRequest, NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
 import { generateOrderNumber } from '@/lib/utils'
+import { verifyToken, AUTH_COOKIE } from '@/lib/auth-utils'
+
+export async function GET(req: NextRequest) {
+  const token = req.cookies.get(AUTH_COOKIE)?.value
+  const payload = token ? verifyToken(token) : null
+  if (!payload) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+  const orders = await prisma.order.findMany({
+    where: { userId: payload.userId },
+    include: { items: true },
+    orderBy: { createdAt: 'desc' },
+    take: 50,
+  })
+
+  return NextResponse.json({
+    orders: orders.map((o) => ({
+      id: o.id,
+      orderNumber: o.orderNumber,
+      status: o.status,
+      orderType: o.orderType,
+      total: o.total / 100,
+      paymentMethod: o.paymentMethod,
+      createdAt: o.createdAt,
+      items: o.items.map((i) => ({
+        name: i.productName,
+        quantity: i.quantity,
+        unitPrice: i.unitPrice / 100,
+        itemTotal: i.itemTotal / 100,
+      })),
+    })),
+  })
+}
 
 export async function POST(req: NextRequest) {
   const {
@@ -24,7 +56,7 @@ export async function POST(req: NextRequest) {
     data: {
       orderNumber: generateOrderNumber(),
       userId: userId ?? null,
-      status: paymentMethod === 'cash' ? 'pending' : 'confirmed',
+      status: 'New',
       orderType,
       customerName,
       customerEmail,

@@ -1,6 +1,7 @@
 'use client'
+import { useState } from 'react'
 import Link from 'next/link'
-import { Phone, Mail, MapPin, Clock } from 'lucide-react'
+import { Phone, Mail, MapPin, Clock, Send } from 'lucide-react'
 import BrandLogo from '@/components/BrandLogo'
 import { useSiteConfig } from '@/context/SiteConfigContext'
 
@@ -15,18 +16,30 @@ const quickLinks = [
 const infoLinks = [
   { href: '/terms',     label: 'Terms & Conditions' },
   { href: '/privacy',   label: 'Privacy Policy' },
+  { href: '/cookie-policy', label: 'Cookie Policy' },
+  { href: '/refund-policy', label: 'Refund Policy' },
   { href: '/allergens', label: 'Allergy Information' },
   { href: '/dashboard', label: 'My Account' },
 ]
 
 export default function Footer() {
   const cfg = useSiteConfig()
+  const [email, setEmail]       = useState('')
+  const [subscribed, setSubscribed] = useState(false)
 
   const socials = [
-    { label: 'f',  title: 'Facebook',   href: cfg.social_facebook  },
-    { label: 'ig', title: 'Instagram',  href: cfg.social_instagram },
-    { label: '𝕏',  title: 'X/Twitter', href: cfg.social_twitter   },
+    { label: 'f',   title: 'Facebook',   href: cfg.social_facebook  },
+    { label: 'ig',  title: 'Instagram',  href: cfg.social_instagram },
+    { label: '𝕏',   title: 'X/Twitter', href: cfg.social_twitter   },
+    { label: 'tt',  title: 'TikTok',     href: cfg.social_tiktok    },
   ].filter((s) => s.href)
+
+  const handleSubscribe = (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!email.trim()) return
+    setSubscribed(true)
+    setEmail('')
+  }
 
   return (
     <footer className="text-gray-400 mt-20" style={{ background: 'var(--brand-dark)' }}>
@@ -36,7 +49,7 @@ export default function Footer() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 py-14">
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-10">
 
-          {/* Brand */}
+          {/* Brand + Newsletter */}
           <div>
             <div className="mb-5">
               <BrandLogo size="md" />
@@ -44,8 +57,10 @@ export default function Footer() {
             <p className="text-sm text-gray-500 leading-relaxed mb-5">
               {cfg.biz_tagline}
             </p>
+
+            {/* Social icons */}
             {socials.length > 0 && (
-              <div className="flex gap-2">
+              <div className="flex gap-2 mb-6">
                 {socials.map((s) => (
                   <a
                     key={s.title}
@@ -54,7 +69,6 @@ export default function Footer() {
                     rel="noopener noreferrer"
                     title={s.title}
                     className="w-9 h-9 bg-white/6 text-gray-400 rounded-xl flex items-center justify-center transition-all duration-150 text-xs font-black hover:text-(--brand-dark)"
-                    style={{ ['--hover-bg' as string]: 'var(--brand-accent)' }}
                     onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = 'var(--brand-accent)' }}
                     onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = '' }}
                   >
@@ -63,6 +77,33 @@ export default function Footer() {
                 ))}
               </div>
             )}
+
+            {/* Newsletter */}
+            <div>
+              <p className="text-xs font-black text-white uppercase tracking-widest mb-2">Newsletter</p>
+              {subscribed ? (
+                <p className="text-xs text-green-400 font-bold">Thank you for subscribing! 🎉</p>
+              ) : (
+                <form onSubmit={handleSubscribe} className="flex gap-1.5">
+                  <input
+                    type="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder="Your email"
+                    required
+                    className="flex-1 min-w-0 bg-white/8 border border-white/10 rounded-xl px-3 py-2 text-xs text-white placeholder-gray-500 focus:outline-none focus:border-white/30 transition-colors"
+                  />
+                  <button
+                    type="submit"
+                    className="shrink-0 w-9 h-9 rounded-xl flex items-center justify-center transition-colors"
+                    style={{ background: 'var(--brand-accent)', color: 'var(--brand-dark)' }}
+                    aria-label="Subscribe"
+                  >
+                    <Send size={13} />
+                  </button>
+                </form>
+              )}
+            </div>
           </div>
 
           {/* Quick links */}
@@ -105,7 +146,12 @@ export default function Footer() {
               </li>
               <li className="flex items-center gap-3">
                 <Phone size={15} className="shrink-0" style={{ color: 'var(--brand-accent)' }} />
-                <a href={`tel:${cfg.biz_phone.replace(/\s/g, '')}`} className="hover:text-(--brand-accent) transition-colors">{cfg.biz_phone}</a>
+                <div className="flex flex-col gap-0.5">
+                  <a href={`tel:${cfg.biz_phone.replace(/\s/g, '')}`} className="hover:text-(--brand-accent) transition-colors">{cfg.biz_phone}</a>
+                  {cfg.biz_phone2 && (
+                    <a href={`tel:${cfg.biz_phone2.replace(/\s/g, '')}`} className="hover:text-(--brand-accent) transition-colors">{cfg.biz_phone2}</a>
+                  )}
+                </div>
               </li>
               <li className="flex items-center gap-3">
                 <Mail size={15} className="shrink-0" style={{ color: 'var(--brand-accent)' }} />
@@ -118,9 +164,27 @@ export default function Footer() {
                 <Clock size={13} style={{ color: 'var(--brand-accent)' }} /> Opening Hours
               </div>
               <div className="space-y-1 text-gray-400">
-                <div className="flex justify-between"><span>Mon – Thu</span><span>{cfg.hours_mon_thu}</span></div>
-                <div className="flex justify-between"><span>Fri – Sat</span><span>{cfg.hours_fri_sat}</span></div>
-                <div className="flex justify-between"><span>Sunday</span><span>{cfg.hours_sun}</span></div>
+                {[
+                  { label: 'Mon', key: 'mon' },
+                  { label: 'Tue', key: 'tue' },
+                  { label: 'Wed', key: 'wed' },
+                  { label: 'Thu', key: 'thu' },
+                  { label: 'Fri', key: 'fri' },
+                  { label: 'Sat', key: 'sat' },
+                  { label: 'Sun', key: 'sun' },
+                ].map(({ label, key }) => {
+                  const closed = cfg[`hours_${key}_closed`] === 'true'
+                  const open   = cfg[`hours_${key}_open`]  || '11:00'
+                  const close  = cfg[`hours_${key}_close`] || '23:00'
+                  return (
+                    <div key={key} className="flex justify-between">
+                      <span>{label}</span>
+                      <span className={closed ? 'text-gray-600' : 'text-white font-bold'}>
+                        {closed ? 'Closed' : `${open} – ${close}`}
+                      </span>
+                    </div>
+                  )
+                })}
               </div>
             </div>
           </div>

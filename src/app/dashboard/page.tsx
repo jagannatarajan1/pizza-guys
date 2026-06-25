@@ -1,9 +1,10 @@
 'use client'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import Link from 'next/link'
-import { User, MapPin, Package, CreditCard, Lock, Pencil, Trash2, Plus, Check, X } from 'lucide-react'
+import { User, MapPin, Package, CreditCard, Lock, Pencil, Trash2, Plus, Check, X, Loader2 } from 'lucide-react'
 import { useAuth } from '@/lib/auth-context'
 import { useRouter } from 'next/navigation'
+import { formatPrice } from '@/lib/utils'
 import toast from 'react-hot-toast'
 
 const TABS = [
@@ -14,20 +15,45 @@ const TABS = [
   { id: 'password', label: 'Password', icon: Lock },
 ]
 
-const MOCK_ORDERS = [
-  { id: 'PG100001', date: '2025-06-15', items: ['Pepperoni Feast (12")', 'French Fries', 'Coke'], total: 18.97, status: 'Delivered' },
-  { id: 'PG100002', date: '2025-06-08', items: ['Meat Feast (15")', 'BBQ Wings', 'Garlic Bread'], total: 24.47, status: 'Delivered' },
-  { id: 'PG100003', date: '2025-05-30', items: ['Chicken Tikka (12")', 'Diet Coke'], total: 13.48, status: 'Delivered' },
-]
+const STATUS_PILL: Record<string, string> = {
+  New:                'bg-blue-100 text-blue-700',
+  Accepted:           'bg-yellow-100 text-yellow-700',
+  Preparing:          'bg-orange-100 text-orange-700',
+  Ready:              'bg-cyan-100 text-cyan-700',
+  'Out for Delivery': 'bg-purple-100 text-purple-700',
+  Completed:          'bg-green-100 text-green-700',
+  Cancelled:          'bg-red-100 text-red-700',
+}
+
+type CustomerOrder = {
+  orderNumber: string
+  status: string
+  total: number
+  paymentMethod: string
+  createdAt: string
+  items: { name: string; quantity: number }[]
+}
 
 export default function DashboardPage() {
   const router = useRouter()
   const { user, updateProfile, addAddress, updateAddress, deleteAddress, logout } = useAuth()
-  const [activeTab, setActiveTab] = useState('profile')
+  const [activeTab, setActiveTab]           = useState('profile')
   const [editingProfile, setEditingProfile] = useState(false)
-  const [profileForm, setProfileForm] = useState({ name: user?.name || '', email: user?.email || '', phone: user?.phone || '' })
+  const [profileForm, setProfileForm]       = useState({ name: user?.name || '', email: user?.email || '', phone: user?.phone || '' })
   const [showAddAddress, setShowAddAddress] = useState(false)
-  const [newAddr, setNewAddr] = useState({ label: 'Home', line1: '', line2: '', city: '', postcode: '', notes: '', isDefault: false })
+  const [newAddr, setNewAddr]               = useState({ label: 'Home', line1: '', line2: '', city: '', postcode: '', notes: '', isDefault: false })
+  const [orders, setOrders]                 = useState<CustomerOrder[]>([])
+  const [ordersLoading, setOrdersLoading]   = useState(false)
+
+  useEffect(() => {
+    if (activeTab !== 'orders') return
+    setOrdersLoading(true)
+    fetch('/api/orders')
+      .then((r) => r.json())
+      .then((d) => setOrders(d.orders ?? []))
+      .catch(() => {})
+      .finally(() => setOrdersLoading(false))
+  }, [activeTab])
   const [pwForm, setPwForm] = useState({ current: '', newPw: '', confirm: '' })
 
   if (!user) {
@@ -220,26 +246,50 @@ export default function DashboardPage() {
           {activeTab === 'orders' && (
             <div>
               <h2 className="font-bold text-gray-900 mb-5">Order History</h2>
-              <div className="space-y-3">
-                {MOCK_ORDERS.map((order) => (
-                  <div key={order.id} className="border border-gray-100 rounded-xl p-4">
-                    <div className="flex items-start justify-between mb-2">
-                      <div>
-                        <div className="font-bold text-gray-900 text-sm">#{order.id}</div>
-                        <div className="text-xs text-gray-500">{new Date(order.date).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}</div>
+              {ordersLoading ? (
+                <div className="flex items-center justify-center py-12 text-gray-400">
+                  <Loader2 size={20} className="animate-spin mr-2" /> Loading…
+                </div>
+              ) : orders.length === 0 ? (
+                <div className="text-center py-12 text-gray-400">
+                  <Package size={36} className="mx-auto mb-3 opacity-30" />
+                  <p className="text-sm">You haven&apos;t placed any orders yet.</p>
+                  <Link href="/menu" className="mt-4 inline-block bg-red-600 text-white font-bold px-5 py-2.5 rounded-xl text-sm hover:bg-red-700 transition-colors">
+                    Browse Menu
+                  </Link>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {orders.map((order) => (
+                    <div key={order.orderNumber} className="border border-gray-100 rounded-xl p-4">
+                      <div className="flex items-start justify-between mb-2">
+                        <div>
+                          <div className="font-bold text-gray-900 text-sm">#{order.orderNumber}</div>
+                          <div className="text-xs text-gray-500">
+                            {new Date(order.createdAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}
+                          </div>
+                        </div>
+                        <span className={`text-xs px-2 py-1 rounded-full font-medium ${STATUS_PILL[order.status] ?? 'bg-gray-100 text-gray-600'}`}>
+                          {order.status}
+                        </span>
                       </div>
-                      <span className="text-xs bg-green-100 text-green-700 px-2 py-1 rounded-full font-medium">{order.status}</span>
+                      <div className="text-sm text-gray-600 mb-3">
+                        {order.items.slice(0, 3).map((i) => `${i.quantity}× ${i.name}`).join(' · ')}
+                        {order.items.length > 3 && ` +${order.items.length - 3} more`}
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="font-bold text-gray-900">{formatPrice(order.total)}</span>
+                        <Link
+                          href={`/order-tracking?order=${order.orderNumber}`}
+                          className="text-red-600 text-sm font-semibold hover:underline"
+                        >
+                          Track
+                        </Link>
+                      </div>
                     </div>
-                    <div className="text-sm text-gray-600 mb-3">{order.items.join(' · ')}</div>
-                    <div className="flex items-center justify-between">
-                      <span className="font-bold text-gray-900">£{order.total.toFixed(2)}</span>
-                      <Link href={`/order-tracking?order=${order.id}`} className="text-red-600 text-sm font-semibold hover:underline">
-                        Reorder
-                      </Link>
-                    </div>
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+              )}
             </div>
           )}
 

@@ -21,7 +21,7 @@ export async function POST(req: NextRequest) {
   if (event.type === 'payment_intent.succeeded') {
     await prisma.order.updateMany({
       where: { paymentIntentId: event.data.object.id },
-      data: { status: 'confirmed' },
+      data: { status: 'New' },
     })
   }
 

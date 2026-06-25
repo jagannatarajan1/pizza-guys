@@ -17,7 +17,9 @@ export default function RegisterPage() {
     e.preventDefault()
     if (!form.name || !form.email || !form.phone || !form.password) { toast.error('Please fill in all fields'); return }
     if (form.password !== form.confirm) { toast.error('Passwords do not match'); return }
-    if (form.password.length < 6) { toast.error('Password must be at least 6 characters'); return }
+    if (form.password.length < 8) { toast.error('Password must be at least 8 characters'); return }
+    if (!/[A-Z]/.test(form.password)) { toast.error('Password must contain at least one uppercase letter'); return }
+    if (!/[0-9]/.test(form.password)) { toast.error('Password must contain at least one number'); return }
     setLoading(true)
     const ok = await register({ name: form.name, email: form.email, phone: form.phone, password: form.password })
     setLoading(false)
@@ -60,7 +62,7 @@ export default function RegisterPage() {
                   type={showPw ? 'text' : 'password'}
                   value={form.password}
                   onChange={(e) => setForm((p) => ({ ...p, password: e.target.value }))}
-                  placeholder="Min 6 characters"
+                  placeholder="Min 8 chars, 1 uppercase, 1 number"
                   autoComplete="new-password"
                   className="w-full border border-gray-200 rounded-xl px-4 py-3 pr-10 text-sm focus:outline-none focus:border-red-400"
                 />
@@ -68,6 +70,19 @@ export default function RegisterPage() {
                   {showPw ? <EyeOff size={16} /> : <Eye size={16} />}
                 </button>
               </div>
+              {form.password && (
+                <ul className="mt-1.5 space-y-0.5 text-xs">
+                  <li className={form.password.length >= 8 ? 'text-green-600' : 'text-gray-400'}>
+                    {form.password.length >= 8 ? '✓' : '○'} At least 8 characters
+                  </li>
+                  <li className={/[A-Z]/.test(form.password) ? 'text-green-600' : 'text-gray-400'}>
+                    {/[A-Z]/.test(form.password) ? '✓' : '○'} One uppercase letter
+                  </li>
+                  <li className={/[0-9]/.test(form.password) ? 'text-green-600' : 'text-gray-400'}>
+                    {/[0-9]/.test(form.password) ? '✓' : '○'} One number
+                  </li>
+                </ul>
+              )}
             </div>
             <div>
               <label className="block text-xs font-semibold text-gray-700 mb-1.5">Confirm Password</label>

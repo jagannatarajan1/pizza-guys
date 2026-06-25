@@ -4,11 +4,16 @@ import Link from 'next/link'
 import Image from 'next/image'
 import { motion } from 'framer-motion'
 import { MapPin, Clock, ChevronRight, Star, Truck, Award, Heart, Zap } from 'lucide-react'
-import { activeCoupons, openingHours, deliveryZones } from '@/lib/menu-data'
-import { checkDelivery, isOpen, formatPrice } from '@/lib/utils'
+import HeroBanners from '@/components/HeroBanners'
+import { openingHours } from '@/lib/menu-data'
+
+type LiveCoupon = { code: string; type: string; value: number; description: string }
+import { checkDelivery, formatPrice } from '@/lib/utils'
 import ProductModal from '@/components/ProductModal'
 import type { Product, Category } from '@/lib/types'
 import { useSiteConfig } from '@/context/SiteConfigContext'
+import { useOrderType } from '@/context/OrderTypeContext'
+import type { ShopStatus } from '@/lib/shop-status'
 
 const fadeUp = {
   hidden: { opacity: 0, y: 32 },
@@ -22,11 +27,15 @@ const stagger = {
 
 export default function HomePage() {
   const cfg = useSiteConfig()
+  const { orderType, setOrderType } = useOrderType()
   const [postcode, setPostcode] = useState('')
   const [deliveryResult, setDeliveryResult] = useState<{ available: boolean; fee: number; minOrder: number } | null | 'not-found'>(null)
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null)
   const [popularProducts, setPopularProducts] = useState<Product[]>([])
   const [categories, setCategories]           = useState<Category[]>([])
+  const [shopStatus, setShopStatus]           = useState<ShopStatus | null>(null)
+  const [dbZones, setDbZones]           = useState<{ postcode: string; minOrder: number; deliveryFee: number }[]>([])
+  const [liveCoupons, setLiveCoupons]   = useState<LiveCoupon[]>([])
 
   useEffect(() => {
     fetch('/api/menu/products').then((r) => r.json()).then((d) => {
@@ -35,79 +44,84 @@ export default function HomePage() {
     fetch('/api/menu/categories').then((r) => r.json()).then((d) => {
       setCategories(d.categories ?? [])
     })
+    fetch('/api/shop-status').then((r) => r.json()).then((d: ShopStatus) => {
+      setShopStatus(d)
+    }).catch(() => {})
+    fetch('/api/delivery-zones').then((r) => r.json()).then((d) => {
+      setDbZones(d.zones ?? [])
+    }).catch(() => {})
+    fetch('/api/coupons').then((r) => r.json()).then((d) => {
+      setLiveCoupons(d.coupons ?? [])
+    }).catch(() => {})
   }, [])
 
-  const { isOpen: open, todayHours } = isOpen(openingHours)
+  const open       = shopStatus ? shopStatus.isOpen : false
+  const todayHours = shopStatus ? shopStatus.todayHours : ''
 
   const handleDeliveryCheck = () => {
     if (!postcode.trim()) return
-    setDeliveryResult(checkDelivery(postcode, deliveryZones) ?? 'not-found')
+    setDeliveryResult(checkDelivery(postcode, dbZones) ?? 'not-found')
   }
 
   return (
     <>
       <ProductModal product={selectedProduct} onClose={() => setSelectedProduct(null)} />
 
-      {/* ── HERO ─────────────────────────────────────────── */}
-      <section className="relative bg-[#111] text-white overflow-hidden min-h-[88vh] flex items-center">
-        {/* Background pizza image */}
-        <div
-          className="absolute inset-0 bg-cover bg-center opacity-25"
-          style={{ backgroundImage: popularProducts[0]?.image ? `url('${popularProducts[0].image}')` : undefined }}
-        />
-        {/* Gradient overlay */}
-        <div className="absolute inset-0 bg-linear-to-r from-[#111] via-[#111]/80 to-transparent" />
-        <div className="absolute inset-0 bg-linear-to-t from-[#111] via-transparent to-transparent" />
+      {/* ── HERO BANNERS ─────────────────────────────────── */}
+      <HeroBanners />
 
-        {/* Floating pizza emojis (decorative) */}
-        <span className="absolute right-[10%] top-24 text-6xl float opacity-30 select-none hidden xl:block">🍕</span>
-        <span className="absolute right-[25%] bottom-32 text-4xl float-delay opacity-20 select-none hidden xl:block">🍔</span>
-        <span className="absolute right-[5%] bottom-24 text-5xl float opacity-25 select-none hidden xl:block">🌶️</span>
-
-        <div className="relative max-w-7xl mx-auto px-4 sm:px-6 py-24 sm:py-32 w-full">
-          <motion.div
-            variants={stagger}
-            initial="hidden"
-            animate="show"
-            className="max-w-2xl"
-          >
-            {/* Badge */}
-            <motion.div variants={fadeUp} className="inline-flex items-center gap-2 text-xs sm:text-sm font-bold px-4 py-2 rounded-full mb-6" style={{ background: 'color-mix(in srgb,var(--brand-accent) 15%,transparent)', border: '1px solid color-mix(in srgb,var(--brand-accent) 30%,transparent)', color: 'var(--brand-accent)' }}>
-              {cfg.hero_badge}
-            </motion.div>
-
-            {/* Headline */}
-            <motion.h1 variants={fadeUp} className="text-5xl sm:text-6xl lg:text-7xl font-black leading-[0.95] mb-5 tracking-tight">
-              {cfg.hero_title}<br />
-              <span style={{ color: 'var(--brand-accent)' }}>{cfg.hero_title_accent}</span>
-            </motion.h1>
-
-            <motion.p variants={fadeUp} className="text-base sm:text-lg text-gray-300 mb-8 leading-relaxed max-w-xl">
-              {cfg.hero_subtitle}
+      {/* ── ORDER TYPE SELECTION ─────────────────────────── */}
+      <section className="max-w-7xl mx-auto px-4 sm:px-6 -mt-8 relative z-10 mb-4">
+        <motion.div
+          initial={{ opacity: 0, y: 24 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.35, duration: 0.5, ease: [0.22,1,0.36,1] }}
+          className="bg-white rounded-2xl shadow-2xl shadow-black/10 p-5 sm:p-6 border border-gray-100"
+        >
+          <h2 className="font-black text-gray-900 mb-4 text-base">How would you like your order?</h2>
+          <div className="grid grid-cols-2 gap-3">
+            {([
+              { value: 'delivery'   as const, label: 'Delivery',   desc: 'To your door',    icon: '🚚', available: shopStatus ? shopStatus.deliveryEnabled   : true },
+              { value: 'collection' as const, label: 'Collection', desc: 'Pick up in-store', icon: '🏪', available: shopStatus ? shopStatus.collectionEnabled : true },
+            ]).map((opt) => {
+              const selected = orderType === opt.value
+              return (
+                <button
+                  key={opt.value}
+                  onClick={() => opt.available && setOrderType(opt.value)}
+                  disabled={!opt.available}
+                  className={`relative p-4 sm:p-5 rounded-2xl border-2 text-left transition-all duration-150 ${
+                    !opt.available
+                      ? 'border-gray-100 bg-gray-50 opacity-50 cursor-not-allowed'
+                      : selected
+                        ? 'border-red-500 bg-red-50'
+                        : 'border-gray-100 hover:border-gray-300 bg-white'
+                  }`}
+                >
+                  {selected && (
+                    <span className="absolute top-2 right-2 w-5 h-5 rounded-full bg-red-500 flex items-center justify-center text-white text-xs font-black">✓</span>
+                  )}
+                  <div className="text-3xl mb-2">{opt.icon}</div>
+                  <div className="font-black text-gray-900 text-sm sm:text-base">{opt.label}</div>
+                  <div className="text-xs text-gray-500 mt-0.5">{opt.available ? opt.desc : 'Currently unavailable'}</div>
+                </button>
+              )
+            })}
+          </div>
+          {orderType && (
+            <motion.p
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: 'auto' }}
+              className="text-xs text-green-600 font-bold mt-3"
+            >
+              ✅ {orderType === 'delivery' ? 'Delivery selected — enter your postcode below' : 'Collection selected — we\'ll have your order ready in 15–20 min'}
             </motion.p>
-
-            {/* CTAs */}
-            <motion.div variants={fadeUp} className="flex flex-wrap gap-3 mb-8">
-              <Link href="/menu" className="btn-brand inline-flex items-center gap-2 px-7 py-3.5 text-base rounded-xl">
-                {cfg.hero_cta1} <ChevronRight size={18} />
-              </Link>
-              <Link href="/menu" className="inline-flex items-center gap-2 px-7 py-3.5 text-base rounded-xl font-black bg-white/10 hover:bg-white/20 border border-white/20 text-white transition-all duration-150">
-                {cfg.hero_cta2}
-              </Link>
-            </motion.div>
-
-            {/* Stats row */}
-            <motion.div variants={fadeUp} className="flex flex-wrap gap-5 text-sm text-gray-400">
-              <div className="flex items-center gap-2"><Truck size={15} style={{ color: 'var(--brand-accent)' }} /> {cfg.hero_stat1}</div>
-              <div className="flex items-center gap-2"><Star size={15} style={{ color: 'var(--brand-accent)', fill: 'var(--brand-accent)' }} /> {cfg.hero_stat2}</div>
-              <div className="flex items-center gap-2"><Clock size={15} style={{ color: 'var(--brand-success)' }} /> {cfg.hero_stat3}</div>
-            </motion.div>
-          </motion.div>
-        </div>
+          )}
+        </motion.div>
       </section>
 
       {/* ── DELIVERY CHECKER ─────────────────────────────── */}
-      <section className="max-w-7xl mx-auto px-4 sm:px-6 -mt-8 relative z-10">
+      <section className="max-w-7xl mx-auto px-4 sm:px-6 relative z-10">
         <motion.div
           initial={{ opacity: 0, y: 24 }}
           animate={{ opacity: 1, y: 0 }}
@@ -149,12 +163,14 @@ export default function HomePage() {
 
       {/* ── OPEN STATUS ──────────────────────────────────── */}
       <section className="max-w-7xl mx-auto px-4 sm:px-6 mt-4">
-        <div className={`inline-flex items-center gap-2.5 px-4 py-2 rounded-full text-sm font-bold ${
-          open ? 'bg-green-50 text-green-700' : 'bg-gray-100 text-gray-600'
-        }`}>
-          <span className={`w-2 h-2 rounded-full ${open ? 'bg-green-500 pulse-dot' : 'bg-gray-400'}`} />
-          {open ? `We're Open Now · Today: ${todayHours}` : `We're Closed · Today: ${todayHours}`}
-        </div>
+        {shopStatus && (
+          <div className={`inline-flex items-center gap-2.5 px-4 py-2 rounded-full text-sm font-bold ${
+            open ? 'bg-green-50 text-green-700' : 'bg-gray-100 text-gray-600'
+          }`}>
+            <span className={`w-2 h-2 rounded-full ${open ? 'bg-green-500 pulse-dot' : 'bg-gray-400'}`} />
+            {open ? `We're Open · ${shopStatus.message}` : shopStatus.message}
+          </div>
+        )}
       </section>
 
       {/* ── CATEGORIES ──────────────────────────────────── */}
@@ -266,7 +282,7 @@ export default function HomePage() {
           viewport={{ once: true, margin: '-60px' }}
           className="grid grid-cols-1 sm:grid-cols-3 gap-4"
         >
-          {activeCoupons.map((coupon) => (
+          {liveCoupons.map((coupon) => (
             <motion.div
               key={coupon.code}
               variants={fadeUp}
@@ -359,7 +375,11 @@ export default function HomePage() {
               {openingHours.map((h) => (
                 <div key={h.day} className="flex gap-4 items-center">
                   <span className="text-gray-500 w-10 shrink-0 text-xs">{h.day.slice(0, 3)}</span>
-                  <span className="font-bold text-gray-200 text-xs">{h.closed ? 'Closed' : `${h.open}–${h.close}`}</span>
+                  <span className="font-bold text-gray-200 text-xs">
+                    {(cfg[`hours_${h.day.slice(0,3).toLowerCase()}_closed`] === 'true')
+                      ? 'Closed'
+                      : `${cfg[`hours_${h.day.slice(0,3).toLowerCase()}_open`] || h.open}–${cfg[`hours_${h.day.slice(0,3).toLowerCase()}_close`] || h.close}`}
+                  </span>
                 </div>
               ))}
             </div>

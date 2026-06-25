@@ -16,6 +16,7 @@ export const DEFAULTS: SiteConfig = {
   biz_logo_abbr:      'PG',
   biz_tagline:        'Fresh handmade pizzas, juicy burgers & sizzling kebabs delivered hot to your door. Family-run since 2009.',
   biz_phone:          '01784 452 888',
+  biz_phone2:         '',
   biz_email:          'info@pizzaguys.co.uk',
   biz_address:        '209 Laleham Road, Staines-upon-Thames, Surrey, TW18 2EA',
   biz_founded:        '2009',
@@ -46,11 +47,35 @@ export const DEFAULTS: SiteConfig = {
   social_facebook:    '',
   social_instagram:   '',
   social_twitter:     '',
+  social_tiktok:      '',
 
-  // ── Opening Hours ─────────────────────────────────────────
-  hours_mon_thu:      '11:00 – 23:00',
-  hours_fri_sat:      '11:00 – 23:30',
-  hours_sun:          '12:00 – 23:00',
+  // ── Shop Status ───────────────────────────────────────────
+  shop_open:          'true',   // manual override: false = temporarily closed
+  shop_delivery:      'true',
+  shop_collection:    'true',
+
+  // ── Per-day Opening Hours ────────────────────────────────
+  hours_mon_open:     '11:00',
+  hours_mon_close:    '23:00',
+  hours_mon_closed:   'false',
+  hours_tue_open:     '11:00',
+  hours_tue_close:    '23:00',
+  hours_tue_closed:   'false',
+  hours_wed_open:     '11:00',
+  hours_wed_close:    '23:00',
+  hours_wed_closed:   'false',
+  hours_thu_open:     '11:00',
+  hours_thu_close:    '23:00',
+  hours_thu_closed:   'false',
+  hours_fri_open:     '11:00',
+  hours_fri_close:    '23:30',
+  hours_fri_closed:   'false',
+  hours_sat_open:     '11:00',
+  hours_sat_close:    '23:30',
+  hours_sat_closed:   'false',
+  hours_sun_open:     '12:00',
+  hours_sun_close:    '23:00',
+  hours_sun_closed:   'false',
 
   // ── SEO ───────────────────────────────────────────────────
   seo_title:          'Pizza Guys | Fresh Pizzas, Burgers & More',

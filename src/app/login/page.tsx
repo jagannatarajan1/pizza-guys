@@ -44,8 +44,8 @@ export default function LoginPage() {
                 type="text"
                 value={form.email}
                 onChange={(e) => setForm((p) => ({ ...p, email: e.target.value }))}
-                placeholder="john@example.com"
-                autoComplete="email"
+                placeholder="Email or mobile number"
+                autoComplete="username"
                 className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-red-400"
               />
             </div>

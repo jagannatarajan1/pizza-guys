@@ -35,7 +35,7 @@ function Input({ value, onChange, placeholder, type = 'text' }: { value: string;
       value={value}
       onChange={(e) => onChange(e.target.value)}
       placeholder={placeholder}
-      className="w-full border-2 border-gray-100 rounded-xl px-3 py-2.5 text-sm font-semibold focus:outline-none focus:border-[var(--brand-accent)] transition-colors"
+      className="w-full border-2 border-gray-100 rounded-xl px-3 py-2.5 text-sm font-semibold focus:outline-none focus:border-(--brand-accent) transition-colors"
     />
   )
 }
@@ -47,7 +47,7 @@ function Textarea({ value, onChange, rows = 4, placeholder }: { value: string; o
       onChange={(e) => onChange(e.target.value)}
       rows={rows}
       placeholder={placeholder}
-      className="w-full border-2 border-gray-100 rounded-xl px-3 py-2.5 text-sm font-semibold focus:outline-none focus:border-[var(--brand-accent)] transition-colors resize-none"
+      className="w-full border-2 border-gray-100 rounded-xl px-3 py-2.5 text-sm font-semibold focus:outline-none focus:border-(--brand-accent) transition-colors resize-none"
     />
   )
 }
@@ -70,7 +70,7 @@ function ColorField({ label, value, onChange, note }: { label: string; value: st
           onChange={(e) => onChange(e.target.value)}
           placeholder="#RRGGBB"
           maxLength={9}
-          className={`w-36 border-2 rounded-xl px-3 py-2.5 text-sm font-mono font-bold focus:outline-none transition-colors ${isValid ? 'border-gray-100 focus:border-[var(--brand-accent)]' : 'border-red-300 focus:border-red-400'}`}
+          className={`w-36 border-2 rounded-xl px-3 py-2.5 text-sm font-mono font-bold focus:outline-none transition-colors ${isValid ? 'border-gray-100 focus:border-(--brand-accent)' : 'border-red-300 focus:border-red-400'}`}
         />
         <div className="w-8 h-8 rounded-lg border border-gray-200 shrink-0" style={{ background: isValid ? value : '#ccc' }} />
       </div>
@@ -173,7 +173,8 @@ function BusinessTab({ cfg, set, save, reset, saving }: { cfg: Config; set: (k: 
 
       <SectionCard title="Contact Details">
         <div className="grid sm:grid-cols-2 gap-5">
-          <Field label="Phone Number"><Input value={cfg.biz_phone} onChange={(v) => set('biz_phone', v)} placeholder="01784 452 888" type="tel" /></Field>
+          <Field label="Primary Phone"><Input value={cfg.biz_phone} onChange={(v) => set('biz_phone', v)} placeholder="01784 452 888" type="tel" /></Field>
+          <Field label="Secondary Phone" note="Optional — shown alongside primary number"><Input value={cfg.biz_phone2 ?? ''} onChange={(v) => set('biz_phone2', v)} placeholder="01784 452 999" type="tel" /></Field>
           <Field label="Email Address"><Input value={cfg.biz_email} onChange={(v) => set('biz_email', v)} placeholder="info@pizzaguys.co.uk" type="email" /></Field>
         </div>
         <div className="mt-5">
@@ -181,7 +182,7 @@ function BusinessTab({ cfg, set, save, reset, saving }: { cfg: Config; set: (k: 
             <Textarea value={cfg.biz_address} onChange={(v) => set('biz_address', v)} rows={2} placeholder="209 Laleham Road, Staines-upon-Thames, Surrey, TW18 2EA" />
           </Field>
         </div>
-        <SaveBar onSave={save} onReset={reset} saving={saving} keys={['biz_phone', 'biz_email', 'biz_address']} />
+        <SaveBar onSave={save} onReset={reset} saving={saving} keys={['biz_phone', 'biz_phone2', 'biz_email', 'biz_address']} />
       </SectionCard>
     </div>
   )
@@ -252,27 +253,83 @@ function AboutTab({ cfg, set, save, reset, saving }: { cfg: Config; set: (k: str
 }
 
 function SocialTab({ cfg, set, save, reset, saving }: { cfg: Config; set: (k: string, v: string) => void; save: (keys: string[]) => void; reset: (keys: string[]) => void; saving: boolean }) {
-  const keys = ['social_facebook', 'social_instagram', 'social_twitter']
+  const keys = ['social_facebook', 'social_instagram', 'social_twitter', 'social_tiktok']
   return (
     <SectionCard title="Social Media Links" description="Leave blank to hide a social icon from the footer">
       <div className="space-y-5">
         <Field label="Facebook URL"><Input value={cfg.social_facebook} onChange={(v) => set('social_facebook', v)} placeholder="https://facebook.com/pizzaguys" type="url" /></Field>
         <Field label="Instagram URL"><Input value={cfg.social_instagram} onChange={(v) => set('social_instagram', v)} placeholder="https://instagram.com/pizzaguys" type="url" /></Field>
         <Field label="Twitter / X URL"><Input value={cfg.social_twitter} onChange={(v) => set('social_twitter', v)} placeholder="https://x.com/pizzaguys" type="url" /></Field>
+        <Field label="TikTok URL"><Input value={cfg.social_tiktok ?? ''} onChange={(v) => set('social_tiktok', v)} placeholder="https://tiktok.com/@pizzaguys" type="url" /></Field>
       </div>
       <SaveBar onSave={save} onReset={reset} saving={saving} keys={keys} />
     </SectionCard>
   )
 }
 
+const HOUR_DAYS = [
+  { key: 'mon', label: 'Monday'    },
+  { key: 'tue', label: 'Tuesday'   },
+  { key: 'wed', label: 'Wednesday' },
+  { key: 'thu', label: 'Thursday'  },
+  { key: 'fri', label: 'Friday'    },
+  { key: 'sat', label: 'Saturday'  },
+  { key: 'sun', label: 'Sunday'    },
+] as const
+
 function HoursTab({ cfg, set, save, reset, saving }: { cfg: Config; set: (k: string, v: string) => void; save: (keys: string[]) => void; reset: (keys: string[]) => void; saving: boolean }) {
-  const keys = ['hours_mon_thu', 'hours_fri_sat', 'hours_sun']
+  const keys = HOUR_DAYS.flatMap((d) => [
+    `hours_${d.key}_open`,
+    `hours_${d.key}_close`,
+    `hours_${d.key}_closed`,
+  ])
   return (
-    <SectionCard title="Opening Hours" description="Shown in the footer and on the About page. Format: 11:00 – 23:00">
-      <div className="space-y-5">
-        <Field label="Monday – Thursday"><Input value={cfg.hours_mon_thu} onChange={(v) => set('hours_mon_thu', v)} placeholder="11:00 – 23:00" /></Field>
-        <Field label="Friday – Saturday"><Input value={cfg.hours_fri_sat} onChange={(v) => set('hours_fri_sat', v)} placeholder="11:00 – 23:30" /></Field>
-        <Field label="Sunday"><Input value={cfg.hours_sun} onChange={(v) => set('hours_sun', v)} placeholder="12:00 – 23:00" /></Field>
+    <SectionCard title="Opening Hours" description="Set individual times for each day. Toggle the switch to mark a day as closed.">
+      <div className="space-y-2">
+        {HOUR_DAYS.map((day) => {
+          const closedKey = `hours_${day.key}_closed`
+          const openKey   = `hours_${day.key}_open`
+          const closeKey  = `hours_${day.key}_close`
+          const isClosed  = cfg[closedKey] === 'true'
+          return (
+            <div
+              key={day.key}
+              className={`grid grid-cols-[160px_1fr] gap-3 items-center p-3 rounded-xl border transition-all ${isClosed ? 'bg-gray-50 border-gray-100 opacity-60' : 'bg-white border-gray-100'}`}
+            >
+              <div className="flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={() => set(closedKey, isClosed ? 'false' : 'true')}
+                  className={`relative w-9 h-5 rounded-full transition-colors shrink-0 ${isClosed ? 'bg-gray-300' : 'bg-green-500'}`}
+                >
+                  <span className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform duration-150 ${isClosed ? '' : 'translate-x-4'}`} />
+                </button>
+                <span className="font-black text-sm text-gray-700">{day.label}</span>
+              </div>
+              {isClosed ? (
+                <span className="text-sm text-gray-400 italic">Closed</span>
+              ) : (
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="text-xs text-gray-400 font-semibold">From</span>
+                  <input
+                    type="time"
+                    value={cfg[openKey] || '11:00'}
+                    onChange={(e) => set(openKey, e.target.value)}
+                    className="border-2 border-gray-100 rounded-xl px-3 py-1.5 text-sm font-bold focus:outline-none focus:border-(--brand-accent) transition-colors"
+                  />
+                  <span className="text-gray-300">–</span>
+                  <span className="text-xs text-gray-400 font-semibold">To</span>
+                  <input
+                    type="time"
+                    value={cfg[closeKey] || '23:00'}
+                    onChange={(e) => set(closeKey, e.target.value)}
+                    className="border-2 border-gray-100 rounded-xl px-3 py-1.5 text-sm font-bold focus:outline-none focus:border-(--brand-accent) transition-colors"
+                  />
+                </div>
+              )}
+            </div>
+          )
+        })}
       </div>
       <SaveBar onSave={save} onReset={reset} saving={saving} keys={keys} />
     </SectionCard>
