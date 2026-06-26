@@ -1,16 +1,11 @@
 'use client'
-import { useState, useEffect } from 'react'
-import { useRouter } from 'next/navigation'
+import { useState } from 'react'
 import Link from 'next/link'
-import { Elements, PaymentElement, useStripe, useElements } from '@stripe/react-stripe-js'
 import { Check, MapPin, User, Clock, CreditCard, ShoppingBag, ArrowLeft, ChevronRight, Loader2 } from 'lucide-react'
 import { useCartStore } from '@/lib/cart-store'
 import { useAuth } from '@/lib/auth-context'
-import { getStripe } from '@/lib/stripe-client'
 import { formatPrice } from '@/lib/utils'
 import toast from 'react-hot-toast'
-
-const stripePromise = getStripe()
 
 const STEPS = [
   { id: 1, label: 'Order Type', icon: ShoppingBag },
@@ -20,86 +15,50 @@ const STEPS = [
   { id: 5, label: 'Payment', icon: CreditCard },
 ]
 
-// ─── Inner payment form (must be inside <Elements>) ────────────────────────
+// ─── Stripe Checkout redirect ───────────────────────────────────────────────
 type PaymentFormProps = {
   total: number
   orderPayload: Record<string, unknown>
-  onSuccess: (orderNumber: string) => void
 }
 
-function PaymentForm({ total, orderPayload, onSuccess }: PaymentFormProps) {
-  const stripe = useStripe()
-  const elements = useElements()
-  const [placing, setPlacing] = useState(false)
+function PaymentForm({ total, orderPayload }: PaymentFormProps) {
+  const [loading, setLoading] = useState(false)
 
   const handlePay = async () => {
-    if (!stripe || !elements) return
-    setPlacing(true)
-
-    const { error: submitError } = await elements.submit()
-    if (submitError) {
-      toast.error(submitError.message ?? 'Payment error')
-      setPlacing(false)
-      return
+    setLoading(true)
+    try {
+      const res = await fetch('/api/checkout/create-session', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(orderPayload),
+      })
+      const data = await res.json()
+      if (!res.ok || !data.url) {
+        toast.error(data.error ?? 'Could not start checkout')
+        setLoading(false)
+        return
+      }
+      window.location.href = data.url
+    } catch {
+      toast.error('Could not start checkout — please try again')
+      setLoading(false)
     }
-
-    const intentRes = await fetch('/api/checkout/create-intent', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ amount: Math.round(total * 100) }),
-    })
-
-    if (!intentRes.ok) {
-      toast.error('Could not initialise payment')
-      setPlacing(false)
-      return
-    }
-
-    const { clientSecret } = await intentRes.json()
-
-    const { error, paymentIntent } = await stripe.confirmPayment({
-      elements,
-      clientSecret,
-      redirect: 'if_required',
-      confirmParams: {
-        return_url: `${window.location.origin}/order-tracking`,
-      },
-    })
-
-    if (error) {
-      toast.error(error.message ?? 'Payment failed')
-      setPlacing(false)
-      return
-    }
-
-    const orderRes = await fetch('/api/orders', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ...orderPayload, paymentIntentId: paymentIntent?.id, paymentMethod: 'card' }),
-    })
-
-    if (!orderRes.ok) {
-      toast.error('Payment succeeded but order save failed — contact us')
-      setPlacing(false)
-      return
-    }
-
-    const { orderNumber } = await orderRes.json()
-    onSuccess(orderNumber)
   }
 
   return (
     <div>
-      <PaymentElement />
+      <div className="bg-blue-50 border border-blue-100 rounded-xl p-4 mb-4 text-sm text-blue-800">
+        You will be redirected to Stripe&apos;s secure payment page to complete your order.
+      </div>
       <button
         onClick={handlePay}
-        disabled={placing || !stripe || !elements}
-        className={`w-full mt-5 py-4 rounded-xl font-bold text-white flex items-center justify-center gap-2 transition-colors ${placing ? 'bg-gray-400' : 'bg-red-600 hover:bg-red-700'}`}
+        disabled={loading}
+        className={`w-full py-4 rounded-xl font-bold text-white flex items-center justify-center gap-2 transition-colors ${loading ? 'bg-gray-400' : 'bg-red-600 hover:bg-red-700'}`}
       >
-        {placing ? (
-          <><div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> Processing...</>
+        {loading ? (
+          <><Loader2 size={16} className="animate-spin" /> Redirecting to Stripe...</>
         ) : (
-          <>Pay {formatPrice(total)}</>
+          <>Pay {formatPrice(total)} · Secure Checkout</>
         )}
       </button>
       <p className="text-center text-xs text-gray-400 mt-2">🔒 Secured by Stripe</p>
@@ -107,57 +66,10 @@ function PaymentForm({ total, orderPayload, onSuccess }: PaymentFormProps) {
   )
 }
 
-// ─── Cash order form (no Stripe needed) ────────────────────────────────────
-type CashFormProps = {
-  total: number
-  orderPayload: Record<string, unknown>
-  onSuccess: (orderNumber: string) => void
-}
-
-function CashForm({ total, orderPayload, onSuccess }: CashFormProps) {
-  const [placing, setPlacing] = useState(false)
-
-  const handlePlace = async () => {
-    setPlacing(true)
-    const res = await fetch('/api/orders', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ...orderPayload, paymentMethod: 'cash' }),
-    })
-    if (!res.ok) {
-      toast.error('Could not place order — please try again')
-      setPlacing(false)
-      return
-    }
-    const { orderNumber } = await res.json()
-    onSuccess(orderNumber)
-  }
-
-  return (
-    <div>
-      <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-4 mb-4 text-sm text-yellow-800">
-        You will pay <strong>{formatPrice(total)}</strong> in cash when your order arrives.
-      </div>
-      <button
-        onClick={handlePlace}
-        disabled={placing}
-        className={`w-full py-4 rounded-xl font-bold text-white flex items-center justify-center gap-2 transition-colors ${placing ? 'bg-gray-400' : 'bg-red-600 hover:bg-red-700'}`}
-      >
-        {placing ? (
-          <><div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> Placing...</>
-        ) : (
-          <>Place Order · {formatPrice(total)}</>
-        )}
-      </button>
-    </div>
-  )
-}
-
 // ─── Main checkout page ─────────────────────────────────────────────────────
 export default function CheckoutPage() {
-  const router = useRouter()
   const { user } = useAuth()
-  const { items, couponDiscount, deliveryFee, getSubtotal, clearCart, setDeliveryFee } = useCartStore()
+  const { items, couponDiscount, deliveryFee, getSubtotal, setDeliveryFee } = useCartStore()
 
   const [step, setStep] = useState(1)
   const [orderType, setOrderType] = useState<'delivery' | 'collection'>('delivery')
@@ -171,17 +83,11 @@ export default function CheckoutPage() {
   })
   const [timing, setTiming] = useState<'asap' | 'scheduled'>('asap')
   const [scheduledTime, setScheduledTime] = useState('')
-  const [paymentMethod, setPaymentMethod] = useState<'card' | 'cash'>('card')
   const [zoneError, setZoneError] = useState('')
   const [advancingStep, setAdvancingStep] = useState(false)
 
   const subtotal = getSubtotal()
   const total = Math.max(0, subtotal - couponDiscount + (orderType === 'delivery' ? deliveryFee : 0))
-
-  const handleSuccess = (orderNumber: string) => {
-    clearCart()
-    router.push(`/order-tracking?order=${orderNumber}`)
-  }
 
   const resolvedAddress = useNewAddress
     ? newAddress
@@ -229,17 +135,6 @@ export default function CheckoutPage() {
     discount: couponDiscount * 100,
     total: total * 100,
     scheduledTime: timing === 'scheduled' ? scheduledTime : null,
-  }
-
-  // Stripe Elements appearance
-  const elementsOptions = {
-    mode: 'payment' as const,
-    amount: Math.round(total * 100),
-    currency: 'gbp',
-    appearance: {
-      theme: 'stripe' as const,
-      variables: { colorPrimary: '#dc2626' },
-    },
   }
 
   if (items.length === 0) {
@@ -472,23 +367,6 @@ export default function CheckoutPage() {
           <div>
             <h2 className="text-lg font-bold text-gray-900 mb-4">Payment</h2>
 
-            {/* Payment method selector */}
-            <div className="grid grid-cols-2 gap-2 mb-5">
-              {([
-                { value: 'card', label: '💳 Pay by Card', desc: 'Credit / Debit / Apple Pay / Google Pay' },
-                { value: 'cash', label: '💵 Pay with Cash', desc: 'Pay on delivery' },
-              ] as const).map((opt) => (
-                <button
-                  key={opt.value}
-                  onClick={() => setPaymentMethod(opt.value)}
-                  className={`p-3 rounded-xl border-2 text-left transition-all ${paymentMethod === opt.value ? 'border-red-500 bg-red-50' : 'border-gray-100 hover:border-gray-300'}`}
-                >
-                  <div className="font-bold text-gray-900 text-sm">{opt.label}</div>
-                  <div className="text-xs text-gray-500">{opt.desc}</div>
-                </button>
-              ))}
-            </div>
-
             {/* Order summary */}
             <div className="bg-gray-50 rounded-xl p-4 mb-5">
               <h3 className="font-bold text-gray-900 mb-3">Order Summary</h3>
@@ -520,22 +398,10 @@ export default function CheckoutPage() {
               </div>
             </div>
 
-            {/* Stripe Elements (card) or cash confirmation */}
-            {paymentMethod === 'card' ? (
-              <Elements stripe={stripePromise} options={elementsOptions}>
-                <PaymentForm
-                  total={total}
-                  orderPayload={orderPayload}
-                  onSuccess={handleSuccess}
-                />
-              </Elements>
-            ) : (
-              <CashForm
-                total={total}
-                orderPayload={orderPayload}
-                onSuccess={handleSuccess}
-              />
-            )}
+            <PaymentForm
+              total={total}
+              orderPayload={orderPayload}
+            />
           </div>
         )}
       </div>

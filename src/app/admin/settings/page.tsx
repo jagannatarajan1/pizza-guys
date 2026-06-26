@@ -3,6 +3,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { Loader2, Palette, Store, Sparkles, Users, Share2, Clock, Search, Save, RotateCcw } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { DEFAULTS } from '@/lib/site-config'
+import ImageUpload from '@/components/ImageUpload'
 
 type Config = Record<string, string>
 
@@ -152,7 +153,7 @@ function ThemeTab({ cfg, set, save, reset, saving }: { cfg: Config; set: (k: str
 }
 
 function BusinessTab({ cfg, set, save, reset, saving }: { cfg: Config; set: (k: string, v: string) => void; save: (keys: string[]) => void; reset: (keys: string[]) => void; saving: boolean }) {
-  const keys = ['biz_name', 'biz_logo_line1', 'biz_logo_line2', 'biz_logo_abbr', 'biz_tagline', 'biz_phone', 'biz_email', 'biz_address', 'biz_founded']
+  const keys = ['biz_name', 'biz_logo_image', 'biz_logo_line1', 'biz_logo_line2', 'biz_logo_abbr', 'biz_tagline', 'biz_phone', 'biz_email', 'biz_address', 'biz_founded']
   return (
     <div className="space-y-5">
       <SectionCard title="Business Identity">
@@ -161,7 +162,17 @@ function BusinessTab({ cfg, set, save, reset, saving }: { cfg: Config; set: (k: 
           <Field label="Founded Year"><Input value={cfg.biz_founded} onChange={(v) => set('biz_founded', v)} placeholder="2009" /></Field>
           <Field label="Logo Line 1" note="First word in the logo text"><Input value={cfg.biz_logo_line1} onChange={(v) => set('biz_logo_line1', v)} placeholder="Pizza" /></Field>
           <Field label="Logo Line 2" note="Second word in the logo text"><Input value={cfg.biz_logo_line2} onChange={(v) => set('biz_logo_line2', v)} placeholder="Guys" /></Field>
-          <Field label="Logo Abbreviation" note="2-letter monogram shown in the circle"><Input value={cfg.biz_logo_abbr} onChange={(v) => set('biz_logo_abbr', v)} placeholder="PG" /></Field>
+          <Field label="Logo Abbreviation" note="Fallback monogram if no image uploaded"><Input value={cfg.biz_logo_abbr} onChange={(v) => set('biz_logo_abbr', v)} placeholder="PG" /></Field>
+        </div>
+        <div className="mt-5">
+          <Field label="Logo Image" note="Upload an image logo — replaces the text logo across the site. Leave empty to use the text logo.">
+            <ImageUpload value={cfg.biz_logo_image} onChange={(url) => set('biz_logo_image', url)} label="Logo Image" />
+            {cfg.biz_logo_image && (
+              <button onClick={() => set('biz_logo_image', '')} className="mt-2 text-xs text-red-500 hover:underline">
+                Remove image — revert to text logo
+              </button>
+            )}
+          </Field>
         </div>
         <div className="mt-5">
           <Field label="Brand Tagline" note="Shown in the footer below the logo">

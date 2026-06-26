@@ -11,6 +11,7 @@ export const DEFAULTS: SiteConfig = {
 
   // ── Business ──────────────────────────────────────────────
   biz_name:           'Pizza Guys',
+  biz_logo_image:     '',
   biz_logo_line1:     'Pizza',
   biz_logo_line2:     'Guys',
   biz_logo_abbr:      'PG',
