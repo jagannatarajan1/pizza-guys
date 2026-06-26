@@ -1,13 +1,15 @@
 'use client'
-import { useState } from 'react'
+import { useState, Suspense } from 'react'
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { Eye, EyeOff, Mail } from 'lucide-react'
 import { useAuth } from '@/lib/auth-context'
 import toast from 'react-hot-toast'
 
-export default function LoginPage() {
+function LoginForm() {
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const redirect = searchParams.get('redirect') || '/'
   const { login } = useAuth()
   const [form, setForm] = useState({ email: '', password: '' })
   const [showPw, setShowPw] = useState(false)
@@ -20,7 +22,7 @@ export default function LoginPage() {
     setLoading(true)
     const ok = await login(form.email, form.password)
     setLoading(false)
-    if (ok) { toast.success('Welcome back!'); router.push('/') }
+    if (ok) { toast.success('Welcome back!'); router.push(redirect) }
     else toast.error('Invalid email or password')
   }
 
@@ -98,5 +100,13 @@ export default function LoginPage() {
         </p>
       </div>
     </div>
+  )
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense>
+      <LoginForm />
+    </Suspense>
   )
 }
