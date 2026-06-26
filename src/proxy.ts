@@ -16,9 +16,11 @@ export function proxy(req: NextRequest) {
     }
   }
 
-  return NextResponse.next()
+  const res = NextResponse.next()
+  res.headers.set('ngrok-skip-browser-warning', 'true')
+  return res
 }
 
 export const config = {
-  matcher: ['/admin/:path*'],
+  matcher: ['/admin/:path*', '/((?!_next/webpack-hmr).*)'],
 }
