@@ -9,15 +9,22 @@ datasource db {
 }
 
 model User {
-  id           String    @id @default(uuid())
-  name         String    @default("")
-  email        String    @unique
-  phone        String    @default("")
-  passwordHash String    @map("password_hash")
-  role         String    @default("user")
-  createdAt    DateTime  @default(now()) @map("created_at")
-  addresses    Address[]
-  orders       Order[]
+  id                  String    @id @default(uuid())
+  name                String    @default("")
+  email               String    @unique
+  phone               String    @default("")
+  passwordHash        String    @map("password_hash")
+  role                String    @default("user")
+  // 2FA
+  twoFactorSecret     String?   @map("two_factor_secret")
+  twoFactorEnabled    Boolean   @default(false) @map("two_factor_enabled")
+  twoFactorBackup     String    @default("[]") @map("two_factor_backup") // JSON array of hashed backup codes
+  // Brute-force protection
+  failedLogins        Int       @default(0) @map("failed_logins")
+  lockedUntil         DateTime? @map("locked_until")
+  createdAt           DateTime  @default(now()) @map("created_at")
+  addresses           Address[]
+  orders              Order[]
 
   @@map("users")
 }

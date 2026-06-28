@@ -4,8 +4,15 @@ import prisma from '@/lib/prisma'
 export const dynamic = 'force-dynamic'
 
 const STATUS_STAGE: Record<string, number> = {
-  New: 0, Accepted: 1, Preparing: 2, Ready: 3,
-  'Out for Delivery': 3, Completed: 4, Cancelled: -1,
+  pending_payment:    0,
+  confirmed:          0,
+  New:                0,
+  Accepted:           1,
+  Preparing:          2,
+  Ready:              3,
+  'Out for Delivery': 3,
+  Completed:          4,
+  Cancelled:          -1,
 }
 
 export async function GET(

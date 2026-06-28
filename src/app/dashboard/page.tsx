@@ -16,6 +16,8 @@ const TABS = [
 ]
 
 const STATUS_PILL: Record<string, string> = {
+  pending_payment:    'bg-amber-100 text-amber-700',
+  confirmed:          'bg-blue-100 text-blue-700',
   New:                'bg-blue-100 text-blue-700',
   Accepted:           'bg-yellow-100 text-yellow-700',
   Preparing:          'bg-orange-100 text-orange-700',
@@ -25,13 +27,18 @@ const STATUS_PILL: Record<string, string> = {
   Cancelled:          'bg-red-100 text-red-700',
 }
 
+const STATUS_LABEL: Record<string, string> = {
+  pending_payment: 'Payment Pending',
+  confirmed:       'Order Received',
+}
+
 type CustomerOrder = {
   orderNumber: string
   status: string
   total: number
   paymentMethod: string
   createdAt: string
-  items: { name: string; quantity: number }[]
+  items: { name: string; quantity: number; image: string }[]
 }
 
 export default function DashboardPage() {
@@ -262,7 +269,7 @@ export default function DashboardPage() {
                 <div className="space-y-3">
                   {orders.map((order) => (
                     <div key={order.orderNumber} className="border border-gray-100 rounded-xl p-4">
-                      <div className="flex items-start justify-between mb-2">
+                      <div className="flex items-start justify-between mb-3">
                         <div>
                           <div className="font-bold text-gray-900 text-sm">#{order.orderNumber}</div>
                           <div className="text-xs text-gray-500">
@@ -270,10 +277,36 @@ export default function DashboardPage() {
                           </div>
                         </div>
                         <span className={`text-xs px-2 py-1 rounded-full font-medium ${STATUS_PILL[order.status] ?? 'bg-gray-100 text-gray-600'}`}>
-                          {order.status}
+                          {STATUS_LABEL[order.status] ?? order.status}
                         </span>
                       </div>
-                      <div className="text-sm text-gray-600 mb-3">
+                      {/* Product images */}
+                      <div className="flex gap-2 mb-3">
+                        {order.items.slice(0, 4).map((item, idx) => (
+                          <div key={idx} className="relative shrink-0">
+                            {item.image ? (
+                              <img
+                                src={item.image}
+                                alt={item.name}
+                                className="w-12 h-12 rounded-lg object-cover border border-gray-100"
+                              />
+                            ) : (
+                              <div className="w-12 h-12 rounded-lg bg-gray-100 flex items-center justify-center text-lg">🍕</div>
+                            )}
+                            {item.quantity > 1 && (
+                              <span className="absolute -top-1 -right-1 bg-red-600 text-white text-xs font-bold w-4 h-4 rounded-full flex items-center justify-center">
+                                {item.quantity}
+                              </span>
+                            )}
+                          </div>
+                        ))}
+                        {order.items.length > 4 && (
+                          <div className="w-12 h-12 rounded-lg bg-gray-100 flex items-center justify-center text-xs font-bold text-gray-500">
+                            +{order.items.length - 4}
+                          </div>
+                        )}
+                      </div>
+                      <div className="text-xs text-gray-500 mb-3">
                         {order.items.slice(0, 3).map((i) => `${i.quantity}× ${i.name}`).join(' · ')}
                         {order.items.length > 3 && ` +${order.items.length - 3} more`}
                       </div>

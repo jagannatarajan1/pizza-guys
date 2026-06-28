@@ -1,9 +1,39 @@
 'use client'
 import { useState, useEffect, Suspense } from 'react'
-import { useSearchParams } from 'next/navigation'
+import { useSearchParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { CheckCircle, Clock, Package, ChefHat, Bike, Home, Loader2, AlertCircle } from 'lucide-react'
+import { CheckCircle, Clock, Package, ChefHat, Bike, Home, Loader2, AlertCircle, Search } from 'lucide-react'
 import { formatPrice } from '@/lib/utils'
+
+function OrderLookup() {
+  const router = useRouter()
+  const [input, setInput] = useState('')
+  return (
+    <div className="max-w-md mx-auto px-4 py-16 text-center">
+      <div className="text-5xl mb-4">🍕</div>
+      <h1 className="text-2xl font-black text-gray-900 mb-2">Track Your Order</h1>
+      <p className="text-gray-500 text-sm mb-6">Enter your order number to see the status</p>
+      <div className="flex gap-2">
+        <input
+          value={input}
+          onChange={(e) => setInput(e.target.value.toUpperCase())}
+          onKeyDown={(e) => e.key === 'Enter' && input && router.push(`/order-tracking?order=${input}`)}
+          placeholder="e.g. PG123456"
+          className="flex-1 border-2 border-gray-200 rounded-xl px-4 py-3 text-sm font-mono focus:outline-none focus:border-red-400"
+        />
+        <button
+          onClick={() => input && router.push(`/order-tracking?order=${input}`)}
+          className="bg-red-600 hover:bg-red-700 text-white font-bold px-4 py-3 rounded-xl transition-colors"
+        >
+          <Search size={18} />
+        </button>
+      </div>
+      <Link href="/dashboard" className="mt-6 inline-block text-red-600 text-sm font-semibold hover:underline">
+        View order history
+      </Link>
+    </div>
+  )
+}
 
 const STAGES = [
   { id: 0, label: 'Order Received',    desc: 'We have received your order',          icon: Package  },
@@ -41,42 +71,29 @@ function TrackingContent() {
   const [loading, setLoading] = useState(!!orderNo)
   const [error, setError]   = useState(false)
 
-  const fetchOrder = async () => {
-    if (!orderNo) return
-    try {
-      const res  = await fetch(`/api/orders/${orderNo}`)
-      if (!res.ok) { setError(true); return }
-      const data = await res.json()
-      setOrder(data)
-    } catch {
-      setError(true)
-    } finally {
-      setLoading(false)
-    }
-  }
-
   useEffect(() => {
+    if (!orderNo) return
+
+    const fetchOrder = async () => {
+      try {
+        const res  = await fetch(`/api/orders/${orderNo}`)
+        if (!res.ok) { setError(true); setLoading(false); return }
+        const data = await res.json()
+        setOrder(data)
+      } catch {
+        setError(true)
+      } finally {
+        setLoading(false)
+      }
+    }
+
     fetchOrder()
-    // Poll every 20 s while order is active
-    const iv = setInterval(() => {
-      if (order && (order.status === 'Completed' || order.status === 'Cancelled')) return
-      fetchOrder()
-    }, 20_000)
+    const iv = setInterval(fetchOrder, 20_000)
     return () => clearInterval(iv)
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [orderNo])
 
   if (!orderNo) {
-    return (
-      <div className="max-w-lg mx-auto px-4 py-16 text-center">
-        <div className="text-5xl mb-4">🍕</div>
-        <h1 className="text-2xl font-black text-gray-900 mb-2">Track Your Order</h1>
-        <p className="text-gray-500 text-sm">No order number provided.</p>
-        <Link href="/" className="mt-6 inline-block bg-red-600 text-white font-bold px-6 py-3 rounded-xl text-sm hover:bg-red-700 transition-colors">
-          Go Home
-        </Link>
-      </div>
-    )
+    return <OrderLookup />
   }
 
   if (loading) {
@@ -100,26 +117,27 @@ function TrackingContent() {
     )
   }
 
-  const isCollection = order.orderType === 'collection'
-  const stages = isCollection ? COLLECTION_STAGES : STAGES
-  const stage  = order.stage
-  const isCancelled = order.status === 'Cancelled'
-  const estMinutes  = EST_MINUTES_BY_STAGE[Math.min(stage, 4)]
+  const isCollection     = order.orderType === 'collection'
+  const stages           = isCollection ? COLLECTION_STAGES : STAGES
+  const stage            = Math.max(0, order.stage)
+  const isCancelled      = order.status === 'Cancelled'
+  const isPendingPayment = order.status === 'pending_payment'
+  const estMinutes       = EST_MINUTES_BY_STAGE[Math.min(stage, 4)]
 
   return (
     <div className="max-w-lg mx-auto px-4 py-10">
       <div className="text-center mb-8">
-        <div className={`inline-flex items-center justify-center w-16 h-16 rounded-2xl mb-4 ${isCancelled ? 'bg-red-100' : 'bg-green-100'}`}>
-          {isCancelled
-            ? <span className="text-3xl">❌</span>
-            : <CheckCircle className="text-green-500" size={32} />
-          }
+        <div className={`inline-flex items-center justify-center w-16 h-16 rounded-2xl mb-4 ${isCancelled ? 'bg-red-100' : isPendingPayment ? 'bg-amber-100' : 'bg-green-100'}`}>
+          {isCancelled ? <span className="text-3xl">❌</span> : isPendingPayment ? <span className="text-3xl">⏳</span> : <CheckCircle className="text-green-500" size={32} />}
         </div>
         <h1 className="text-2xl font-black text-gray-900 mb-1">
-          {isCancelled ? 'Order Cancelled' : stage === 4 ? 'Order Complete!' : 'Order Confirmed!'}
+          {isCancelled ? 'Order Cancelled' : isPendingPayment ? 'Awaiting Payment' : stage === 4 ? 'Order Complete!' : 'Order Confirmed!'}
         </h1>
         <p className="text-gray-500 text-sm">Order #{order.orderNumber}</p>
-        {!isCancelled && stage < 4 && (
+        {isPendingPayment && (
+          <p className="text-amber-600 text-sm mt-2">Your payment is being processed. This page will update automatically.</p>
+        )}
+        {!isCancelled && !isPendingPayment && stage < 4 && (
           <div className="inline-flex items-center gap-2 mt-3 bg-orange-50 text-orange-600 px-4 py-2 rounded-xl font-semibold text-sm">
             <Clock size={16} /> Est. {estMinutes} min remaining
           </div>

@@ -9,11 +9,22 @@ export async function GET(req: NextRequest) {
   if (!payload) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const orders = await prisma.order.findMany({
-    where: { userId: payload.userId },
+    where: {
+      userId: payload.userId,
+      NOT: { status: 'pending_payment' },
+    },
     include: { items: true },
     orderBy: { createdAt: 'desc' },
     take: 50,
   })
+
+  // Look up product images for all order items in one query
+  const productIds = [...new Set(orders.flatMap((o) => o.items.map((i) => i.productId)))]
+  const products   = await prisma.product.findMany({
+    where: { id: { in: productIds } },
+    select: { id: true, image: true },
+  })
+  const imageMap = Object.fromEntries(products.map((p) => [p.id, p.image]))
 
   return NextResponse.json({
     orders: orders.map((o) => ({
@@ -25,10 +36,11 @@ export async function GET(req: NextRequest) {
       paymentMethod: o.paymentMethod,
       createdAt: o.createdAt,
       items: o.items.map((i) => ({
-        name: i.productName,
-        quantity: i.quantity,
+        name:      i.productName,
+        quantity:  i.quantity,
         unitPrice: i.unitPrice / 100,
         itemTotal: i.itemTotal / 100,
+        image:     imageMap[i.productId] ?? '',
       })),
     })),
   })

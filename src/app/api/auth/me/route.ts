@@ -23,6 +23,7 @@ export async function GET(req: NextRequest) {
       email: user.email,
       phone: user.phone,
       role: user.role,
+      twoFactorEnabled: user.twoFactorEnabled,
       addresses: user.addresses,
     },
   })

@@ -1,5 +1,5 @@
 'use client'
-import { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from 'react'
+import { createContext, useContext, useState, useEffect, type ReactNode } from 'react'
 
 export type Address = {
   id: string
@@ -21,11 +21,17 @@ export type User = {
   addresses: Address[]
 }
 
+export type LoginResult =
+  | { ok: false; error: string }
+  | { ok: true; requires2FA: true; tempToken: string }
+  | { ok: true; requires2FA: false; mustSetup2FA: boolean }
+
 type AuthContextType = {
   user: User | null
   isAdmin: boolean
   isLoading: boolean
-  login: (email: string, password: string) => Promise<boolean>
+  setUser: (u: User | null) => void
+  login: (email: string, password: string) => Promise<LoginResult>
   register: (data: { name: string; email: string; phone: string; password: string }) => Promise<boolean>
   logout: () => Promise<void>
   updateProfile: (data: Partial<User>) => Promise<void>
@@ -40,41 +46,41 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
   const [isLoading, setIsLoading] = useState(true)
 
-  const loadUser = useCallback(async () => {
-    try {
-      const res = await fetch('/api/auth/me')
-      const data = await res.json()
-      setUser(data.user ?? null)
-    } catch {
-      setUser(null)
-    } finally {
-      setIsLoading(false)
-    }
+  useEffect(() => {
+    const ctrl = new AbortController()
+    fetch('/api/auth/me', { signal: ctrl.signal })
+      .then((r) => r.json())
+      .then((d) => setUser(d.user ?? null))
+      .catch(() => setUser(null))
+      .finally(() => setIsLoading(false))
+    return () => ctrl.abort()
   }, [])
 
-  useEffect(() => { loadUser() }, [loadUser])
-
-  const login = async (email: string, password: string) => {
-    const res = await fetch('/api/auth/login', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, password }),
-    })
-    if (!res.ok) return false
-    const data = await res.json()
-    if (data.user) setUser(data.user)
-    return true
+  const login = async (email: string, password: string): Promise<LoginResult> => {
+    try {
+      const res  = await fetch('/api/auth/login', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ email, password }),
+      })
+      const data = await res.json()
+      if (!res.ok) return { ok: false, error: data.error ?? 'Invalid email or password' }
+      if (data.requires2FA) return { ok: true, requires2FA: true, tempToken: data.tempToken }
+      if (data.user) setUser(data.user)
+      return { ok: true, requires2FA: false, mustSetup2FA: !!data.mustSetup2FA }
+    } catch {
+      return { ok: false, error: 'Network error' }
+    }
   }
 
   const register = async (formData: { name: string; email: string; phone: string; password: string }) => {
     const res = await fetch('/api/auth/register', {
-      method: 'POST',
+      method:  'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(formData),
+      body:    JSON.stringify(formData),
     })
     if (!res.ok) return false
-    // Cookie is set by the server; reload the user profile
-    await loadUser()
+    await fetch('/api/auth/me').then((r) => r.json()).then((d) => setUser(d.user ?? null)).catch(() => null)
     return true
   }
 
@@ -133,7 +139,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const isAdmin = user?.role === 'admin'
 
   return (
-    <AuthContext.Provider value={{ user, isAdmin, isLoading, login, register, logout, updateProfile, addAddress, updateAddress, deleteAddress }}>
+    <AuthContext.Provider value={{ user, setUser, isAdmin, isLoading, login, register, logout, updateProfile, addAddress, updateAddress, deleteAddress }}>
       {children}
     </AuthContext.Provider>
   )

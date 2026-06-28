@@ -8,7 +8,7 @@ export function proxy(req: NextRequest) {
     const token = req.cookies.get(AUTH_COOKIE)?.value
     const payload = token ? verifyToken(token) : null
 
-    if (!payload || payload.role !== 'admin') {
+    if (!payload || !['admin', 'staff', 'viewer'].includes(payload.role)) {
       const loginUrl = req.nextUrl.clone()
       loginUrl.pathname = '/login'
       loginUrl.searchParams.set('redirect', pathname)

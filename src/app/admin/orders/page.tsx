@@ -4,9 +4,11 @@ import { Search, Check, X, ChevronDown, RefreshCw, Loader2, Printer } from 'luci
 import { formatPrice } from '@/lib/utils'
 import toast from 'react-hot-toast'
 
-const STATUSES = ['All', 'New', 'Accepted', 'Preparing', 'Ready', 'Out for Delivery', 'Completed', 'Cancelled']
+const STATUSES = ['All', 'confirmed', 'New', 'Accepted', 'Preparing', 'Ready', 'Out for Delivery', 'Completed', 'Cancelled']
 
 const STATUS_COLOURS: Record<string, string> = {
+  pending_payment:    'bg-amber-100 text-amber-700',
+  confirmed:          'bg-blue-100 text-blue-700',
   New:                'bg-blue-100 text-blue-700',
   Accepted:           'bg-yellow-100 text-yellow-700',
   Preparing:          'bg-orange-100 text-orange-700',
@@ -16,7 +18,13 @@ const STATUS_COLOURS: Record<string, string> = {
   Cancelled:          'bg-red-100 text-red-700',
 }
 
+const STATUS_LABEL: Record<string, string> = {
+  pending_payment: 'Payment Pending',
+  confirmed:       'New (Online)',
+}
+
 const NEXT_STATUS: Record<string, string> = {
+  confirmed:          'Accepted',
   New:                'Accepted',
   Accepted:           'Preparing',
   Preparing:          'Ready',
@@ -169,7 +177,7 @@ export default function AdminOrdersPage() {
                   <div className="flex items-center gap-2 flex-wrap mb-1">
                     <span className="font-black text-gray-900">#{order.orderNumber}</span>
                     <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${STATUS_COLOURS[order.status] ?? 'bg-gray-100 text-gray-600'}`}>
-                      {order.status}
+                      {STATUS_LABEL[order.status] ?? order.status}
                     </span>
                     <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full capitalize">
                       {order.orderType}
