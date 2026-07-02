@@ -1,21 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
-import { verifyToken, AUTH_COOKIE } from '@/lib/auth-utils'
-
-function adminOnly(req: NextRequest) {
-  const token = req.cookies.get(AUTH_COOKIE)?.value
-  const payload = token ? verifyToken(token) : null
-  if (!payload || payload.role !== 'admin') {
-    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
-  }
-  return null
-}
+import { requireViewer } from '@/lib/api-guard'
 
 export const dynamic = 'force-dynamic'
 
 export async function GET(req: NextRequest) {
-  const deny = adminOnly(req)
-  if (deny) return deny
+  const guard = requireViewer(req)
+  if (!guard.ok) return guard.res
 
   const { searchParams } = new URL(req.url)
   const search = searchParams.get('search') || ''
@@ -37,7 +28,7 @@ export async function GET(req: NextRequest) {
     prisma.user.findMany({
       where,
       select: {
-        id: true, name: true, email: true, phone: true, createdAt: true,
+        id: true, name: true, email: true, phone: true, createdAt: true, emailVerified: true,
         _count: { select: { orders: true } },
         orders: {
           select: { total: true, createdAt: true },
@@ -68,6 +59,7 @@ export async function GET(req: NextRequest) {
       name: u.name,
       email: u.email,
       phone: u.phone,
+      emailVerified: u.emailVerified,
       orderCount: u._count.orders,
       totalSpend: (spends[i]._sum.total ?? 0) / 100,
       joined: u.createdAt,

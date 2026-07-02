@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
 import { generateOrderNumber } from '@/lib/utils'
 import { verifyToken, AUTH_COOKIE } from '@/lib/auth-utils'
+import { requireAuth } from '@/lib/api-guard'
 
 export async function GET(req: NextRequest) {
   const token = req.cookies.get(AUTH_COOKIE)?.value
@@ -47,6 +48,9 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
+  const guard = requireAuth(req)
+  if (!guard.ok) return guard.res
+
   const {
     userId,
     orderType,

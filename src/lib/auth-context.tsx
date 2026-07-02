@@ -22,7 +22,7 @@ export type User = {
 }
 
 export type LoginResult =
-  | { ok: false; error: string }
+  | { ok: false; error: string; unverified?: boolean }
   | { ok: true; requires2FA: true; tempToken: string }
   | { ok: true; requires2FA: false; mustSetup2FA: boolean }
 
@@ -64,7 +64,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         body:    JSON.stringify({ email, password }),
       })
       const data = await res.json()
-      if (!res.ok) return { ok: false, error: data.error ?? 'Invalid email or password' }
+      if (!res.ok) return { ok: false, error: data.error ?? 'Invalid email or password', unverified: !!data.unverified }
       if (data.requires2FA) return { ok: true, requires2FA: true, tempToken: data.tempToken }
       if (data.user) setUser(data.user)
       return { ok: true, requires2FA: false, mustSetup2FA: !!data.mustSetup2FA }

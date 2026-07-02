@@ -4,15 +4,97 @@ import { useSearchParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { CheckCircle, Clock, Package, ChefHat, Bike, Home, Loader2, AlertCircle, Search } from 'lucide-react'
 import { formatPrice } from '@/lib/utils'
+import { useAuth } from '@/lib/auth-context'
+
+const STATUS_PILL: Record<string, string> = {
+  pending_payment:    'bg-amber-100 text-amber-700',
+  confirmed:          'bg-blue-100 text-blue-700',
+  New:                'bg-blue-100 text-blue-700',
+  Accepted:           'bg-yellow-100 text-yellow-700',
+  Preparing:          'bg-orange-100 text-orange-700',
+  Ready:              'bg-cyan-100 text-cyan-700',
+  'Out for Delivery': 'bg-purple-100 text-purple-700',
+  Completed:          'bg-green-100 text-green-700',
+  Cancelled:          'bg-red-100 text-red-700',
+}
+
+type HistoryOrder = {
+  id: string
+  orderNumber: string
+  status: string
+  orderType: string
+  total: number
+  createdAt: string
+  items: { name: string; quantity: number }[]
+}
+
+function OrderHistory() {
+  const router = useRouter()
+  const [orders, setOrders]   = useState<HistoryOrder[]>([])
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    fetch('/api/orders')
+      .then((r) => r.json())
+      .then((d) => setOrders(d.orders ?? []))
+      .catch(() => {})
+      .finally(() => setLoading(false))
+  }, [])
+
+  if (loading) return (
+    <div className="flex items-center justify-center py-10 text-gray-400">
+      <Loader2 size={20} className="animate-spin mr-2" /> Loading your orders…
+    </div>
+  )
+
+  if (orders.length === 0) return (
+    <p className="text-center text-gray-400 text-sm py-8">No orders yet — place your first order!</p>
+  )
+
+  return (
+    <div className="space-y-3 mt-6">
+      <h2 className="font-bold text-gray-900 text-sm">Your Recent Orders</h2>
+      {orders.map((o) => (
+        <button
+          key={o.id}
+          onClick={() => router.push(`/order-tracking?order=${o.orderNumber}`)}
+          className="w-full text-left bg-white border border-gray-100 rounded-2xl p-4 hover:border-red-200 hover:bg-red-50 transition-all"
+        >
+          <div className="flex items-center justify-between mb-1">
+            <span className="font-mono text-xs font-bold text-gray-500">#{o.orderNumber}</span>
+            <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${STATUS_PILL[o.status] ?? 'bg-gray-100 text-gray-600'}`}>
+              {o.status}
+            </span>
+          </div>
+          <div className="font-bold text-gray-900 text-sm truncate">
+            {o.items.slice(0, 2).map((i) => `${i.quantity}× ${i.name}`).join(', ')}
+            {o.items.length > 2 && ` +${o.items.length - 2} more`}
+          </div>
+          <div className="flex items-center justify-between mt-1">
+            <span className="text-xs text-gray-400">
+              {new Date(o.createdAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
+              {' · '}{o.orderType === 'delivery' ? 'Delivery' : 'Collection'}
+            </span>
+            <span className="font-bold text-gray-900 text-sm">{formatPrice(o.total)}</span>
+          </div>
+        </button>
+      ))}
+    </div>
+  )
+}
 
 function OrderLookup() {
   const router = useRouter()
+  const { user } = useAuth()
   const [input, setInput] = useState('')
+
   return (
-    <div className="max-w-md mx-auto px-4 py-16 text-center">
-      <div className="text-5xl mb-4">🍕</div>
-      <h1 className="text-2xl font-black text-gray-900 mb-2">Track Your Order</h1>
-      <p className="text-gray-500 text-sm mb-6">Enter your order number to see the status</p>
+    <div className="max-w-md mx-auto px-4 py-10">
+      <div className="text-center mb-6">
+        <div className="text-5xl mb-4">🍕</div>
+        <h1 className="text-2xl font-black text-gray-900 mb-2">Track Your Order</h1>
+        <p className="text-gray-500 text-sm">Enter your order number to see the status</p>
+      </div>
       <div className="flex gap-2">
         <input
           value={input}
@@ -28,9 +110,15 @@ function OrderLookup() {
           <Search size={18} />
         </button>
       </div>
-      <Link href="/dashboard" className="mt-6 inline-block text-red-600 text-sm font-semibold hover:underline">
-        View order history
-      </Link>
+
+      {user ? (
+        <OrderHistory />
+      ) : (
+        <p className="mt-6 text-center text-sm text-gray-500">
+          <Link href="/login?redirect=/order-tracking" className="text-red-600 font-semibold hover:underline">Sign in</Link>
+          {' '}to see your order history
+        </p>
+      )}
     </div>
   )
 }
@@ -203,8 +291,8 @@ function TrackingContent() {
       </div>
 
       <div className="flex gap-3">
-        <Link href="/" className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold py-3 rounded-xl text-center transition-colors text-sm">
-          Back to Home
+        <Link href="/order-tracking" className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold py-3 rounded-xl text-center transition-colors text-sm">
+          Order History
         </Link>
         <Link href="/menu" className="flex-1 bg-red-600 hover:bg-red-700 text-white font-bold py-3 rounded-xl text-center transition-colors text-sm">
           Order Again

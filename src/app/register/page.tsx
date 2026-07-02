@@ -1,17 +1,15 @@
 'use client'
 import { useState } from 'react'
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
-import { Eye, EyeOff } from 'lucide-react'
-import { useAuth } from '@/lib/auth-context'
+import { Eye, EyeOff, Mail } from 'lucide-react'
 import toast from 'react-hot-toast'
 
 export default function RegisterPage() {
-  const router = useRouter()
-  const { register } = useAuth()
-  const [form, setForm] = useState({ name: '', email: '', phone: '', password: '', confirm: '' })
-  const [showPw, setShowPw] = useState(false)
+  const [form, setForm]       = useState({ name: '', email: '', phone: '', password: '', confirm: '' })
+  const [showPw, setShowPw]   = useState(false)
   const [loading, setLoading] = useState(false)
+  const [done, setDone]       = useState(false)
+  const [sentEmail, setSentEmail] = useState('')
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -21,9 +19,52 @@ export default function RegisterPage() {
     if (!/[A-Z]/.test(form.password)) { toast.error('Password must contain at least one uppercase letter'); return }
     if (!/[0-9]/.test(form.password)) { toast.error('Password must contain at least one number'); return }
     setLoading(true)
-    const ok = await register({ name: form.name, email: form.email, phone: form.phone, password: form.password })
-    setLoading(false)
-    if (ok) { toast.success('Account created! Welcome to Pizza Guys 🍕'); router.push('/') }
+    try {
+      const res  = await fetch('/api/auth/register', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ name: form.name, email: form.email, phone: form.phone, password: form.password }),
+      })
+      const data = await res.json()
+      if (!res.ok) { toast.error(data.error ?? 'Registration failed'); return }
+      setSentEmail(form.email)
+      setDone(true)
+    } catch { toast.error('Something went wrong') }
+    finally  { setLoading(false) }
+  }
+
+  if (done) {
+    return (
+      <div className="min-h-[80vh] flex items-center justify-center px-4 py-12">
+        <div className="w-full max-w-sm text-center">
+          <div className="w-14 h-14 bg-red-600 rounded-2xl flex items-center justify-center mx-auto mb-6">
+            <Mail size={26} className="text-white" />
+          </div>
+          <h1 className="text-2xl font-black text-gray-900 mb-2">Check your email</h1>
+          <p className="text-gray-500 text-sm mb-6">
+            We sent a verification link to <strong>{sentEmail}</strong>. Click the link to activate your account.
+          </p>
+          <p className="text-xs text-gray-400">
+            Didn&apos;t receive it?{' '}
+            <button
+              onClick={async () => {
+                await fetch('/api/auth/resend-verification', {
+                  method:  'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body:    JSON.stringify({ email: sentEmail }),
+                })
+                toast.success('Verification email resent!')
+              }}
+              className="text-red-600 font-semibold hover:underline"
+            >
+              Resend
+            </button>
+            {' '}or{' '}
+            <Link href="/login" className="text-red-600 font-semibold hover:underline">sign in</Link>
+          </p>
+        </div>
+      </div>
+    )
   }
 
   return (

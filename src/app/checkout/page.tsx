@@ -69,7 +69,7 @@ function PaymentForm({ total, orderPayload }: PaymentFormProps) {
 // ─── Main checkout page ─────────────────────────────────────────────────────
 export default function CheckoutPage() {
   const { user } = useAuth()
-  const { items, couponDiscount, deliveryFee, getSubtotal, setDeliveryFee } = useCartStore()
+  const { items, couponCode, couponDiscount, deliveryFee, getSubtotal, setDeliveryFee } = useCartStore()
 
   const [step, setStep] = useState(1)
   const [orderType, setOrderType] = useState<'delivery' | 'collection'>('delivery')
@@ -123,17 +123,13 @@ export default function CheckoutPage() {
   const prevStep = () => setStep((s) => Math.max(1, s - 1))
 
   const orderPayload = {
-    userId: user?.id ?? null,
     orderType,
     customerName: customerDetails.name,
     customerEmail: customerDetails.email,
     customerPhone: customerDetails.phone,
     deliveryAddress: orderType === 'delivery' ? resolvedAddress : null,
     items,
-    subtotal: subtotal * 100,
-    deliveryFee: orderType === 'delivery' ? deliveryFee * 100 : 0,
-    discount: couponDiscount * 100,
-    total: total * 100,
+    couponCode: couponCode || undefined,
     scheduledTime: timing === 'scheduled' ? scheduledTime : null,
   }
 

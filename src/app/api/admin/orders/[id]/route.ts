@@ -1,15 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
-import { verifyToken, AUTH_COOKIE } from '@/lib/auth-utils'
-
-function adminOnly(req: NextRequest) {
-  const token = req.cookies.get(AUTH_COOKIE)?.value
-  const payload = token ? verifyToken(token) : null
-  if (!payload || payload.role !== 'admin') {
-    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
-  }
-  return null
-}
+import { requireStaff } from '@/lib/api-guard'
 
 const VALID_STATUSES = [
   'confirmed', 'New', 'Accepted', 'Preparing', 'Ready',
@@ -20,8 +11,8 @@ export async function PATCH(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const deny = adminOnly(req)
-  if (deny) return deny
+  const guard = requireStaff(req)
+  if (!guard.ok) return guard.res
 
   const { id }     = await params
   const { status } = await req.json()

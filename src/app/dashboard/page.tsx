@@ -3,7 +3,7 @@ import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { User, MapPin, Package, CreditCard, Lock, Pencil, Trash2, Plus, Check, X, Loader2 } from 'lucide-react'
 import { useAuth } from '@/lib/auth-context'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { formatPrice } from '@/lib/utils'
 import toast from 'react-hot-toast'
 
@@ -42,9 +42,18 @@ type CustomerOrder = {
 }
 
 export default function DashboardPage() {
-  const router = useRouter()
+  const router       = useRouter()
+  const searchParams = useSearchParams()
   const { user, updateProfile, addAddress, updateAddress, deleteAddress, logout } = useAuth()
-  const [activeTab, setActiveTab]           = useState('profile')
+  const validTabs = ['profile', 'addresses', 'orders', 'payment', 'password']
+  const tabParam  = searchParams.get('tab') ?? ''
+  const [activeTab, setActiveTab] = useState(validTabs.includes(tabParam) ? tabParam : 'profile')
+
+  useEffect(() => {
+    if (searchParams.get('verified') === '1') {
+      toast.success('Email verified! Welcome to Pizza Guys.')
+    }
+  }, [searchParams])
   const [editingProfile, setEditingProfile] = useState(false)
   const [profileForm, setProfileForm]       = useState({ name: user?.name || '', email: user?.email || '', phone: user?.phone || '' })
   const [showAddAddress, setShowAddAddress] = useState(false)

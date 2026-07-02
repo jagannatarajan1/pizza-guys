@@ -16,10 +16,14 @@ model User {
   passwordHash        String    @map("password_hash")
   role                String    @default("user")
   // 2FA
+  emailVerified       Boolean   @default(false) @map("email_verified")
+  emailVerifyToken    String?   @map("email_verify_token")
+  emailVerifyExpires  DateTime? @map("email_verify_expires")
   twoFactorSecret     String?   @map("two_factor_secret")
   twoFactorEnabled    Boolean   @default(false) @map("two_factor_enabled")
-  twoFactorBackup     String    @default("[]") @map("two_factor_backup") // JSON array of hashed backup codes
-  // Brute-force protection
+  twoFactorBackup     String    @default("[]") @map("two_factor_backup")
+  passwordResetToken   String?   @map("password_reset_token")
+  passwordResetExpires DateTime? @map("password_reset_expires")
   failedLogins        Int       @default(0) @map("failed_logins")
   lockedUntil         DateTime? @map("locked_until")
   createdAt           DateTime  @default(now()) @map("created_at")

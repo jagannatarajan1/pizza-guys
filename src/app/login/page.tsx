@@ -2,7 +2,7 @@
 import { useState, Suspense } from 'react'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { Eye, EyeOff, ShieldCheck } from 'lucide-react'
+import { Eye, EyeOff, ShieldCheck, Mail } from 'lucide-react'
 import { useAuth } from '@/lib/auth-context'
 import toast from 'react-hot-toast'
 
@@ -12,12 +12,14 @@ function LoginForm() {
   const redirect     = searchParams.get('redirect') || '/'
   const { login, setUser } = useAuth()
 
-  const [form, setForm]           = useState({ email: '', password: '' })
-  const [showPw, setShowPw]       = useState(false)
-  const [loading, setLoading]     = useState(false)
-  const [step, setStep]           = useState<'password' | '2fa'>('password')
-  const [tempToken, setTempToken] = useState('')
-  const [totpCode, setTotpCode]   = useState('')
+  const [form, setForm]               = useState({ email: '', password: '' })
+  const [showPw, setShowPw]           = useState(false)
+  const [loading, setLoading]         = useState(false)
+  const [step, setStep]               = useState<'password' | '2fa' | 'unverified'>('password')
+  const [tempToken, setTempToken]     = useState('')
+  const [totpCode, setTotpCode]       = useState('')
+  const [resendSent, setResendSent]   = useState(false)
+  const [resendEmail, setResendEmail] = useState('')
 
   const handlePassword = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -25,7 +27,11 @@ function LoginForm() {
     setLoading(true)
     const result = await login(form.email, form.password)
     setLoading(false)
-    if (!result.ok) { toast.error(result.error); return }
+    if (!result.ok) {
+      if (result.unverified) { setResendEmail(form.email); setStep('unverified'); return }
+      toast.error(result.error)
+      return
+    }
     if (result.requires2FA) { setTempToken(result.tempToken); setStep('2fa'); return }
     if (result.mustSetup2FA) {
       toast('Please set up two-factor authentication to secure your account.', { icon: '🔐' })
@@ -34,6 +40,17 @@ function LoginForm() {
     }
     toast.success('Welcome back!')
     router.push(redirect)
+  }
+
+  const handleResend = async () => {
+    setLoading(true)
+    await fetch('/api/auth/resend-verification', {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ email: resendEmail }),
+    }).catch(() => null)
+    setResendSent(true)
+    setLoading(false)
   }
 
   const handleTOTP = async (e: React.FormEvent) => {
@@ -60,23 +77,24 @@ function LoginForm() {
       <div className="w-full max-w-sm">
         <div className="text-center mb-8">
           <div className="w-14 h-14 bg-red-600 rounded-2xl flex items-center justify-center mx-auto mb-3">
-            {step === '2fa'
-              ? <ShieldCheck size={26} className="text-white" />
-              : <span className="text-white font-black text-xl">PG</span>
-            }
+            {step === '2fa'      ? <ShieldCheck size={26} className="text-white" />    :
+             step === 'unverified' ? <Mail size={26} className="text-white" />         :
+             <span className="text-white font-black text-xl">PG</span>}
           </div>
           <h1 className="text-2xl font-black text-gray-900">
-            {step === '2fa' ? 'Two-factor authentication' : 'Welcome back'}
+            {step === '2fa' ? 'Two-factor authentication' :
+             step === 'unverified' ? 'Verify your email' :
+             'Welcome back'}
           </h1>
           <p className="text-gray-500 text-sm mt-1">
-            {step === '2fa'
-              ? 'Enter the 6-digit code from your authenticator app'
-              : 'Sign in to your Pizza Guys account'}
+            {step === '2fa'       ? 'Enter the 6-digit code from your authenticator app' :
+             step === 'unverified' ? `We sent a verification link to ${resendEmail}` :
+             'Sign in to your Pizza Guys account'}
           </p>
         </div>
 
         <div className="bg-white rounded-2xl border border-gray-100 p-6 shadow-sm">
-          {step === 'password' ? (
+          {step === 'password' && (
             <form onSubmit={handlePassword} className="space-y-4">
               <div>
                 <label className="block text-xs font-semibold text-gray-700 mb-1.5">Email or Phone</label>
@@ -112,8 +130,45 @@ function LoginForm() {
               >
                 {loading ? 'Signing in…' : 'Sign In'}
               </button>
+              <div className="text-center">
+                <Link href="/forgot-password" className="text-xs text-gray-400 hover:text-red-600 transition-colors">
+                  Forgot your password?
+                </Link>
+              </div>
             </form>
-          ) : (
+          )}
+
+          {step === 'unverified' && (
+            <div className="space-y-4">
+              {resendSent ? (
+                <p className="text-center text-green-600 font-semibold text-sm py-2">
+                  New verification email sent — check your inbox!
+                </p>
+              ) : (
+                <>
+                  <p className="text-sm text-gray-500 text-center">
+                    Check your inbox and click the link to activate your account.
+                    Didn&apos;t receive it?
+                  </p>
+                  <button
+                    onClick={handleResend}
+                    disabled={loading}
+                    className={`w-full py-3 rounded-xl font-bold text-white transition-colors ${loading ? 'bg-gray-400' : 'bg-red-600 hover:bg-red-700'}`}
+                  >
+                    {loading ? 'Sending…' : 'Resend verification email'}
+                  </button>
+                </>
+              )}
+              <button
+                onClick={() => setStep('password')}
+                className="w-full text-center text-sm text-gray-500 hover:text-gray-700"
+              >
+                Back to login
+              </button>
+            </div>
+          )}
+
+          {step === '2fa' && (
             <form onSubmit={handleTOTP} className="space-y-4">
               <div>
                 <label className="block text-xs font-semibold text-gray-700 mb-1.5">Authenticator code</label>

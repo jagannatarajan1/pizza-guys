@@ -2,58 +2,153 @@ import { NextRequest, NextResponse } from 'next/server'
 import { stripe } from '@/lib/stripe-server'
 import prisma from '@/lib/prisma'
 import { generateOrderNumber } from '@/lib/utils'
+import { requireAuth, sanitizeStr, validateEmail, validatePhone } from '@/lib/api-guard'
+
+const MAX_ITEMS    = 50
+const MAX_QUANTITY = 99
 
 type CartItem = {
-  product: { id: string; name: string; price: number }
+  product: { id: string }
   quantity: number
-  modifiers: Record<string, unknown>[]
+  modifiers: { id: string; name: string; price: number }[]
   specialInstructions: string
-  itemTotal: number
 }
 
 export async function POST(req: NextRequest) {
+  // Must be logged in to place an order
+  const guard = requireAuth(req)
+  if (!guard.ok) return guard.res
+  const authUserId = guard.payload.userId
+
   const origin = req.nextUrl.origin
+  const body   = await req.json().catch(() => null)
+  if (!body) return NextResponse.json({ error: 'Invalid request' }, { status: 400 })
 
   const {
-    userId, orderType, customerName, customerEmail, customerPhone,
-    deliveryAddress, items, subtotal, deliveryFee, discount, total,
-    scheduledTime,
-  } = await req.json()
+    orderType, customerName, customerEmail, customerPhone,
+    deliveryAddress, items, couponCode, scheduledTime,
+  } = body
 
-  // orderPayload already sends subtotal/deliveryFee/discount/total as pence (× 100 done client-side)
-  // items have product.price in £ and itemTotal in £ (same as /api/orders)
+  // ── Basic input validation ──────────────────────────────────────────────────
+  const nameClean  = sanitizeStr(customerName, 100)
+  const emailClean = sanitizeStr(customerEmail, 254)
+  const phoneClean = sanitizeStr(customerPhone, 30)
 
+  if (!nameClean)  return NextResponse.json({ error: 'Name is required' }, { status: 400 })
+  if (!phoneClean || !validatePhone(phoneClean))
+    return NextResponse.json({ error: 'Valid phone number is required' }, { status: 400 })
+  if (!['delivery', 'collection'].includes(orderType))
+    return NextResponse.json({ error: 'Invalid order type' }, { status: 400 })
+  if (!Array.isArray(items) || items.length === 0 || items.length > MAX_ITEMS)
+    return NextResponse.json({ error: 'Invalid items' }, { status: 400 })
+
+  // ── Server-side price recalculation ────────────────────────────────────────
+  // NEVER trust client-provided prices — always fetch from DB
+  const productIds = [...new Set((items as CartItem[]).map((i) => i.product?.id).filter(Boolean))]
+  if (productIds.length === 0) return NextResponse.json({ error: 'No valid products' }, { status: 400 })
+
+  const dbProducts = await prisma.product.findMany({
+    where: { id: { in: productIds }, available: true },
+    select: { id: true, name: true, price: true },
+  })
+  const productMap = Object.fromEntries(dbProducts.map((p) => [p.id, p]))
+
+  let serverSubtotalPence = 0
+  const validatedItems: {
+    productId: string; productName: string; quantity: number
+    unitPrice: number; modifiers: string; specialInstructions: string; itemTotal: number
+  }[] = []
+
+  for (const item of items as CartItem[]) {
+    const product = productMap[item.product?.id]
+    if (!product) return NextResponse.json({ error: `Product not found or unavailable: ${item.product?.id}` }, { status: 400 })
+
+    const qty = Math.round(item.quantity)
+    if (!qty || qty < 1 || qty > MAX_QUANTITY) return NextResponse.json({ error: 'Invalid quantity' }, { status: 400 })
+
+    const unitPricePence = product.price // DB price is already in pence
+    const itemTotalPence = unitPricePence * qty
+    serverSubtotalPence += itemTotalPence
+
+    validatedItems.push({
+      productId:           product.id,
+      productName:         product.name,
+      quantity:            qty,
+      unitPrice:           unitPricePence,
+      modifiers:           JSON.stringify(Array.isArray(item.modifiers) ? item.modifiers : []),
+      specialInstructions: sanitizeStr(item.specialInstructions, 300),
+      itemTotal:           itemTotalPence,
+    })
+  }
+
+  // ── Delivery fee from DB ────────────────────────────────────────────────────
+  let serverDeliveryFeePence = 0
+  if (orderType === 'delivery') {
+    const postcode = typeof deliveryAddress === 'object'
+      ? sanitizeStr(deliveryAddress?.postcode, 10).toUpperCase().replace(/\s/g, '')
+      : ''
+    const zone = postcode
+      ? await prisma.deliveryZone.findFirst({ where: { postcode, enabled: true } })
+      : null
+    serverDeliveryFeePence = zone?.deliveryFee ?? 199 // default £1.99
+  }
+
+  // ── Coupon validation ───────────────────────────────────────────────────────
+  let serverDiscountPence = 0
+  let usedCoupon = null
+  if (couponCode) {
+    const coupon = await prisma.coupon.findFirst({
+      where: {
+        code:   sanitizeStr(couponCode, 50).toUpperCase(),
+        active: true,
+        OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }],
+      },
+    }).catch(() => null)
+
+    // Apply coupon only if usage limit not reached and subtotal meets minimum
+    const withinUsageLimit = !coupon?.usageLimit || coupon.usageCount < coupon.usageLimit
+    if (coupon && withinUsageLimit && serverSubtotalPence >= coupon.minOrder) {
+      serverDiscountPence = coupon.type === 'percent'
+        ? Math.round(serverSubtotalPence * coupon.value / 100)
+        : coupon.value
+      usedCoupon = coupon
+    }
+  }
+
+  const serverTotalPence = Math.max(0, serverSubtotalPence + serverDeliveryFeePence - serverDiscountPence)
+
+  if (serverTotalPence < 50) {
+    return NextResponse.json({ error: 'Order total is too low (minimum 50p)' }, { status: 400 })
+  }
+
+  // ── Create order with server-calculated prices ──────────────────────────────
   const order = await prisma.order.create({
     data: {
       orderNumber:     generateOrderNumber(),
-      userId:          userId ?? null,
+      userId:          authUserId, // use server-verified userId, never client-provided
       status:          'pending_payment',
       orderType,
-      customerName,
-      customerEmail,
-      customerPhone,
+      customerName:    nameClean,
+      customerEmail:   emailClean,
+      customerPhone:   phoneClean,
       deliveryAddress: deliveryAddress ? JSON.stringify(deliveryAddress) : null,
-      subtotal:        Math.round(subtotal),
-      deliveryFee:     Math.round(deliveryFee ?? 0),
-      discount:        Math.round(discount ?? 0),
-      total:           Math.round(total),
+      subtotal:        serverSubtotalPence,
+      deliveryFee:     serverDeliveryFeePence,
+      discount:        serverDiscountPence,
+      total:           serverTotalPence,
       paymentMethod:   'card',
       scheduledTime:   scheduledTime ? new Date(scheduledTime) : null,
-      items: {
-        create: (items as CartItem[]).map((i) => ({
-          productId:           i.product.id,
-          productName:         i.product.name,
-          quantity:            i.quantity,
-          unitPrice:           Math.round(i.product.price * 100),
-          modifiers:           JSON.stringify(i.modifiers),
-          specialInstructions: i.specialInstructions ?? '',
-          itemTotal:           Math.round(i.itemTotal * 100),
-        })),
-      },
+      items:           { create: validatedItems },
     },
   })
 
-  const isValidEmail = (e: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e)
+  // Increment coupon usage
+  if (usedCoupon) {
+    await prisma.coupon.update({
+      where: { id: usedCoupon.id },
+      data:  { usageCount: { increment: 1 } },
+    })
+  }
 
   const session = await stripe.checkout.sessions.create({
     mode: 'payment',
@@ -62,21 +157,21 @@ export async function POST(req: NextRequest) {
         quantity: 1,
         price_data: {
           currency:     'gbp',
-          unit_amount:  Math.round(total), // already in pence
+          unit_amount:  serverTotalPence, // server-calculated, never client-provided
           product_data: {
             name:        `Pizza Guys Order #${order.orderNumber}`,
-            description: `${items.length} item${items.length !== 1 ? 's' : ''} · ${orderType === 'delivery' ? 'Delivery' : 'Collection'}`,
+            description: `${validatedItems.length} item${validatedItems.length !== 1 ? 's' : ''} · ${orderType === 'delivery' ? 'Delivery' : 'Collection'}`,
           },
         },
       },
     ],
-    ...(customerEmail && isValidEmail(customerEmail) ? { customer_email: customerEmail } : {}),
-    metadata:    { orderId: order.id, orderNumber: order.orderNumber },
+    ...(emailClean && validateEmail(emailClean) ? { customer_email: emailClean } : {}),
+    metadata:    { orderId: order.id, orderNumber: order.orderNumber, userId: authUserId },
     success_url: `${origin}/checkout/success?session_id={CHECKOUT_SESSION_ID}`,
     cancel_url:  `${origin}/checkout?cancelled=1`,
+    expires_at:  Math.floor(Date.now() / 1000) + 30 * 60, // session expires in 30 min
   })
 
-  // Store Stripe session ID so webhook can look up the order
   await prisma.order.update({
     where: { id: order.id },
     data:  { paymentIntentId: session.id },
