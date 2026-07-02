@@ -1,12 +1,24 @@
-import { Resend } from 'resend'
+import nodemailer from 'nodemailer'
 
-const resend = new Resend(process.env.RESEND_API_KEY)
-const FROM   = process.env.EMAIL_FROM ?? 'Pizza Guys <noreply@pizzaguys.co.uk>'
-const BASE   = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000'
+const BASE = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000'
+
+function getTransport() {
+  return nodemailer.createTransport({
+    host:   process.env.SMTP_HOST,
+    port:   Number(process.env.SMTP_PORT ?? 587),
+    secure: process.env.SMTP_SECURE === 'true',
+    auth: {
+      user: process.env.SMTP_USER,
+      pass: process.env.SMTP_PASS,
+    },
+  })
+}
+
+const FROM = process.env.EMAIL_FROM ?? 'Pizza Guys <noreply@pizzaguys.co.uk>'
 
 export async function sendVerificationEmail(to: string, name: string, token: string) {
   const url = `${BASE}/verify-email?token=${token}`
-  return resend.emails.send({
+  return getTransport().sendMail({
     from:    FROM,
     to,
     subject: 'Verify your Pizza Guys account',
@@ -28,7 +40,7 @@ export async function sendVerificationEmail(to: string, name: string, token: str
 
 export async function sendPasswordResetEmail(to: string, name: string, token: string) {
   const url = `${BASE}/reset-password?token=${token}`
-  return resend.emails.send({
+  return getTransport().sendMail({
     from:    FROM,
     to,
     subject: 'Reset your Pizza Guys password',
