@@ -1,5 +1,5 @@
 'use client'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, Suspense } from 'react'
 import Link from 'next/link'
 import { User, MapPin, Package, CreditCard, Lock, Pencil, Trash2, Plus, Check, X, Loader2 } from 'lucide-react'
 import { useAuth } from '@/lib/auth-context'
@@ -41,7 +41,7 @@ type CustomerOrder = {
   items: { name: string; quantity: number; image: string }[]
 }
 
-export default function DashboardPage() {
+function DashboardContent() {
   const router       = useRouter()
   const searchParams = useSearchParams()
   const { user, updateProfile, addAddress, updateAddress, deleteAddress, logout } = useAuth()
@@ -388,5 +388,13 @@ export default function DashboardPage() {
         </div>
       </div>
     </div>
+  )
+}
+
+export default function DashboardPage() {
+  return (
+    <Suspense fallback={<div className="flex items-center justify-center min-h-screen text-gray-400"><Loader2 size={24} className="animate-spin mr-2" /> Loading…</div>}>
+      <DashboardContent />
+    </Suspense>
   )
 }
