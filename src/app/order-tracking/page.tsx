@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { CheckCircle, Clock, Package, ChefHat, Bike, Home, Loader2, AlertCircle, Search } from 'lucide-react'
 import { formatPrice } from '@/lib/utils'
 import { useAuth } from '@/lib/auth-context'
+import { useSiteConfig } from '@/context/SiteConfigContext'
 
 const STATUS_PILL: Record<string, string> = {
   pending_payment:    'bg-amber-100 text-amber-700',
@@ -25,7 +26,7 @@ type HistoryOrder = {
   orderType: string
   total: number
   createdAt: string
-  items: { name: string; quantity: number }[]
+  items: { name: string; quantity: number; image: string }[]
 }
 
 function OrderHistory() {
@@ -60,13 +61,34 @@ function OrderHistory() {
           onClick={() => router.push(`/order-tracking?order=${o.orderNumber}`)}
           className="w-full text-left bg-white border border-gray-100 rounded-2xl p-4 hover:border-red-200 hover:bg-red-50 transition-all"
         >
-          <div className="flex items-center justify-between mb-1">
+          <div className="flex items-center justify-between mb-2">
             <span className="font-mono text-xs font-bold text-gray-500">#{o.orderNumber}</span>
             <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${STATUS_PILL[o.status] ?? 'bg-gray-100 text-gray-600'}`}>
               {o.status}
             </span>
           </div>
-          <div className="font-bold text-gray-900 text-sm truncate">
+          {/* Product images */}
+          <div className="flex gap-1.5 mb-2">
+            {o.items.slice(0, 4).map((item, idx) => (
+              <div key={idx} className="relative shrink-0">
+                {item.image
+                  ? <img src={item.image} alt={item.name} className="w-11 h-11 rounded-lg object-cover border border-gray-100" />
+                  : <div className="w-11 h-11 rounded-lg bg-gray-100 flex items-center justify-center text-base">🍕</div>
+                }
+                {item.quantity > 1 && (
+                  <span className="absolute -top-1 -right-1 bg-red-600 text-white text-[10px] font-bold w-4 h-4 rounded-full flex items-center justify-center">
+                    {item.quantity}
+                  </span>
+                )}
+              </div>
+            ))}
+            {o.items.length > 4 && (
+              <div className="w-11 h-11 rounded-lg bg-gray-100 flex items-center justify-center text-xs font-bold text-gray-500">
+                +{o.items.length - 4}
+              </div>
+            )}
+          </div>
+          <div className="font-semibold text-gray-900 text-xs truncate">
             {o.items.slice(0, 2).map((i) => `${i.quantity}× ${i.name}`).join(', ')}
             {o.items.length > 2 && ` +${o.items.length - 2} more`}
           </div>
@@ -147,13 +169,14 @@ type OrderData = {
   customerName: string
   total: number
   createdAt: string
-  items: { name: string; quantity: number; itemTotal: number }[]
+  items: { name: string; quantity: number; itemTotal: number; image: string }[]
 }
 
 const EST_MINUTES_BY_STAGE = [40, 30, 20, 10, 0]
 
 function TrackingContent() {
   const searchParams   = useSearchParams()
+  const { biz_name, biz_phone } = useSiteConfig()
   const orderNo        = searchParams.get('order') || ''
   const [order, setOrder]   = useState<OrderData | null>(null)
   const [loading, setLoading] = useState(!!orderNo)
@@ -267,11 +290,18 @@ function TrackingContent() {
       {/* Order summary */}
       <div className="bg-white rounded-2xl border border-gray-100 p-5 mb-5">
         <h3 className="font-bold text-gray-900 mb-3">Order Summary</h3>
-        <div className="space-y-1.5 text-sm mb-3">
+        <div className="space-y-2.5 mb-3">
           {order.items.map((item, i) => (
-            <div key={i} className="flex justify-between text-gray-600">
-              <span>{item.quantity}× {item.name}</span>
-              <span>{formatPrice(item.itemTotal)}</span>
+            <div key={i} className="flex items-center gap-3">
+              {item.image
+                ? <img src={item.image} alt={item.name} className="w-12 h-12 rounded-xl object-cover border border-gray-100 shrink-0" />
+                : <div className="w-12 h-12 rounded-xl bg-gray-100 flex items-center justify-center text-xl shrink-0">🍕</div>
+              }
+              <div className="flex-1 min-w-0">
+                <div className="font-semibold text-gray-900 text-sm truncate">{item.name}</div>
+                <div className="text-xs text-gray-400">Qty: {item.quantity}</div>
+              </div>
+              <span className="text-sm font-bold text-gray-900 shrink-0">{formatPrice(item.itemTotal)}</span>
             </div>
           ))}
         </div>
@@ -285,8 +315,8 @@ function TrackingContent() {
         <h3 className="font-bold mb-3">Need Help?</h3>
         <div className="space-y-1 text-sm text-gray-400">
           <div className="flex justify-between"><span>Order</span><span className="text-white font-mono">#{order.orderNumber}</span></div>
-          <div className="flex justify-between"><span>Restaurant</span><span className="text-white">Pizza Guys</span></div>
-          <div className="flex justify-between"><span>Phone</span><span className="text-white">01784 452 888</span></div>
+          <div className="flex justify-between"><span>Restaurant</span><span className="text-white">{biz_name}</span></div>
+          <div className="flex justify-between"><span>Phone</span><span className="text-white">{biz_phone}</span></div>
         </div>
       </div>
 

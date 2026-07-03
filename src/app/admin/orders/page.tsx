@@ -3,6 +3,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { Search, Check, X, ChevronDown, RefreshCw, Loader2, Printer } from 'lucide-react'
 import { formatPrice } from '@/lib/utils'
 import toast from 'react-hot-toast'
+import { useSiteConfig } from '@/context/SiteConfigContext'
 
 const STATUSES = ['All', 'confirmed', 'New', 'Accepted', 'Preparing', 'Ready', 'Out for Delivery', 'Completed', 'Cancelled']
 
@@ -55,6 +56,7 @@ type Order = {
 }
 
 export default function AdminOrdersPage() {
+  const cfg = useSiteConfig()
   const [orders, setOrders]             = useState<Order[]>([])
   const [loading, setLoading]           = useState(true)
   const [statusFilter, setStatusFilter] = useState('All')
@@ -62,6 +64,119 @@ export default function AdminOrdersPage() {
   const [expanded, setExpanded]         = useState<string | null>(null)
   const [updatingId, setUpdatingId]     = useState<string | null>(null)
   const [total, setTotal]               = useState(0)
+
+  const printReceipt = (order: Order) => {
+    const bizName    = cfg.biz_name    || 'Pizza Guys'
+    const bizAddr    = cfg.biz_address || ''
+    const bizPhone   = cfg.biz_phone   || ''
+    const bizEmail   = cfg.biz_email   || ''
+    const primary    = cfg.theme_primary || '#E53935'
+    const dark       = cfg.theme_dark    || '#111111'
+    const abbr       = (cfg.biz_logo_abbr || 'PG').slice(0, 3)
+    const logoImg    = cfg.biz_logo_image || ''
+    const date       = new Date(order.createdAt)
+    const dateStr    = date.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
+    const timeStr    = date.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })
+    const addr       = order.deliveryAddress ? (() => { try { return JSON.parse(order.deliveryAddress!) } catch { return null } })() : null
+
+    const logoHtml = logoImg
+      ? `<img src="${logoImg}" alt="${bizName}" style="width:64px;height:64px;border-radius:50%;object-fit:cover;display:block;margin:0 auto 8px" />`
+      : `<div style="width:64px;height:64px;border-radius:50%;background:${dark};color:#fff;font-size:20px;font-weight:900;line-height:64px;text-align:center;margin:0 auto 8px">${abbr}</div>`
+
+    const itemRows = order.items.map((item) => `
+      <tr>
+        <td style="padding:5px 0;vertical-align:top">${item.quantity}×</td>
+        <td style="padding:5px 8px;vertical-align:top">${item.name}${item.specialInstructions ? `<br/><span style="font-size:10px;color:#888">${item.specialInstructions}</span>` : ''}</td>
+        <td style="padding:5px 0;text-align:right;vertical-align:top;white-space:nowrap">${formatPrice(item.itemTotal)}</td>
+      </tr>`).join('')
+
+    const html = `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Receipt #${order.orderNumber}</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Courier New', Courier, monospace; font-size: 13px; color: #111; background: #fff; width: 80mm; margin: 0 auto; padding: 16px 12px; }
+    .center { text-align: center; }
+    .bold { font-weight: 700; }
+    .divider { border: none; border-top: 1px dashed #999; margin: 10px 0; }
+    .divider-solid { border: none; border-top: 2px solid #111; margin: 10px 0; }
+    table { width: 100%; border-collapse: collapse; }
+    td { font-size: 12px; }
+    .total-row td { font-size: 14px; font-weight: 900; padding-top: 6px; }
+    .badge { display:inline-block; background:${primary}; color:#fff; font-size:10px; font-weight:700; padding:2px 8px; border-radius:4px; letter-spacing:1px; }
+    @media print {
+      body { margin: 0; padding: 8px; }
+      @page { margin: 0; size: 80mm auto; }
+    }
+  </style>
+</head>
+<body>
+  <div class="center" style="margin-bottom:12px">
+    ${logoHtml}
+    <div style="font-size:20px;font-weight:900;letter-spacing:1px">${bizName.toUpperCase()}</div>
+    ${bizAddr ? `<div style="font-size:11px;color:#555;margin-top:3px">${bizAddr}</div>` : ''}
+    ${bizPhone ? `<div style="font-size:11px;color:#555">Tel: ${bizPhone}</div>` : ''}
+    ${bizEmail ? `<div style="font-size:11px;color:#555">${bizEmail}</div>` : ''}
+  </div>
+
+  <hr class="divider-solid">
+
+  <div style="margin-bottom:8px">
+    <div class="center"><span class="badge">${order.orderType === 'delivery' ? '🚚 DELIVERY' : '🏪 COLLECTION'}</span></div>
+    <table style="margin-top:8px">
+      <tr><td class="bold">Order #</td><td style="text-align:right">${order.orderNumber}</td></tr>
+      <tr><td class="bold">Date</td><td style="text-align:right">${dateStr}</td></tr>
+      <tr><td class="bold">Time</td><td style="text-align:right">${timeStr}</td></tr>
+      <tr><td class="bold">Customer</td><td style="text-align:right">${order.customerName}</td></tr>
+      ${order.customerPhone ? `<tr><td class="bold">Phone</td><td style="text-align:right">${order.customerPhone}</td></tr>` : ''}
+      ${addr ? `<tr><td class="bold" style="vertical-align:top">Address</td><td style="text-align:right">${[addr.line1, addr.line2, addr.city, addr.postcode].filter(Boolean).join(', ')}</td></tr>` : ''}
+    </table>
+  </div>
+
+  <hr class="divider">
+
+  <table>
+    <thead>
+      <tr>
+        <th style="text-align:left;padding-bottom:4px;font-size:11px;color:#555" colspan="2">ITEM</th>
+        <th style="text-align:right;padding-bottom:4px;font-size:11px;color:#555">PRICE</th>
+      </tr>
+    </thead>
+    <tbody>${itemRows}</tbody>
+  </table>
+
+  <hr class="divider">
+
+  <table>
+    <tr><td>Subtotal</td><td style="text-align:right">${formatPrice(order.subtotal)}</td></tr>
+    ${order.deliveryFee > 0 ? `<tr><td>Delivery</td><td style="text-align:right">${formatPrice(order.deliveryFee)}</td></tr>` : ''}
+    ${order.discount > 0 ? `<tr><td>Discount</td><td style="text-align:right">−${formatPrice(order.discount)}</td></tr>` : ''}
+    <tr class="total-row">
+      <td>TOTAL</td>
+      <td style="text-align:right">${formatPrice(order.total)}</td>
+    </tr>
+    <tr><td style="font-size:11px;color:#666">Payment</td><td style="text-align:right;font-size:11px;color:#666;text-transform:capitalize">${order.paymentMethod}</td></tr>
+  </table>
+
+  <hr class="divider-solid">
+
+  <div class="center" style="font-size:11px;color:#888;margin-top:8px">
+    <div style="font-weight:700;font-size:13px;margin-bottom:4px">Thank you for your order!</div>
+    <div>Please come again 🍕</div>
+    <div style="margin-top:8px;font-size:10px">Status: <strong>${order.status}</strong></div>
+  </div>
+</body>
+</html>`
+
+    const win = window.open('', '_blank', 'width=400,height=700')
+    if (!win) return
+    win.document.documentElement.innerHTML = html
+    win.onload = () => { win.focus(); win.print() }
+    // fallback if onload already fired
+    setTimeout(() => { win.focus(); win.print() }, 500)
+  }
 
   const load = useCallback(async (status: string, q: string) => {
     setLoading(true)
@@ -278,7 +393,7 @@ export default function AdminOrdersPage() {
                       </button>
                     )}
                     <button
-                      onClick={() => window.print()}
+                      onClick={() => printReceipt(order)}
                       className="flex items-center gap-1.5 bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs font-bold px-3 py-2 rounded-xl transition-colors"
                     >
                       <Printer size={13} /> Print

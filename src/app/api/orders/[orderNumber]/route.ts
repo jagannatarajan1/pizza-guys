@@ -27,10 +27,18 @@ export async function GET(
 
   const order = await prisma.order.findUnique({
     where: { orderNumber },
-    include: { items: { select: { productName: true, quantity: true, itemTotal: true } } },
+    include: { items: { select: { productId: true, productName: true, quantity: true, itemTotal: true } } },
   })
 
   if (!order) return NextResponse.json({ error: 'Order not found' }, { status: 404 })
+
+  // Fetch product images in one query
+  const productIds = [...new Set(order.items.map((i) => i.productId))]
+  const products   = await prisma.product.findMany({
+    where:  { id: { in: productIds } },
+    select: { id: true, image: true },
+  })
+  const imageMap = Object.fromEntries(products.map((p) => [p.id, p.image]))
 
   // Check if the requester is the order owner or an admin/staff/viewer
   const token   = req.cookies.get(AUTH_COOKIE)?.value
@@ -55,6 +63,7 @@ export async function GET(
       name:      i.productName,
       quantity:  i.quantity,
       itemTotal: i.itemTotal / 100,
+      image:     imageMap[i.productId] ?? '',
     })),
   })
 }
