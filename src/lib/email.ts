@@ -16,11 +16,15 @@ function getTransport() {
 }
 
 function emailShell(cfg: Awaited<ReturnType<typeof fetchSiteConfig>>, bodyHtml: string) {
-  const name    = cfg.biz_name  || 'Pizza Guys'
-  const abbr    = (cfg.biz_logo_abbr || 'PG').slice(0, 3)
-  const primary = cfg.theme_primary || '#E53935'
-  const dark    = cfg.theme_dark    || '#111111'
-  const accent  = cfg.theme_accent  || '#FFD700'
+  const name     = cfg.biz_name      || 'Pizza Guys'
+  const abbr     = (cfg.biz_logo_abbr || 'PG').slice(0, 3)
+  const logoImg  = cfg.biz_logo_image || ''
+  const dark     = cfg.theme_dark    || '#111111'
+  const accent   = cfg.theme_accent  || '#FFD700'
+
+  const logoCell = logoImg
+    ? `<img src="${logoImg}" alt="${name}" width="44" height="44" style="width:44px;height:44px;border-radius:50%;object-fit:cover;display:block" />`
+    : `<div style="width:44px;height:44px;border-radius:50%;background:${accent};font-weight:900;font-size:14px;color:${dark};text-align:center;line-height:44px">${abbr}</div>`
 
   return `<!DOCTYPE html>
 <html>
@@ -35,9 +39,7 @@ function emailShell(cfg: Awaited<ReturnType<typeof fetchSiteConfig>>, bodyHtml: 
           <td style="background:${dark};padding:24px 32px">
             <table cellpadding="0" cellspacing="0">
               <tr>
-                <td>
-                  <div style="width:44px;height:44px;border-radius:50%;background:${accent};display:inline-flex;align-items:center;justify-content:center;font-weight:900;font-size:14px;color:${dark};text-align:center;line-height:44px">${abbr}</div>
-                </td>
+                <td>${logoCell}</td>
                 <td style="padding-left:12px;vertical-align:middle">
                   <span style="font-weight:900;font-size:18px;color:${accent}">${name}</span>
                 </td>
