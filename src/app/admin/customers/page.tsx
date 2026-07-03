@@ -1,6 +1,6 @@
 'use client'
 import { useState, useEffect, useCallback } from 'react'
-import { Search, Loader2, CheckCircle2, XCircle } from 'lucide-react'
+import { Search, Loader2 } from 'lucide-react'
 import { formatPrice } from '@/lib/utils'
 import toast from 'react-hot-toast'
 
@@ -9,7 +9,6 @@ type Customer = {
   name: string
   email: string
   phone: string
-  emailVerified: boolean
   orderCount: number
   totalSpend: number
   joined: string
@@ -80,7 +79,6 @@ export default function AdminCustomersPage() {
               <thead className="bg-gray-50 border-b border-gray-100">
                 <tr>
                   <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase">Customer</th>
-                  <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase hidden sm:table-cell">Verified</th>
                   <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase hidden md:table-cell">Phone</th>
                   <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase">Orders</th>
                   <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase">Total Spend</th>
@@ -101,11 +99,6 @@ export default function AdminCustomersPage() {
                           <div className="text-xs text-gray-400">{c.email}</div>
                         </div>
                       </div>
-                    </td>
-                    <td className="px-4 py-3 hidden sm:table-cell">
-                      {c.emailVerified
-                        ? <span title="Verified"><CheckCircle2 size={16} className="text-green-500" /></span>
-                        : <span title="Unverified"><XCircle size={16} className="text-amber-400" /></span>}
                     </td>
                     <td className="px-4 py-3 text-gray-600 hidden md:table-cell">{c.phone || '—'}</td>
                     <td className="px-4 py-3">

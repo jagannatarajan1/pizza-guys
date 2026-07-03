@@ -69,14 +69,6 @@ export async function POST(req: NextRequest) {
     })
   }
 
-  // Block unverified customers (admins are created manually so skip the check)
-  if (!ADMIN_ROLES.includes(user.role) && !user.emailVerified) {
-    return NextResponse.json(
-      { error: 'Please verify your email before logging in.', unverified: true },
-      { status: 403 }
-    )
-  }
-
   // Admin with 2FA enabled → issue short-lived temp token, client must submit TOTP next
   if (ADMIN_ROLES.includes(user.role) && user.twoFactorEnabled) {
     const tempToken = jwt.sign(

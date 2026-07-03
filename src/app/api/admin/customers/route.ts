@@ -28,7 +28,7 @@ export async function GET(req: NextRequest) {
     prisma.user.findMany({
       where,
       select: {
-        id: true, name: true, email: true, phone: true, createdAt: true, emailVerified: true,
+        id: true, name: true, email: true, phone: true, createdAt: true,
         _count: { select: { orders: true } },
         orders: {
           select: { total: true, createdAt: true },
@@ -59,7 +59,6 @@ export async function GET(req: NextRequest) {
       name: u.name,
       email: u.email,
       phone: u.phone,
-      emailVerified: u.emailVerified,
       orderCount: u._count.orders,
       totalSpend: (spends[i]._sum.total ?? 0) / 100,
       joined: u.createdAt,
