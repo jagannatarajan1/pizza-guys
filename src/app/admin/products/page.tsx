@@ -279,7 +279,7 @@ export default function AdminProductsPage() {
                 label="Product Image"
               />
               {form.image && (
-                <p className="text-xs text-green-600 font-semibold mt-2">✅ Image uploaded to Cloudinary</p>
+                <p className="text-xs text-green-600 font-semibold mt-2">✅ Image URL set</p>
               )}
             </div>
           </div>

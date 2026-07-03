@@ -23,7 +23,6 @@ export const NAV_PERMISSIONS: Record<string, Role[]> = {
   '/admin/reports':    ['admin', 'viewer'],
   '/admin/users':      ['admin'],
   '/admin/security':   ['admin', 'staff', 'viewer'],
-  '/admin/migrate':    ['admin'],
 }
 
 export function canAccess(role: string, path: string): boolean {
