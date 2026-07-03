@@ -1,11 +1,11 @@
 import type { NextConfig } from 'next'
 
-// Stripe JS + Cloudinary + self — the minimum CSP that still lets checkout and images work
+// Stripe JS + self — the minimum CSP that still lets checkout and images work
 const CSP = [
   "default-src 'self'",
   "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://js.stripe.com",
   "style-src 'self' 'unsafe-inline'",
-  "img-src 'self' data: blob: https://res.cloudinary.com https://images.unsplash.com",
+  "img-src 'self' data: blob: *",
   "font-src 'self'",
   "connect-src 'self' https://api.stripe.com https://checkout.stripe.com",
   "frame-src https://js.stripe.com https://hooks.stripe.com https://checkout.stripe.com",

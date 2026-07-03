@@ -5,7 +5,7 @@ import { usePathname } from 'next/navigation'
 import {
   LayoutDashboard, ShoppingBag, Package, Grid3X3, Settings,
   Tag, Users, Truck, Clock, BarChart2, ChevronLeft, Menu, X,
-  CloudUpload, SlidersHorizontal, UserCog, ShieldCheck,
+  SlidersHorizontal, UserCog, ShieldCheck,
 } from 'lucide-react'
 import { canAccess, ROLE_LABELS } from '@/lib/roles'
 
@@ -23,7 +23,6 @@ const NAV = [
   { href: '/admin/reports',    label: 'Reports',        icon: BarChart2 },
   { href: '/admin/users',      label: 'Staff & Roles',  icon: UserCog },
   { href: '/admin/security',   label: 'Security (2FA)', icon: ShieldCheck },
-  { href: '/admin/migrate',    label: 'Migrate Images', icon: CloudUpload },
 ]
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
