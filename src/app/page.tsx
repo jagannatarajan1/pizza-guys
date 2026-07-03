@@ -6,7 +6,7 @@ import { motion } from 'framer-motion'
 import { MapPin, Clock, ChevronRight, Star, Truck, Award, Heart, Zap } from 'lucide-react'
 import HeroBanners from '@/components/HeroBanners'
 import { openingHours } from '@/lib/menu-data'
-
+///testtt
 type LiveCoupon = { code: string; type: string; value: number; description: string }
 import { checkDelivery, formatPrice } from '@/lib/utils'
 import ProductModal from '@/components/ProductModal'
