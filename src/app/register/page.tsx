@@ -4,6 +4,16 @@ import Link from 'next/link'
 import { Eye, EyeOff, Mail } from 'lucide-react'
 import toast from 'react-hot-toast'
 
+function getMailLink(email: string) {
+  const domain = email.split('@')[1]?.toLowerCase() ?? ''
+  if (domain === 'gmail.com')      return 'https://mail.google.com'
+  if (domain === 'yahoo.com')      return 'https://mail.yahoo.com'
+  if (domain === 'outlook.com' || domain === 'hotmail.com' || domain === 'live.com')
+                                   return 'https://outlook.live.com'
+  if (domain === 'icloud.com')     return 'https://www.icloud.com/mail'
+  return `https://mail.${domain}`
+}
+
 export default function RegisterPage() {
   const [form, setForm]       = useState({ name: '', email: '', phone: '', password: '', confirm: '' })
   const [showPw, setShowPw]   = useState(false)
@@ -44,7 +54,15 @@ export default function RegisterPage() {
           <p className="text-gray-500 text-sm mb-6">
             We sent a verification link to <strong>{sentEmail}</strong>. Click the link to activate your account.
           </p>
-          <p className="text-xs text-gray-400">
+          <a
+            href={getMailLink(sentEmail)}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-2 bg-red-600 hover:bg-red-700 text-white font-bold px-6 py-3 rounded-xl transition-colors text-sm mb-4"
+          >
+            <Mail size={16} /> Open Email App
+          </a>
+          <p className="text-xs text-gray-400 mt-2">
             Didn&apos;t receive it?{' '}
             <button
               onClick={async () => {
@@ -59,8 +77,6 @@ export default function RegisterPage() {
             >
               Resend
             </button>
-            {' '}or{' '}
-            <Link href="/login" className="text-red-600 font-semibold hover:underline">sign in</Link>
           </p>
         </div>
       </div>
