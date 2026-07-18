@@ -32,6 +32,7 @@ export default function HomePage() {
   const [deliveryResult, setDeliveryResult] = useState<{ available: boolean; fee: number; minOrder: number } | null | 'not-found'>(null)
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null)
   const [popularProducts, setPopularProducts] = useState<Product[]>([])
+  const [mealDealProducts, setMealDealProducts] = useState<Product[]>([])
   const [categories, setCategories]           = useState<Category[]>([])
   const [shopStatus, setShopStatus]           = useState<ShopStatus | null>(null)
   const [dbZones, setDbZones]           = useState<{ postcode: string; minOrder: number; deliveryFee: number }[]>([])
@@ -40,6 +41,7 @@ export default function HomePage() {
   useEffect(() => {
     fetch('/api/menu/products').then((r) => r.json()).then((d) => {
       setPopularProducts((d.products ?? []).filter((p: Product) => p.popular))
+      setMealDealProducts((d.products ?? []).filter((p: Product) => p.category === 'pizza-meal'))
     })
     fetch('/api/menu/categories').then((r) => r.json()).then((d) => {
       setCategories(d.categories ?? [])
@@ -206,6 +208,108 @@ export default function HomePage() {
         </motion.div>
       </section>
 
+      {/* ── OFFERS ──────────────────────────────────────── */}
+      <section className="max-w-7xl mx-auto px-4 sm:px-6 mt-16">
+        <div className="flex items-center justify-between mb-6">
+          <div>
+            <h2 className="text-2xl sm:text-3xl font-black text-gray-900">Special Offers</h2>
+            <p className="text-gray-500 text-sm mt-1">Save more with our exclusive deals</p>
+          </div>
+          <Link href="/offers" className="text-[#E53935] font-bold text-sm hover:underline flex items-center gap-1">
+            All Offers <ChevronRight size={14} />
+          </Link>
+        </div>
+
+        <motion.div
+          variants={stagger}
+          initial="hidden"
+          whileInView="show"
+          viewport={{ once: true, margin: '-60px' }}
+          className="grid grid-cols-1 sm:grid-cols-3 gap-4"
+        >
+          {liveCoupons.map((coupon) => (
+            <motion.div
+              key={coupon.code}
+              variants={fadeUp}
+              className="relative bg-[#111] text-white p-6 rounded-2xl overflow-hidden border border-white/8 hover:-translate-y-1 transition-transform duration-200"
+            >
+              {/* Decorative circles */}
+              <div className="absolute right-0 top-0 w-28 h-28 bg-[#FFD700]/8 rounded-full -mr-10 -mt-10" />
+              <div className="absolute right-8 bottom-0 w-20 h-20 bg-[#FFD700]/5 rounded-full -mb-10" />
+              <div className="relative">
+                <div className="text-3xl font-black text-[#FFD700] mb-2">
+                  {coupon.type === 'percentage' && `${coupon.value}% OFF`}
+                  {coupon.type === 'fixed'       && `£${coupon.value} OFF`}
+                  {coupon.type === 'freeDelivery' && 'FREE DELIVERY'}
+                </div>
+                <p className="text-gray-400 text-sm mb-4">{coupon.description}</p>
+                <div className="inline-flex items-center gap-2 bg-[#FFD700]/15 border border-[#FFD700]/30 rounded-lg px-3 py-1.5">
+                  <span className="text-xs text-gray-400">Code:</span>
+                  <span className="font-black text-[#FFD700] tracking-wider">{coupon.code}</span>
+                </div>
+              </div>
+            </motion.div>
+          ))}
+        </motion.div>
+      </section>
+
+      {/* ── MEAL DEALS ──────────────────────────────────── */}
+      <section className="max-w-7xl mx-auto px-4 sm:px-6 mt-16">
+        <div className="flex items-center justify-between mb-6">
+          <div>
+            <h2 className="text-2xl sm:text-3xl font-black text-gray-900">Meal Deals</h2>
+            <p className="text-gray-500 text-sm mt-1">Great value combos for one or the whole family</p>
+          </div>
+          <Link href="/menu?category=pizza-meal" className="text-[#E53935] font-bold text-sm hover:underline flex items-center gap-1">
+            See All <ChevronRight size={14} />
+          </Link>
+        </div>
+
+        <motion.div
+          variants={stagger}
+          initial="hidden"
+          whileInView="show"
+          viewport={{ once: true, margin: '-60px' }}
+          className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4"
+        >
+          {mealDealProducts.slice(0, 8).map((product) => (
+            <motion.div
+              key={product.id}
+              variants={fadeUp}
+              onClick={() => setSelectedProduct(product)}
+              className="bg-white rounded-2xl border-2 border-gray-100 overflow-hidden cursor-pointer card-hover group"
+            >
+              <div className="relative aspect-square overflow-hidden bg-gray-100">
+                <Image
+                  src={product.image}
+                  alt={product.name}
+                  fill
+                  className="object-cover group-hover:scale-105 transition-transform duration-400"
+                  sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw"
+                />
+                <div className="absolute top-2 left-2 bg-[#FFD700] text-[#111] text-[10px] font-black px-2 py-0.5 rounded-full">
+                  Meal Deal
+                </div>
+              </div>
+              <div className="p-3">
+                <h3 className="font-black text-gray-900 text-sm mb-2 line-clamp-1">{product.name}</h3>
+                <div className="flex items-center justify-between gap-2">
+                  <span className="font-black text-gray-900 text-sm">
+                    {product.modifiers.length ? `From ${formatPrice(product.price)}` : formatPrice(product.price)}
+                  </span>
+                  <button
+                    onClick={(e) => { e.stopPropagation(); setSelectedProduct(product) }}
+                    className="btn-brand px-3 py-1.5 rounded-lg text-xs shrink-0"
+                  >
+                    Add
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          ))}
+        </motion.div>
+      </section>
+
       {/* ── POPULAR PRODUCTS ────────────────────────────── */}
       <section className="max-w-7xl mx-auto px-4 sm:px-6 mt-16">
         <div className="flex items-center justify-between mb-6">
@@ -256,51 +360,6 @@ export default function HomePage() {
                   >
                     Add
                   </button>
-                </div>
-              </div>
-            </motion.div>
-          ))}
-        </motion.div>
-      </section>
-
-      {/* ── OFFERS ──────────────────────────────────────── */}
-      <section className="max-w-7xl mx-auto px-4 sm:px-6 mt-16">
-        <div className="flex items-center justify-between mb-6">
-          <div>
-            <h2 className="text-2xl sm:text-3xl font-black text-gray-900">Special Offers</h2>
-            <p className="text-gray-500 text-sm mt-1">Save more with our exclusive deals</p>
-          </div>
-          <Link href="/offers" className="text-[#E53935] font-bold text-sm hover:underline flex items-center gap-1">
-            All Offers <ChevronRight size={14} />
-          </Link>
-        </div>
-
-        <motion.div
-          variants={stagger}
-          initial="hidden"
-          whileInView="show"
-          viewport={{ once: true, margin: '-60px' }}
-          className="grid grid-cols-1 sm:grid-cols-3 gap-4"
-        >
-          {liveCoupons.map((coupon) => (
-            <motion.div
-              key={coupon.code}
-              variants={fadeUp}
-              className="relative bg-[#111] text-white p-6 rounded-2xl overflow-hidden border border-white/8 hover:-translate-y-1 transition-transform duration-200"
-            >
-              {/* Decorative circles */}
-              <div className="absolute right-0 top-0 w-28 h-28 bg-[#FFD700]/8 rounded-full -mr-10 -mt-10" />
-              <div className="absolute right-8 bottom-0 w-20 h-20 bg-[#FFD700]/5 rounded-full -mb-10" />
-              <div className="relative">
-                <div className="text-3xl font-black text-[#FFD700] mb-2">
-                  {coupon.type === 'percentage' && `${coupon.value}% OFF`}
-                  {coupon.type === 'fixed'       && `£${coupon.value} OFF`}
-                  {coupon.type === 'freeDelivery' && 'FREE DELIVERY'}
-                </div>
-                <p className="text-gray-400 text-sm mb-4">{coupon.description}</p>
-                <div className="inline-flex items-center gap-2 bg-[#FFD700]/15 border border-[#FFD700]/30 rounded-lg px-3 py-1.5">
-                  <span className="text-xs text-gray-400">Code:</span>
-                  <span className="font-black text-[#FFD700] tracking-wider">{coupon.code}</span>
                 </div>
               </div>
             </motion.div>

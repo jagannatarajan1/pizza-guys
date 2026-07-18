@@ -187,12 +187,20 @@ export default function Footer() {
                 })}
               </div>
             </div>
+
+            {/* Map placeholder — drop a real Google Maps <iframe> in here once the business owner supplies the embed link */}
+            <div className="mt-5 h-50 w-full rounded-xl border border-white/8 bg-white/5 flex items-center justify-center text-center px-4">
+              {/* MAP_EMBED_PLACEHOLDER: replace this div's contents with <iframe src="..." width="100%" height="100%" style={{ border: 0 }} loading="lazy" /> */}
+              <div className="flex flex-col items-center gap-1.5 text-gray-500">
+                <MapPin size={18} style={{ color: 'var(--brand-accent)' }} />
+                <span className="text-xs font-bold">Map coming soon</span>
+              </div>
+            </div>
           </div>
         </div>
 
         <div className="border-t border-white/8 mt-12 pt-6 flex flex-col sm:flex-row justify-between items-center gap-2 text-xs text-gray-600">
           <p>© {new Date().getFullYear()} {cfg.biz_name}. All rights reserved.</p>
-          <p>Registered in England & Wales</p>
         </div>
       </div>
     </footer>

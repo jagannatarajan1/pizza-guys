@@ -202,7 +202,7 @@ export default function Header() {
               className="relative flex items-center gap-2 bg-[#FFD700] hover:bg-[#E6C200] text-[#111] px-3 sm:px-4 py-2 rounded-xl font-800 text-sm transition-all duration-150 hover:-translate-y-0.5 hover:shadow-lg hover:shadow-yellow-400/30 active:translate-y-0"
             >
               <ShoppingCart size={17} strokeWidth={2.5} />
-              <span className="hidden sm:inline font-black">Basket</span>
+              <span className="hidden sm:inline font-black">Cart</span>
               <AnimatePresence>
                 {itemCount > 0 && (
                   <motion.span

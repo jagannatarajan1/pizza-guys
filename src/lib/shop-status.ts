@@ -10,9 +10,36 @@ export type ShopStatus = {
 const DAYS = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'] as const
 const DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'] as const
 
+// The shop is physically in Staines-upon-Thames, Surrey, UK — always compute
+// "current time" in the shop's own timezone, not the server's. The server
+// may be deployed anywhere (e.g. a US or Asia region), so relying on
+// `Date.getHours()`/`getDay()` directly would compare the shop's opening
+// hours against the wrong clock (and sometimes even the wrong day).
+const SHOP_TIMEZONE = 'Europe/London'
+const WEEKDAY_INDEX: Record<string, number> = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 }
+
+function getShopLocalTime(date: Date): { dayIndex: number; hour: number; minute: number } {
+  const parts = new Intl.DateTimeFormat('en-GB', {
+    timeZone: SHOP_TIMEZONE,
+    weekday: 'short',
+    hour: '2-digit',
+    minute: '2-digit',
+    hourCycle: 'h23',
+  }).formatToParts(date)
+
+  const lookup: Record<string, string> = {}
+  for (const part of parts) lookup[part.type] = part.value
+
+  return {
+    dayIndex: WEEKDAY_INDEX[lookup.weekday] ?? date.getDay(),
+    hour: Number(lookup.hour),
+    minute: Number(lookup.minute),
+  }
+}
+
 export function computeShopStatus(cfg: Record<string, string>): ShopStatus {
   const now = new Date()
-  const dayIndex = now.getDay()
+  const { dayIndex, hour, minute } = getShopLocalTime(now)
   const dayKey = DAYS[dayIndex]
 
   const isClosed = cfg[`hours_${dayKey}_closed`] === 'true'
@@ -23,7 +50,7 @@ export function computeShopStatus(cfg: Record<string, string>): ShopStatus {
   const [closeH, closeM] = closeStr.split(':').map(Number)
   const openMins    = openH  * 60 + openM
   const closeMins   = closeH * 60 + closeM
-  const currentMins = now.getHours() * 60 + now.getMinutes()
+  const currentMins = hour * 60 + minute
 
   const withinHours    = !isClosed && currentMins >= openMins && currentMins < closeMins
   const shopManuallyOpen = cfg.shop_open !== 'false'
