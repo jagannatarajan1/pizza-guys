@@ -1,35 +1,82 @@
 'use client'
-import { useEffect, useState, Suspense } from 'react'
+import { useState, Suspense } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { CheckCircle, XCircle, Loader2, Mail } from 'lucide-react'
+import { CheckCircle, XCircle, Loader2, Mail, ShieldCheck } from 'lucide-react'
+
+type Reason = 'expired' | 'invalid' | 'missing' | 'already-verified' | 'network'
+
+const REASON_COPY: Record<Reason, { title: string; message: string }> = {
+  expired: {
+    title:   'Link expired',
+    message: 'This link has expired — please request a new one below.',
+  },
+  invalid: {
+    title:   "Link isn't valid",
+    message: "This link isn't valid — it may have already been used. Request a new one below.",
+  },
+  missing: {
+    title:   'Missing verification link',
+    message: "We couldn't find a verification request for this link.",
+  },
+  'already-verified': {
+    title:   'Already verified',
+    message: 'This email address has already been verified — you can log in now.',
+  },
+  network: {
+    title:   'Something went wrong',
+    message: 'We couldn’t reach the server. Check your connection and try again.',
+  },
+}
 
 function VerifyEmailContent() {
   const searchParams = useSearchParams()
   const router       = useRouter()
   const token        = searchParams.get('token')
 
-  const [status, setStatus]   = useState<'loading' | 'success' | 'error' | 'no-token'>('loading')
-  const [message, setMessage] = useState('')
+  const [status, setStatus] = useState<'confirm' | 'loading' | 'success' | 'error' | 'no-token'>(
+    token ? 'confirm' : 'no-token'
+  )
+  const [reason, setReason] = useState<Reason>('invalid')
 
-  useEffect(() => {
-    if (!token) { setStatus('no-token'); return }
+  const handleVerify = () => {
+    if (!token) return
+    setStatus('loading')
 
     fetch(`/api/auth/verify-email?token=${token}`)
-      .then((res) => {
-        if (res.redirected) {
-          // Server redirected to /dashboard — follow it
-          router.push(res.url)
+      .then((res) => res.json())
+      .then((data: { ok: boolean; redirectTo?: string; reason?: Reason }) => {
+        if (data.ok && data.redirectTo) {
+          setStatus('success')
+          router.push(data.redirectTo)
           return
         }
-        return res.json().then((data) => {
-          setStatus('error')
-          setMessage(data.error ?? 'Verification failed')
-        })
+        setStatus('error')
+        setReason(data.reason ?? 'invalid')
       })
-      .catch(() => { setStatus('error'); setMessage('Something went wrong') })
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [token])
+      .catch(() => {
+        setStatus('error')
+        setReason('network')
+      })
+  }
+
+  if (status === 'confirm') {
+    return (
+      <div className="min-h-[60vh] flex items-center justify-center px-4">
+        <div className="text-center max-w-sm">
+          <ShieldCheck size={56} className="text-red-500 mx-auto mb-4" />
+          <h1 className="text-2xl font-black text-gray-900 mb-2">Confirm your email</h1>
+          <p className="text-gray-500 mb-6">Click the button below to verify your email address and activate your account.</p>
+          <button
+            onClick={handleVerify}
+            className="bg-red-600 hover:bg-red-700 text-white font-bold px-6 py-3 rounded-xl transition-colors"
+          >
+            Click to verify my email
+          </button>
+        </div>
+      </div>
+    )
+  }
 
   if (status === 'loading') {
     return (
@@ -73,13 +120,20 @@ function VerifyEmailContent() {
   }
 
   // error
+  const copy = REASON_COPY[reason]
   return (
     <div className="min-h-[60vh] flex items-center justify-center px-4">
       <div className="text-center max-w-sm">
         <XCircle size={56} className="text-red-400 mx-auto mb-4" />
-        <h1 className="text-2xl font-black text-gray-900 mb-2">Link expired</h1>
-        <p className="text-gray-500 mb-6">{message || 'This verification link is invalid or has expired.'}</p>
-        <ResendForm />
+        <h1 className="text-2xl font-black text-gray-900 mb-2">{copy.title}</h1>
+        <p className="text-gray-500 mb-6">{copy.message}</p>
+        {reason === 'already-verified' ? (
+          <Link href="/login" className="text-red-600 font-semibold hover:underline text-sm">
+            Back to login
+          </Link>
+        ) : (
+          <ResendForm />
+        )}
       </div>
     </div>
   )

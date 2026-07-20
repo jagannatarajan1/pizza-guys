@@ -1,5 +1,5 @@
 'use client'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import Image from 'next/image'
 import { X, Plus, Minus, ChevronDown } from 'lucide-react'
 import type { Product, ModifierGroup, ModifierOption } from '@/lib/types'
@@ -18,18 +18,19 @@ export default function ProductModal({ product, onClose }: Props) {
   const [quantity, setQuantity] = useState(1)
   const [selectedModifiers, setSelectedModifiers] = useState<Record<string, string[]>>({})
   const [instructions, setInstructions] = useState('')
+  const [highlightGroup, setHighlightGroup] = useState<string | null>(null)
+  const groupRefs = useRef<Record<string, HTMLDivElement | null>>({})
 
   useEffect(() => {
     if (!product) return
     setQuantity(1)
     setInstructions('')
+    setHighlightGroup(null)
+    // Required groups start unselected — the customer must actively choose an
+    // option rather than have one silently defaulted for them.
     const defaults: Record<string, string[]> = {}
     product.modifiers?.forEach((group) => {
-      if (group.required && group.options.length > 0) {
-        defaults[group.id] = [group.options[0].id]
-      } else {
-        defaults[group.id] = []
-      }
+      defaults[group.id] = []
     })
     setSelectedModifiers(defaults)
   }, [product])
@@ -73,6 +74,21 @@ export default function ProductModal({ product, onClose }: Props) {
   }
 
   const handleAdd = () => {
+    if (!canAdd()) {
+      // Find the first required group that's still missing a choice and jump to it
+      // so it's obvious what's blocking the add, instead of just leaving the
+      // button greyed out.
+      const missingGroup = product.modifiers?.find(
+        (group) => group.required && (selectedModifiers[group.id] || []).length < group.min
+      )
+      if (missingGroup) {
+        groupRefs.current[missingGroup.id]?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+        setHighlightGroup(missingGroup.id)
+        setTimeout(() => setHighlightGroup((g) => (g === missingGroup.id ? null : g)), 1600)
+      }
+      return
+    }
+
     const modifiers: CartItemModifier[] = (product.modifiers || []).map((group) => {
       const selectedIds = selectedModifiers[group.id] || []
       const options = group.options.filter((o) => selectedIds.includes(o.id))
@@ -116,7 +132,13 @@ export default function ProductModal({ product, onClose }: Props) {
 
           {/* Modifier groups */}
           {product.modifiers?.map((group) => (
-            <div key={group.id} className="mb-5">
+            <div
+              key={group.id}
+              ref={(el) => { groupRefs.current[group.id] = el }}
+              className={`mb-5 rounded-xl transition-all duration-300 ${
+                highlightGroup === group.id ? 'ring-2 ring-red-500 ring-offset-2 bg-red-50/50 -mx-2 px-2 py-2' : ''
+              }`}
+            >
               <div className="flex items-center justify-between mb-2">
                 <h3 className="font-bold text-gray-800">{group.name}</h3>
                 <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${group.required ? 'bg-red-100 text-red-600' : 'bg-gray-100 text-gray-500'}`}>
@@ -190,9 +212,9 @@ export default function ProductModal({ product, onClose }: Props) {
           </div>
           <button
             onClick={handleAdd}
-            disabled={!canAdd()}
+            aria-disabled={!canAdd()}
             className={`w-full py-4 rounded-xl font-bold text-white flex items-center justify-between px-5 transition-colors ${
-              canAdd() ? 'bg-red-600 hover:bg-red-700' : 'bg-gray-300 cursor-not-allowed'
+              canAdd() ? 'bg-red-600 hover:bg-red-700' : 'bg-gray-300 hover:bg-gray-400'
             }`}
           >
             <span>Add to Basket</span>

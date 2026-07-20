@@ -50,3 +50,17 @@ export function validateEmail(email: string): boolean {
 export function validatePhone(phone: string): boolean {
   return /^[\d\s+\-().]{7,20}$/.test(phone)
 }
+
+// Derive the real public origin the request came in on. Prefers reverse-proxy
+// headers (x-forwarded-proto/x-forwarded-host), since behind a proxy those
+// reflect the address the customer actually used — falls back to req.nextUrl.origin.
+export function getOriginFromRequest(req: NextRequest): string {
+  const fwdHost  = req.headers.get('x-forwarded-host')
+  const fwdProto = req.headers.get('x-forwarded-proto')
+  if (fwdHost) {
+    const proto = (fwdProto ?? 'https').split(',')[0].trim()
+    const host  = fwdHost.split(',')[0].trim()
+    return `${proto}://${host}`
+  }
+  return req.nextUrl.origin
+}

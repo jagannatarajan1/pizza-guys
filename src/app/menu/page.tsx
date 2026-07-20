@@ -1,5 +1,5 @@
 'use client'
-import { useState, useRef, useEffect, Suspense } from 'react'
+import { useState, useRef, useEffect, useMemo, memo, Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
 import Image from 'next/image'
 import { motion } from 'framer-motion'
@@ -7,6 +7,7 @@ import { Search, X } from 'lucide-react'
 import type { Product, Category } from '@/lib/types'
 import { formatPrice } from '@/lib/utils'
 import ProductModal from '@/components/ProductModal'
+import CategoryIcon from '@/components/CategoryIcon'
 import { useSiteConfig } from '@/context/SiteConfigContext'
 
 const fadeUp = {
@@ -19,7 +20,7 @@ const stagger = {
   show:   { transition: { staggerChildren: 0.05 } },
 }
 
-function ProductItem({ product, onSelect }: { product: Product; onSelect: (p: Product) => void }) {
+const ProductItem = memo(function ProductItem({ product, onSelect }: { product: Product; onSelect: (p: Product) => void }) {
   return (
     <motion.div
       variants={fadeUp}
@@ -64,7 +65,7 @@ function ProductItem({ product, onSelect }: { product: Product; onSelect: (p: Pr
       </div>
     </motion.div>
   )
-}
+})
 
 function SkeletonCard() {
   return (
@@ -115,23 +116,31 @@ function MenuContent() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loading])
 
-  const filteredProducts = products.filter((p) => {
-    const matchesSearch  = search === '' || p.name.toLowerCase().includes(search.toLowerCase()) || p.description.toLowerCase().includes(search.toLowerCase())
-    const matchesCategory = activeCategory === 'all' || p.category === activeCategory
-    return matchesSearch && matchesCategory
-  })
+  // Search still filters across every category. Category selection no longer hides
+  // other categories — it's just used to highlight/scroll to a section, so the menu
+  // reads as one continuously scrolling page with every category visible.
+  const filteredProducts = useMemo(() => {
+    if (search === '') return products
+    const q = search.toLowerCase()
+    return products.filter((p) => p.name.toLowerCase().includes(q) || p.description.toLowerCase().includes(q))
+  }, [products, search])
 
-  const grouped = categories
-    .map((cat) => ({ category: cat, items: filteredProducts.filter((p) => p.category === cat.id) }))
-    .filter((g) => g.items.length > 0)
+  const grouped = useMemo(() => (
+    categories
+      .map((cat) => ({ category: cat, items: filteredProducts.filter((p) => p.category === cat.id) }))
+      .filter((g) => g.items.length > 0)
+  ), [categories, filteredProducts])
 
   const scrollToCategory = (slug: string) => {
     setActiveCategory(slug)
-    const el = sectionRefs.current[slug]
-    if (el) {
-      const top = el.getBoundingClientRect().top + window.scrollY - 140
-      window.scrollTo({ top, behavior: 'smooth' })
-    }
+    setSearch('')
+    setTimeout(() => {
+      const el = sectionRefs.current[slug]
+      if (el) {
+        const top = el.getBoundingClientRect().top + window.scrollY - 140
+        window.scrollTo({ top, behavior: 'smooth' })
+      }
+    }, 50)
   }
 
   return (
@@ -190,7 +199,7 @@ function MenuContent() {
                 className={`px-4 py-1.5 rounded-full text-sm font-black whitespace-nowrap transition-all duration-150 flex items-center gap-1.5 ${activeCategory === cat.slug ? '' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
                 style={activeCategory === cat.slug ? { background: 'var(--brand-accent)', color: 'var(--brand-dark)' } : undefined}
               >
-                <span>{cat.icon}</span>
+                <CategoryIcon slug={cat.slug} icon={cat.icon} size={18} className="rounded-full" emojiClassName="text-base leading-none" />
                 {cat.name}
               </button>
             ))}
@@ -233,8 +242,8 @@ function MenuContent() {
           grouped.map(({ category, items }) => (
             <section key={category.id} ref={(el) => { sectionRefs.current[category.slug] = el }} className="mb-14">
               <div className="flex items-center gap-3 mb-5 pb-3 border-b-2 border-gray-100">
-                <div className="w-11 h-11 bg-yellow-50 border-2 border-yellow-100 rounded-xl flex items-center justify-center text-2xl shrink-0">
-                  {category.icon}
+                <div className="w-11 h-11 bg-yellow-50 border-2 border-yellow-100 rounded-xl flex items-center justify-center text-2xl shrink-0 overflow-hidden">
+                  <CategoryIcon slug={category.slug} icon={category.icon} size={44} className="w-full h-full rounded-xl" emojiClassName="" />
                 </div>
                 <div>
                   <h2 className="text-xl font-black text-gray-900">{category.name}</h2>

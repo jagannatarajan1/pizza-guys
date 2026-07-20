@@ -9,6 +9,7 @@ import Header from '@/components/Header'
 import Footer from '@/components/Footer'
 import ThemeScript from '@/components/ThemeScript'
 import ShopStatusBanner from '@/components/ShopStatusBanner'
+import StickyCartBar from '@/components/StickyCartBar'
 import { fetchSiteConfig } from '@/lib/site-config'
 
 const nunito = Nunito({
@@ -57,6 +58,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
               <ShopStatusBanner />
               <main className="flex-1">{children}</main>
               <Footer />
+              <StickyCartBar />
             </AuthProvider>
           </OrderTypeProvider>
         </SiteConfigProvider>

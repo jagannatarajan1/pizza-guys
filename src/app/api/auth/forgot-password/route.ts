@@ -3,7 +3,7 @@ import crypto from 'crypto'
 import prisma from '@/lib/prisma'
 import { sendPasswordResetEmail } from '@/lib/email'
 import { rateLimit, getClientIp } from '@/lib/rate-limit'
-import { sanitizeStr, validateEmail } from '@/lib/api-guard'
+import { sanitizeStr, validateEmail, getOriginFromRequest } from '@/lib/api-guard'
 
 export async function POST(req: NextRequest) {
   const ip = getClientIp(req as unknown as Request)
@@ -31,7 +31,10 @@ export async function POST(req: NextRequest) {
       data:  { passwordResetToken: token, passwordResetExpires: expires },
     })
 
-    await sendPasswordResetEmail(user.email, user.name, token).catch(() => null)
+    const origin = getOriginFromRequest(req)
+    await sendPasswordResetEmail(user.email, user.name, token, origin).catch((err) =>
+      console.error('Failed to send password reset email:', err)
+    )
   }
 
   return NextResponse.json({ ok: true })

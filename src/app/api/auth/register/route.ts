@@ -4,7 +4,7 @@ import prisma from '@/lib/prisma'
 import { hashPassword } from '@/lib/auth-utils'
 import { sendVerificationEmail } from '@/lib/email'
 import { rateLimit, getClientIp } from '@/lib/rate-limit'
-import { sanitizeStr, validateEmail, validatePhone } from '@/lib/api-guard'
+import { sanitizeStr, validateEmail, validatePhone, getOriginFromRequest } from '@/lib/api-guard'
 
 export async function POST(req: NextRequest) {
   const ip = getClientIp(req as unknown as Request)
@@ -47,7 +47,8 @@ export async function POST(req: NextRequest) {
     create: { name, email, phone, passwordHash, token, expiresAt },
   })
 
-  await sendVerificationEmail(email, name, token).catch((err) =>
+  const origin = getOriginFromRequest(req)
+  await sendVerificationEmail(email, name, token, origin).catch((err) =>
     console.error('Failed to send verification email:', err)
   )
 

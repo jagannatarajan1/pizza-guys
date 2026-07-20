@@ -5,6 +5,7 @@ import Image from 'next/image'
 import { motion } from 'framer-motion'
 import { MapPin, Clock, ChevronRight, Star, Truck, Award, Heart, Zap } from 'lucide-react'
 import HeroBanners from '@/components/HeroBanners'
+import CategoryIcon from '@/components/CategoryIcon'
 import { openingHours } from '@/lib/menu-data'
 ///testtt
 type LiveCoupon = { code: string; type: string; value: number; description: string }
@@ -200,7 +201,13 @@ export default function HomePage() {
                 href={`/menu?category=${cat.slug}`}
                 className="flex flex-col items-center gap-2 p-4 bg-white rounded-2xl border-2 border-gray-100 hover:border-[#FFD700] hover:shadow-lg hover:shadow-yellow-100 transition-all duration-200 group card-hover"
               >
-                <span className="text-3xl group-hover:scale-110 transition-transform duration-200">{cat.icon}</span>
+                <CategoryIcon
+                  slug={cat.slug}
+                  icon={cat.icon}
+                  size={48}
+                  className="w-12 h-12 rounded-xl group-hover:scale-110 transition-transform duration-200"
+                  emojiClassName="text-3xl group-hover:scale-110 transition-transform duration-200"
+                />
                 <span className="text-xs font-bold text-gray-700 text-center leading-tight">{cat.name}</span>
               </Link>
             </motion.div>

@@ -1,7 +1,14 @@
 import nodemailer from 'nodemailer'
 import { fetchSiteConfig } from './site-config'
 
-const BASE = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000'
+// Fallback only — the real base URL should come from the incoming request
+// (see getOriginFromRequest in api-guard.ts) so links stay correct even if
+// this env var is stale or never set for the deployed environment.
+const ENV_BASE = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000'
+
+function resolveBase(baseUrl?: string) {
+  return baseUrl || ENV_BASE
+}
 
 function getTransport() {
   return nodemailer.createTransport({
@@ -78,9 +85,9 @@ function fallbackLink(href: string) {
   return `<p style="font-size:12px;color:#999;margin:8px 0 0">Or copy this link: <span style="color:#555;word-break:break-all">${href}</span></p>`
 }
 
-export async function sendVerificationEmail(to: string, name: string, token: string) {
+export async function sendVerificationEmail(to: string, name: string, token: string, baseUrl?: string) {
   const cfg     = await fetchSiteConfig()
-  const url     = `${BASE}/verify-email?token=${token}`
+  const url     = `${resolveBase(baseUrl)}/verify-email?token=${token}`
   const primary = cfg.theme_primary || '#E53935'
   const fromAddr = process.env.EMAIL_FROM ?? `${cfg.biz_name || 'Pizza Guys'} <${process.env.SMTP_USER}>`
 
@@ -101,9 +108,9 @@ export async function sendVerificationEmail(to: string, name: string, token: str
   })
 }
 
-export async function sendPasswordResetEmail(to: string, name: string, token: string) {
+export async function sendPasswordResetEmail(to: string, name: string, token: string, baseUrl?: string) {
   const cfg     = await fetchSiteConfig()
-  const url     = `${BASE}/reset-password?token=${token}`
+  const url     = `${resolveBase(baseUrl)}/reset-password?token=${token}`
   const primary = cfg.theme_primary || '#E53935'
   const fromAddr = process.env.EMAIL_FROM ?? `${cfg.biz_name || 'Pizza Guys'} <${process.env.SMTP_USER}>`
 

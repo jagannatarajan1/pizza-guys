@@ -3,7 +3,7 @@ import crypto from 'crypto'
 import prisma from '@/lib/prisma'
 import { sendVerificationEmail } from '@/lib/email'
 import { rateLimit, getClientIp } from '@/lib/rate-limit'
-import { sanitizeStr, validateEmail } from '@/lib/api-guard'
+import { sanitizeStr, validateEmail, getOriginFromRequest } from '@/lib/api-guard'
 
 export async function POST(req: NextRequest) {
   const ip = getClientIp(req as unknown as Request)
@@ -25,7 +25,10 @@ export async function POST(req: NextRequest) {
       where: { email },
       data:  { token, expiresAt },
     })
-    await sendVerificationEmail(email, pending.name, token).catch(() => null)
+    const origin = getOriginFromRequest(req)
+    await sendVerificationEmail(email, pending.name, token, origin).catch((err) =>
+      console.error('resend-verification email failed:', err)
+    )
   }
 
   return NextResponse.json({ ok: true })
