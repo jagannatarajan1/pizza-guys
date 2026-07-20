@@ -36,6 +36,10 @@ yarn-error.log*
 # vercel
 .vercel
 
+# admin-uploaded branding assets (written at runtime on the server)
+/public/uploads/*
+!/public/uploads/branding/.gitkeep
+
 # typescript
 *.tsbuildinfo
 next-env.d.ts

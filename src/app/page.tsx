@@ -204,6 +204,7 @@ export default function HomePage() {
                 <CategoryIcon
                   slug={cat.slug}
                   icon={cat.icon}
+                  image={cat.image}
                   size={48}
                   className="w-12 h-12 rounded-xl group-hover:scale-110 transition-transform duration-200"
                   emojiClassName="text-3xl group-hover:scale-110 transition-transform duration-200"

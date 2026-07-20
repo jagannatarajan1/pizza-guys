@@ -25,6 +25,7 @@ export async function generateMetadata(): Promise<Metadata> {
     title:       config.seo_title,
     description: config.seo_description,
     keywords:    'pizza delivery, pizza guys, takeaway, burgers, kebabs, staines, surrey',
+    ...(config.biz_favicon_image && { icons: { icon: config.biz_favicon_image } }),
   }
 }
 

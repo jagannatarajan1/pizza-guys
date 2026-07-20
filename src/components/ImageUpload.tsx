@@ -1,6 +1,8 @@
 'use client'
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import Image from 'next/image'
+import { Loader2, Upload } from 'lucide-react'
+import toast from 'react-hot-toast'
 
 type Props = {
   value?: string
@@ -9,7 +11,9 @@ type Props = {
 }
 
 export default function ImageUpload({ value, onChange, label = 'Image URL' }: Props) {
-  const [input, setInput] = useState(value ?? '')
+  const [input, setInput]       = useState(value ?? '')
+  const [uploading, setUploading] = useState(false)
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   const apply = () => {
     const trimmed = input.trim()
@@ -19,6 +23,23 @@ export default function ImageUpload({ value, onChange, label = 'Image URL' }: Pr
   const clear = () => {
     setInput('')
     onChange('')
+  }
+
+  const uploadFile = async (file: File) => {
+    setUploading(true)
+    try {
+      const form = new FormData()
+      form.append('file', file)
+      const res = await fetch('/api/admin/upload', { method: 'POST', body: form })
+      const data = await res.json()
+      if (!res.ok) { toast.error(data.error ?? 'Upload failed'); return }
+      setInput(data.url)
+      onChange(data.url)
+    } catch {
+      toast.error('Upload failed')
+    } finally {
+      setUploading(false)
+    }
   }
 
   return (
@@ -56,7 +77,30 @@ export default function ImageUpload({ value, onChange, label = 'Image URL' }: Pr
           Set
         </button>
       </div>
-      <p className="text-xs text-gray-400">Paste any public image URL (e.g. from your hosting, Imgur, etc.)</p>
+
+      <div className="flex items-center gap-3">
+        <div className="h-px flex-1 bg-gray-100" />
+        <span className="text-[11px] text-gray-400 font-semibold">OR</span>
+        <div className="h-px flex-1 bg-gray-100" />
+      </div>
+
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/png,image/jpeg,image/webp,image/svg+xml,image/x-icon"
+        className="hidden"
+        onChange={(e) => { const f = e.target.files?.[0]; if (f) uploadFile(f); e.target.value = '' }}
+      />
+      <button
+        type="button"
+        disabled={uploading}
+        onClick={() => fileInputRef.current?.click()}
+        className="w-full flex items-center justify-center gap-2 border-2 border-dashed border-gray-200 hover:border-red-300 disabled:opacity-50 text-gray-600 font-bold px-4 py-3 rounded-xl text-sm transition-colors"
+      >
+        {uploading ? <Loader2 size={15} className="animate-spin" /> : <Upload size={15} />}
+        {uploading ? 'Uploading…' : 'Upload a file from your device'}
+      </button>
+      <p className="text-xs text-gray-400">Uploaded files are stored on this server under /uploads — no external hosting needed.</p>
     </div>
   )
 }

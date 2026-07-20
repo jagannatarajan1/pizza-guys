@@ -1,16 +1,20 @@
 'use client'
-import { useState, useEffect } from 'react'
-import { Plus, Pencil, Trash2, EyeOff, Eye, GripVertical, X, Loader2, Copy } from 'lucide-react'
-import type { Category } from '@/lib/types'
+import { useState, useEffect, useMemo } from 'react'
+import Image from 'next/image'
+import { Plus, Pencil, Trash2, EyeOff, Eye, GripVertical, X, Loader2, Copy, Check } from 'lucide-react'
+import type { Category, Product } from '@/lib/types'
 import toast from 'react-hot-toast'
+import ImageUpload from '@/components/ImageUpload'
+import CategoryIcon from '@/components/CategoryIcon'
 
 export default function AdminCategoriesPage() {
   const [cats, setCats]         = useState<Category[]>([])
+  const [products, setProducts] = useState<Product[]>([])
   const [loading, setLoading]   = useState(true)
   const [saving, setSaving]     = useState(false)
   const [showForm, setShowForm] = useState(false)
   const [editId, setEditId]     = useState<string | null>(null)
-  const [form, setForm]         = useState({ name: '', icon: '🍽️', visible: true })
+  const [form, setForm]         = useState({ name: '', icon: '🍽️', image: '', visible: true })
 
   const load = async () => {
     setLoading(true)
@@ -20,7 +24,24 @@ export default function AdminCategoriesPage() {
     setLoading(false)
   }
 
-  useEffect(() => { load() }, [])
+  useEffect(() => {
+    load()
+    fetch('/api/admin/products')
+      .then((r) => r.json())
+      .then((data) => setProducts(data.products ?? []))
+      .catch(() => {})
+  }, [])
+
+  // Product photos to pick a category image from — prefer products already in
+  // this category, but fall back to every product so a new category still has
+  // something to choose from.
+  const pickableImages = useMemo(() => {
+    const withImage = products.filter((p) => p.image)
+    const inCategory = editId ? withImage.filter((p) => p.category === editId) : []
+    const pool = inCategory.length > 0 ? inCategory : withImage
+    const seen = new Set<string>()
+    return pool.filter((p) => (seen.has(p.image) ? false : (seen.add(p.image), true)))
+  }, [products, editId])
 
   const toggleVisible = async (cat: Category) => {
     const res = await fetch(`/api/admin/categories/${cat.id}`, {
@@ -55,11 +76,11 @@ export default function AdminCategoriesPage() {
 
   const openEdit = (cat: Category) => {
     setEditId(cat.id)
-    setForm({ name: cat.name, icon: cat.icon, visible: cat.visible })
+    setForm({ name: cat.name, icon: cat.icon, image: cat.image ?? '', visible: cat.visible })
     setShowForm(true)
   }
 
-  const closeForm = () => { setShowForm(false); setEditId(null); setForm({ name: '', icon: '🍽️', visible: true }) }
+  const closeForm = () => { setShowForm(false); setEditId(null); setForm({ name: '', icon: '🍽️', image: '', visible: true }) }
 
   const save = async () => {
     if (!form.name) { toast.error('Name is required'); return }
@@ -121,7 +142,7 @@ export default function AdminCategoriesPage() {
               />
             </div>
             <div>
-              <label className="block text-xs font-black text-gray-700 mb-1.5">Icon (emoji)</label>
+              <label className="block text-xs font-black text-gray-700 mb-1.5">Icon (emoji fallback)</label>
               <input
                 value={form.icon}
                 onChange={(e) => setForm((p) => ({ ...p, icon: e.target.value }))}
@@ -130,6 +151,44 @@ export default function AdminCategoriesPage() {
               />
             </div>
           </div>
+          <div className="mb-4">
+            <ImageUpload
+              value={form.image}
+              onChange={(url) => setForm((p) => ({ ...p, image: url }))}
+              label="Category Image (used instead of the emoji when set)"
+            />
+          </div>
+
+          {pickableImages.length > 0 && (
+            <div className="mb-4">
+              <label className="block text-xs font-black text-gray-700 mb-1.5">
+                Or pick from {editId ? 'this category\'s' : 'existing'} product photos
+              </label>
+              <div className="flex gap-2 overflow-x-auto pb-1">
+                {pickableImages.map((p) => {
+                  const selected = form.image === p.image
+                  return (
+                    <button
+                      key={p.id}
+                      type="button"
+                      onClick={() => setForm((f) => ({ ...f, image: p.image }))}
+                      title={p.name}
+                      className={`relative w-16 h-16 rounded-xl overflow-hidden shrink-0 border-2 transition-colors ${
+                        selected ? 'border-[#FFD700]' : 'border-transparent hover:border-gray-200'
+                      }`}
+                    >
+                      <Image src={p.image} alt={p.name} fill className="object-cover" />
+                      {selected && (
+                        <span className="absolute inset-0 bg-black/30 flex items-center justify-center">
+                          <Check size={18} className="text-white" strokeWidth={3} />
+                        </span>
+                      )}
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+          )}
           <label className="flex items-center gap-2 mb-4 cursor-pointer">
             <input
               type="checkbox"
@@ -181,7 +240,9 @@ export default function AdminCategoriesPage() {
                   <td className="px-4 py-3 text-gray-300"><GripVertical size={14} /></td>
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-3">
-                      <span className="text-xl">{cat.icon}</span>
+                      <div className="w-8 h-8 rounded-lg overflow-hidden flex items-center justify-center bg-gray-50 shrink-0">
+                        <CategoryIcon slug={cat.slug} icon={cat.icon} image={cat.image} size={32} className="rounded-lg" emojiClassName="text-xl" />
+                      </div>
                       <span className="font-bold text-gray-900">{cat.name}</span>
                     </div>
                   </td>

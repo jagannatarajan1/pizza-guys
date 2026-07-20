@@ -88,6 +88,7 @@ model Category {
   name    String
   slug    String  @unique
   icon    String  @default("🍽️")
+  image   String  @default("")
   visible Boolean @default(true)
   order   Int     @default(0)
 

@@ -16,13 +16,14 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
   if (deny) return deny
 
   const { id }  = await params
-  const { name, icon, visible, order } = await req.json()
+  const { name, icon, image, visible, order } = await req.json()
 
   const category = await prisma.category.update({
     where: { id },
     data: {
       ...(name    !== undefined && { name }),
       ...(icon    !== undefined && { icon }),
+      ...(image   !== undefined && { image }),
       ...(visible !== undefined && { visible }),
       ...(order   !== undefined && { order }),
     },

@@ -97,6 +97,9 @@ function MenuContent() {
   const [search, setSearch]             = useState(initialSearch)
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null)
   const sectionRefs = useRef<Record<string, HTMLElement | null>>({})
+  const pillRefs = useRef<Record<string, HTMLButtonElement | null>>({})
+  const suppressSpyRef = useRef(false)
+  const suppressSpyTimeout = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   useEffect(() => {
     Promise.all([
@@ -134,6 +137,11 @@ function MenuContent() {
   const scrollToCategory = (slug: string) => {
     setActiveCategory(slug)
     setSearch('')
+    // Ignore scroll-spy updates while the programmatic smooth-scroll is in
+    // flight, so it doesn't fight the click and re-highlight the wrong pill
+    // mid-animation.
+    suppressSpyRef.current = true
+    if (suppressSpyTimeout.current) clearTimeout(suppressSpyTimeout.current)
     setTimeout(() => {
       const el = sectionRefs.current[slug]
       if (el) {
@@ -141,7 +149,36 @@ function MenuContent() {
         window.scrollTo({ top, behavior: 'smooth' })
       }
     }, 50)
+    suppressSpyTimeout.current = setTimeout(() => { suppressSpyRef.current = false }, 900)
   }
+
+  // Scroll-spy: highlight whichever category section is currently under the
+  // sticky nav as the user free-scrolls, so the pill follows naturally instead
+  // of only updating on click.
+  useEffect(() => {
+    if (loading || search) return
+    const sections = Object.values(sectionRefs.current).filter(Boolean) as HTMLElement[]
+    if (sections.length === 0) return
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (suppressSpyRef.current) return
+        const visible = entries.filter((e) => e.isIntersecting)
+        if (visible.length === 0) return
+        const topMost = visible.reduce((a, b) => (a.boundingClientRect.top <= b.boundingClientRect.top ? a : b))
+        const slug = topMost.target.getAttribute('data-slug')
+        if (slug) setActiveCategory((prev) => (prev === slug ? prev : slug))
+      },
+      { rootMargin: '-150px 0px -65% 0px', threshold: 0 }
+    )
+    sections.forEach((el) => observer.observe(el))
+    return () => observer.disconnect()
+  }, [loading, search, grouped])
+
+  // Keep the active pill smoothly centered in the horizontally-scrolling nav.
+  useEffect(() => {
+    pillRefs.current[activeCategory]?.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' })
+  }, [activeCategory])
 
   return (
     <>
@@ -186,8 +223,16 @@ function MenuContent() {
         <div className="overflow-x-auto hide-scrollbar border-t border-gray-50">
           <div className="flex gap-1.5 px-4 sm:px-6 py-2.5 min-w-max">
             <button
-              onClick={() => { setActiveCategory('all'); setSearch(''); window.scrollTo({ top: 0, behavior: 'smooth' }) }}
-              className={`px-4 py-1.5 rounded-full text-sm font-black whitespace-nowrap transition-all duration-150 ${activeCategory === 'all' ? '' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
+              ref={(el) => { pillRefs.current['all'] = el }}
+              onClick={() => {
+                suppressSpyRef.current = true
+                if (suppressSpyTimeout.current) clearTimeout(suppressSpyTimeout.current)
+                setActiveCategory('all')
+                setSearch('')
+                window.scrollTo({ top: 0, behavior: 'smooth' })
+                suppressSpyTimeout.current = setTimeout(() => { suppressSpyRef.current = false }, 900)
+              }}
+              className={`px-4 py-1.5 rounded-full text-sm font-black whitespace-nowrap transition-all duration-300 ease-out ${activeCategory === 'all' ? '' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
               style={activeCategory === 'all' ? { background: 'var(--brand-accent)', color: 'var(--brand-dark)' } : undefined}
             >
               All
@@ -195,11 +240,12 @@ function MenuContent() {
             {categories.map((cat) => (
               <button
                 key={cat.id}
+                ref={(el) => { pillRefs.current[cat.slug] = el }}
                 onClick={() => scrollToCategory(cat.slug)}
-                className={`px-4 py-1.5 rounded-full text-sm font-black whitespace-nowrap transition-all duration-150 flex items-center gap-1.5 ${activeCategory === cat.slug ? '' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
+                className={`px-4 py-1.5 rounded-full text-sm font-black whitespace-nowrap transition-all duration-300 ease-out flex items-center gap-1.5 ${activeCategory === cat.slug ? '' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
                 style={activeCategory === cat.slug ? { background: 'var(--brand-accent)', color: 'var(--brand-dark)' } : undefined}
               >
-                <CategoryIcon slug={cat.slug} icon={cat.icon} size={18} className="rounded-full" emojiClassName="text-base leading-none" />
+                <CategoryIcon slug={cat.slug} icon={cat.icon} image={cat.image} size={18} className="rounded-full" emojiClassName="text-base leading-none" />
                 {cat.name}
               </button>
             ))}
@@ -240,10 +286,10 @@ function MenuContent() {
           </div>
         ) : (
           grouped.map(({ category, items }) => (
-            <section key={category.id} ref={(el) => { sectionRefs.current[category.slug] = el }} className="mb-14">
+            <section key={category.id} ref={(el) => { sectionRefs.current[category.slug] = el }} data-slug={category.slug} className="mb-14">
               <div className="flex items-center gap-3 mb-5 pb-3 border-b-2 border-gray-100">
                 <div className="w-11 h-11 bg-yellow-50 border-2 border-yellow-100 rounded-xl flex items-center justify-center text-2xl shrink-0 overflow-hidden">
-                  <CategoryIcon slug={category.slug} icon={category.icon} size={44} className="w-full h-full rounded-xl" emojiClassName="" />
+                  <CategoryIcon slug={category.slug} icon={category.icon} image={category.image} size={44} className="w-full h-full rounded-xl" emojiClassName="" />
                 </div>
                 <div>
                   <h2 className="text-xl font-black text-gray-900">{category.name}</h2>

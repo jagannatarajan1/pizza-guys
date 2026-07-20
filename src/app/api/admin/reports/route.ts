@@ -18,59 +18,69 @@ export async function GET(req: NextRequest) {
   if (deny) return deny
 
   const { searchParams } = new URL(req.url)
-  const period = (searchParams.get('period') ?? 'daily') as 'daily' | 'weekly' | 'monthly'
+  const period  = (searchParams.get('period') ?? 'daily') as 'daily' | 'weekly' | 'monthly' | 'custom'
+  const fromStr = searchParams.get('from')
+  const toStr   = searchParams.get('to')
 
   const now   = new Date()
   let start   = new Date(now)
+  let end: Date | null = null
 
-  if (period === 'daily') {
-    start.setDate(start.getDate() - 6)
+  if (period === 'custom' && fromStr) {
+    start = new Date(fromStr)
     start.setHours(0, 0, 0, 0)
+    end = toStr ? new Date(toStr) : new Date(now)
+    end.setHours(23, 59, 59, 999)
   } else if (period === 'weekly') {
     start.setDate(start.getDate() - 27)   // 4 weeks
     start.setHours(0, 0, 0, 0)
-  } else {
+  } else if (period === 'monthly') {
     start.setMonth(start.getMonth() - 11) // 12 months
     start.setDate(1)
+    start.setHours(0, 0, 0, 0)
+  } else {
+    start.setDate(start.getDate() - 6)
     start.setHours(0, 0, 0, 0)
   }
 
   const orders = await prisma.order.findMany({
     where: {
-      createdAt: { gte: start },
+      createdAt: { gte: start, ...(end && { lte: end }) },
       status:    { notIn: ['Cancelled', 'payment_failed'] },
     },
     select: { total: true, createdAt: true, paymentMethod: true },
     orderBy: { createdAt: 'asc' },
   })
 
-  // Group by period bucket
-  const buckets: Record<string, { orders: number; revenue: number }> = {}
+  // Group by period bucket — custom ranges always bucket by day.
+  const buckets: Record<string, { orders: number; revenue: number; sortKey: number }> = {}
 
   for (const o of orders) {
     let key: string
     const d = new Date(o.createdAt)
-    if (period === 'daily') {
-      key = d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })
-    } else if (period === 'weekly') {
+    if (period === 'weekly') {
       // ISO week start (Monday)
       const day = d.getDay()
       const monday = new Date(d)
       monday.setDate(d.getDate() - ((day === 0 ? 7 : day) - 1))
       key = monday.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })
-    } else {
+    } else if (period === 'monthly') {
       key = d.toLocaleDateString('en-GB', { month: 'short', year: 'numeric' })
+    } else {
+      key = d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })
     }
-    if (!buckets[key]) buckets[key] = { orders: 0, revenue: 0 }
+    if (!buckets[key]) buckets[key] = { orders: 0, revenue: 0, sortKey: d.getTime() }
     buckets[key].orders++
     buckets[key].revenue += o.total / 100
   }
 
-  const data = Object.entries(buckets).map(([date, v]) => ({
-    date,
-    orders: v.orders,
-    revenue: Math.round(v.revenue * 100) / 100,
-  }))
+  const data = Object.entries(buckets)
+    .sort((a, b) => a[1].sortKey - b[1].sortKey)
+    .map(([date, v]) => ({
+      date,
+      orders: v.orders,
+      revenue: Math.round(v.revenue * 100) / 100,
+    }))
 
   // Payment method breakdown
   const paymentMap: Record<string, number> = {}
@@ -89,7 +99,7 @@ export async function GET(req: NextRequest) {
   const items = await prisma.orderItem.findMany({
     where: {
       order: {
-        createdAt: { gte: start },
+        createdAt: { gte: start, ...(end && { lte: end }) },
         status:    { notIn: ['Cancelled', 'payment_failed'] },
       },
     },

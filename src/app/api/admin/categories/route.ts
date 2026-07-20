@@ -22,7 +22,7 @@ export async function POST(req: NextRequest) {
   const deny = adminOnly(req)
   if (deny) return deny
 
-  const { name, icon, visible } = await req.json()
+  const { name, icon, image, visible } = await req.json()
   if (!name) return NextResponse.json({ error: 'Name required' }, { status: 400 })
 
   const slug  = name.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '')
@@ -30,7 +30,7 @@ export async function POST(req: NextRequest) {
   const count = await prisma.category.count()
 
   const category = await prisma.category.create({
-    data: { id, name, slug, icon: icon ?? '🍽️', visible: visible ?? true, order: count + 1 },
+    data: { id, name, slug, icon: icon ?? '🍽️', image: image ?? '', visible: visible ?? true, order: count + 1 },
   })
   return NextResponse.json({ category }, { status: 201 })
 }
