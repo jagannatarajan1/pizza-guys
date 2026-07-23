@@ -197,7 +197,7 @@ export default function AdminOffersPage() {
                   <Tag size={15} className="text-red-500 shrink-0" />
                   <span className="font-black text-gray-900 font-mono text-sm">{c.code}</span>
                 </div>
-                <div className="flex gap-1">
+                <div className="flex items-center gap-3">
                   <button onClick={() => toggleActive(c)} title={c.active ? 'Deactivate' : 'Activate'}>
                     {c.active
                       ? <ToggleRight size={18} className="text-green-500" />

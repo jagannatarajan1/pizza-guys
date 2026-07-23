@@ -3,17 +3,18 @@ import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import Image from 'next/image'
 import { motion } from 'framer-motion'
-import { MapPin, Clock, ChevronRight, Star, Truck, Award, Heart, Zap } from 'lucide-react'
+import { MapPin, Clock, ChevronRight, Star, Truck, Award, Heart, Zap, Plus, Minus } from 'lucide-react'
 import HeroBanners from '@/components/HeroBanners'
 import CategoryIcon from '@/components/CategoryIcon'
 import { openingHours } from '@/lib/menu-data'
-///testtt
+
 type LiveCoupon = { code: string; type: string; value: number; description: string }
 import { checkDelivery, formatPrice } from '@/lib/utils'
 import ProductModal from '@/components/ProductModal'
 import type { Product, Category } from '@/lib/types'
 import { useSiteConfig } from '@/context/SiteConfigContext'
 import { useOrderType } from '@/context/OrderTypeContext'
+import { useCartStore } from '@/lib/cart-store'
 import type { ShopStatus } from '@/lib/shop-status'
 
 const fadeUp = {
@@ -24,6 +25,83 @@ const fadeUp = {
 const stagger = {
   hidden: {},
   show:   { transition: { staggerChildren: 0.08 } },
+}
+
+function HomeProductCard({ product, badge, onSelect }: { product: Product; badge: string; onSelect: (p: Product) => void }) {
+  const incrementSimpleProduct = useCartStore((s) => s.incrementSimpleProduct)
+  const decrementSimpleProduct = useCartStore((s) => s.decrementSimpleProduct)
+  const quantity = useCartStore((s) => s.getProductQuantity(product.id))
+  const hasModifiers = product.modifiers.length > 0
+
+  const handleQuickAction = (e: React.MouseEvent) => {
+    e.stopPropagation()
+    if (hasModifiers) onSelect(product)
+    else incrementSimpleProduct(product)
+  }
+
+  const handleDecrement = (e: React.MouseEvent) => {
+    e.stopPropagation()
+    decrementSimpleProduct(product)
+  }
+
+  return (
+    <motion.div
+      variants={fadeUp}
+      onClick={() => onSelect(product)}
+      className="bg-white rounded-2xl border-2 border-gray-100 overflow-hidden cursor-pointer card-hover group"
+    >
+      <div className="relative aspect-square overflow-hidden bg-gray-100">
+        <Image
+          src={product.image}
+          alt={product.name}
+          fill
+          className="object-cover group-hover:scale-105 transition-transform duration-400"
+          sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw"
+        />
+        <div className="absolute top-2 left-2 bg-[#FFD700] text-[#111] text-[10px] font-black px-2 py-0.5 rounded-full">
+          {badge}
+        </div>
+      </div>
+      <div className="p-3">
+        <h3 className="font-black text-gray-900 text-sm mb-2 line-clamp-1">{product.name}</h3>
+        <div className="flex items-center justify-between gap-2">
+          <span className="font-black text-gray-900 text-sm">
+            {hasModifiers ? `From ${formatPrice(product.price)}` : formatPrice(product.price)}
+          </span>
+          {quantity > 0 && !hasModifiers ? (
+            <div className="shrink-0 flex items-center gap-1.5 rounded-full h-7 px-1" style={{ background: 'var(--brand-accent)', color: 'var(--brand-dark)' }}>
+              <button
+                onClick={handleDecrement}
+                aria-label={`Remove one ${product.name}`}
+                className="w-5 h-5 flex items-center justify-center shrink-0"
+              >
+                <Minus size={12} strokeWidth={3} />
+              </button>
+              <span className="font-black text-xs min-w-[1ch] text-center">{quantity}</span>
+              <button
+                onClick={handleQuickAction}
+                aria-label={`Add another ${product.name}`}
+                className="w-5 h-5 flex items-center justify-center shrink-0"
+              >
+                <Plus size={12} strokeWidth={3} />
+              </button>
+            </div>
+          ) : (
+            <button
+              onClick={handleQuickAction}
+              aria-label={quantity > 0 ? `${quantity} in cart, add another` : `Add ${product.name}`}
+              className={`shrink-0 flex items-center justify-center font-black transition-colors ${
+                quantity > 0 ? 'h-7 min-w-7 px-2 rounded-full text-xs' : 'w-7 h-7 rounded-full'
+              }`}
+              style={quantity > 0 ? { background: 'var(--brand-accent)', color: 'var(--brand-dark)' } : { background: 'var(--brand-dark)', color: '#fff' }}
+            >
+              {quantity > 0 ? quantity : <Plus size={14} strokeWidth={3} />}
+            </button>
+          )}
+        </div>
+      </div>
+    </motion.div>
+  )
 }
 
 export default function HomePage() {
@@ -281,39 +359,7 @@ export default function HomePage() {
           className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4"
         >
           {mealDealProducts.slice(0, 8).map((product) => (
-            <motion.div
-              key={product.id}
-              variants={fadeUp}
-              onClick={() => setSelectedProduct(product)}
-              className="bg-white rounded-2xl border-2 border-gray-100 overflow-hidden cursor-pointer card-hover group"
-            >
-              <div className="relative aspect-square overflow-hidden bg-gray-100">
-                <Image
-                  src={product.image}
-                  alt={product.name}
-                  fill
-                  className="object-cover group-hover:scale-105 transition-transform duration-400"
-                  sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw"
-                />
-                <div className="absolute top-2 left-2 bg-[#FFD700] text-[#111] text-[10px] font-black px-2 py-0.5 rounded-full">
-                  Meal Deal
-                </div>
-              </div>
-              <div className="p-3">
-                <h3 className="font-black text-gray-900 text-sm mb-2 line-clamp-1">{product.name}</h3>
-                <div className="flex items-center justify-between gap-2">
-                  <span className="font-black text-gray-900 text-sm">
-                    {product.modifiers.length ? `From ${formatPrice(product.price)}` : formatPrice(product.price)}
-                  </span>
-                  <button
-                    onClick={(e) => { e.stopPropagation(); setSelectedProduct(product) }}
-                    className="btn-brand px-3 py-1.5 rounded-lg text-xs shrink-0"
-                  >
-                    Add
-                  </button>
-                </div>
-              </div>
-            </motion.div>
+            <HomeProductCard key={product.id} product={product} badge="Meal Deal" onSelect={setSelectedProduct} />
           ))}
         </motion.div>
       </section>
@@ -338,39 +384,7 @@ export default function HomePage() {
           className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4"
         >
           {popularProducts.slice(0, 8).map((product) => (
-            <motion.div
-              key={product.id}
-              variants={fadeUp}
-              onClick={() => setSelectedProduct(product)}
-              className="bg-white rounded-2xl border-2 border-gray-100 overflow-hidden cursor-pointer card-hover group"
-            >
-              <div className="relative aspect-square overflow-hidden bg-gray-100">
-                <Image
-                  src={product.image}
-                  alt={product.name}
-                  fill
-                  className="object-cover group-hover:scale-105 transition-transform duration-400"
-                  sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw"
-                />
-                <div className="absolute top-2 left-2 bg-[#FFD700] text-[#111] text-[10px] font-black px-2 py-0.5 rounded-full">
-                  Popular
-                </div>
-              </div>
-              <div className="p-3">
-                <h3 className="font-black text-gray-900 text-sm mb-2 line-clamp-1">{product.name}</h3>
-                <div className="flex items-center justify-between gap-2">
-                  <span className="font-black text-gray-900 text-sm">
-                    {product.modifiers.length ? `From ${formatPrice(product.price)}` : formatPrice(product.price)}
-                  </span>
-                  <button
-                    onClick={(e) => { e.stopPropagation(); setSelectedProduct(product) }}
-                    className="btn-brand px-3 py-1.5 rounded-lg text-xs shrink-0"
-                  >
-                    Add
-                  </button>
-                </div>
-              </div>
-            </motion.div>
+            <HomeProductCard key={product.id} product={product} badge="Popular" onSelect={setSelectedProduct} />
           ))}
         </motion.div>
       </section>

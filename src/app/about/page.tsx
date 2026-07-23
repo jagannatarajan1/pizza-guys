@@ -6,6 +6,7 @@ import { motion } from 'framer-motion'
 import { Phone, Mail, MapPin, Clock, Heart, Zap, Star, Users, ChevronRight } from 'lucide-react'
 import type { Product } from '@/lib/types'
 import { useSiteConfig } from '@/context/SiteConfigContext'
+import { mapEmbedSrc } from '@/lib/utils'
 
 const fadeUp = {
   hidden: { opacity: 0, y: 24 },
@@ -218,19 +219,33 @@ export default function AboutPage() {
           </motion.div>
         </motion.section>
 
-        {/* ── Map placeholder ───────────────────────── */}
+        {/* ── Map ──────────────────────────────────── */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true }}
           transition={{ duration: 0.5 }}
-          className="bg-gray-100 rounded-2xl h-64 flex items-center justify-center border-2 border-gray-100"
+          className="rounded-2xl border-2 border-gray-100 overflow-hidden"
         >
-          <div className="text-center text-gray-400">
-            <MapPin size={32} className="mx-auto mb-2 text-[#E53935]" />
-            <p className="font-semibold text-sm">209 Laleham Road, Staines-upon-Thames</p>
-            <p className="text-xs mt-1">Surrey, TW18 2EA</p>
+          <div className="h-56">
+            <iframe
+              src={mapEmbedSrc(cfg.biz_map_lat, cfg.biz_map_lng, cfg.google_maps_api_key)}
+              width="100%"
+              height="100%"
+              style={{ border: 0 }}
+              loading="lazy"
+              referrerPolicy="no-referrer-when-downgrade"
+              title="Pizza Guys location"
+            />
           </div>
+          <a
+            href={cfg.biz_map_link || `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(cfg.biz_address)}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center justify-center gap-1.5 bg-gray-50 hover:bg-gray-100 text-sm font-bold py-2.5 transition-colors text-[#E53935]"
+          >
+            <MapPin size={14} /> Get Directions
+          </a>
         </motion.div>
 
       </div>

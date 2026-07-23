@@ -4,7 +4,7 @@ import Link from 'next/link'
 import { User, MapPin, Package, CreditCard, Lock, Pencil, Trash2, Plus, Check, X, Loader2 } from 'lucide-react'
 import { useAuth } from '@/lib/auth-context'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { formatPrice } from '@/lib/utils'
+import { formatPrice, isValidPostcode } from '@/lib/utils'
 import toast from 'react-hot-toast'
 
 const TABS = [
@@ -77,14 +77,46 @@ function DashboardContent() {
     return null
   }
 
-  const saveProfile = () => {
-    updateProfile(profileForm)
+  const [emailSaving, setEmailSaving] = useState(false)
+
+  const saveProfile = async () => {
+    const emailChanged = profileForm.email.trim().toLowerCase() !== user.email.toLowerCase()
+
+    // Name/phone take effect immediately — email requires confirming the new
+    // address first, so the account's real email is never touched here.
+    await updateProfile({ name: profileForm.name, phone: profileForm.phone })
+
+    if (emailChanged) {
+      setEmailSaving(true)
+      try {
+        const res  = await fetch('/api/auth/change-email', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ newEmail: profileForm.email.trim() }),
+        })
+        const data = await res.json()
+        if (!res.ok) {
+          toast.error(data.error ?? 'Could not start email change')
+          setProfileForm((p) => ({ ...p, email: user.email })) // revert the unconfirmed value shown in the form
+        } else {
+          toast.success(`Check ${profileForm.email} — click the link there to confirm your new email`)
+        }
+      } catch {
+        toast.error('Could not start email change')
+        setProfileForm((p) => ({ ...p, email: user.email }))
+      } finally {
+        setEmailSaving(false)
+      }
+    } else {
+      toast.success('Profile updated!')
+    }
+
     setEditingProfile(false)
-    toast.success('Profile updated!')
   }
 
   const saveAddress = () => {
     if (!newAddr.postcode || !newAddr.line1 || !newAddr.city) { toast.error('Please fill required fields'); return }
+    if (!isValidPostcode(newAddr.postcode)) { toast.error('Enter a valid UK postcode (e.g. SW1A 1AA)'); return }
     addAddress(newAddr)
     setShowAddAddress(false)
     setNewAddr({ label: 'Home', line1: '', line2: '', city: '', postcode: '', notes: '', isDefault: false })
@@ -162,9 +194,17 @@ function DashboardContent() {
                         onChange={(e) => setProfileForm((p) => ({ ...p, [f.key]: e.target.value }))}
                         className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-red-400"
                       />
+                      {f.key === 'email' && profileForm.email.trim().toLowerCase() !== user.email.toLowerCase() && (
+                        <p className="text-xs text-amber-600 mt-1">We'll email a confirmation link to this address — your current email stays active until you click it.</p>
+                      )}
                     </div>
                   ))}
-                  <button onClick={saveProfile} className="bg-red-600 hover:bg-red-700 text-white font-bold px-6 py-2.5 rounded-xl text-sm transition-colors">
+                  <button
+                    onClick={saveProfile}
+                    disabled={emailSaving}
+                    className="flex items-center gap-2 bg-red-600 hover:bg-red-700 disabled:opacity-60 text-white font-bold px-6 py-2.5 rounded-xl text-sm transition-colors"
+                  >
+                    {emailSaving && <Loader2 size={14} className="animate-spin" />}
                     Save Changes
                   </button>
                 </div>

@@ -3,6 +3,8 @@ import { useState } from 'react'
 import { motion } from 'framer-motion'
 import { Phone, Mail, MapPin, Clock, Send } from 'lucide-react'
 import toast from 'react-hot-toast'
+import { useSiteConfig } from '@/context/SiteConfigContext'
+import { mapEmbedSrc } from '@/lib/utils'
 
 const fadeUp = {
   hidden: { opacity: 0, y: 24 },
@@ -21,6 +23,7 @@ const hours = [
 ]
 
 export default function ContactPage() {
+  const cfg = useSiteConfig()
   const [form, setForm] = useState({ name: '', email: '', phone: '', message: '' })
   const [sending, setSending] = useState(false)
 
@@ -141,9 +144,7 @@ export default function ContactPage() {
                     bg: 'bg-red-50',
                     label: 'Address',
                     content: (
-                      <span className="text-gray-500 text-sm leading-snug">
-                        209 Laleham Road<br />Staines-upon-Thames<br />Surrey, TW18 2EA
-                      </span>
+                      <span className="text-gray-500 text-sm leading-snug">{cfg.biz_address}</span>
                     ),
                   },
                   {
@@ -196,13 +197,27 @@ export default function ContactPage() {
               </div>
             </motion.div>
 
-            {/* Map placeholder */}
-            <motion.div variants={fadeUp} className="bg-gray-100 rounded-2xl h-44 flex items-center justify-center border-2 border-gray-100 overflow-hidden">
-              <div className="text-center text-gray-400">
-                <MapPin size={28} className="mx-auto mb-2 text-[#E53935]" />
-                <p className="text-sm font-semibold">209 Laleham Road, Staines-upon-Thames</p>
-                <p className="text-xs mt-1 text-gray-400">Surrey, TW18 2EA</p>
+            {/* Map */}
+            <motion.div variants={fadeUp} className="rounded-2xl border-2 border-gray-100 overflow-hidden">
+              <div className="h-36">
+                <iframe
+                  src={mapEmbedSrc(cfg.biz_map_lat, cfg.biz_map_lng, cfg.google_maps_api_key)}
+                  width="100%"
+                  height="100%"
+                  style={{ border: 0 }}
+                  loading="lazy"
+                  referrerPolicy="no-referrer-when-downgrade"
+                  title="Pizza Guys location"
+                />
               </div>
+              <a
+                href={cfg.biz_map_link || `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(cfg.biz_address)}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center justify-center gap-1.5 bg-gray-50 hover:bg-gray-100 text-sm font-bold py-2.5 transition-colors text-[#E53935]"
+              >
+                <MapPin size={14} /> Get Directions
+              </a>
             </motion.div>
           </div>
         </motion.div>

@@ -8,9 +8,10 @@ type Props = {
   value?: string
   onChange: (url: string) => void
   label?: string
+  allowUpload?: boolean
 }
 
-export default function ImageUpload({ value, onChange, label = 'Image URL' }: Props) {
+export default function ImageUpload({ value, onChange, label = 'Image URL', allowUpload = true }: Props) {
   const [input, setInput]       = useState(value ?? '')
   const [uploading, setUploading] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -78,29 +79,33 @@ export default function ImageUpload({ value, onChange, label = 'Image URL' }: Pr
         </button>
       </div>
 
-      <div className="flex items-center gap-3">
-        <div className="h-px flex-1 bg-gray-100" />
-        <span className="text-[11px] text-gray-400 font-semibold">OR</span>
-        <div className="h-px flex-1 bg-gray-100" />
-      </div>
+      {allowUpload && (
+        <>
+          <div className="flex items-center gap-3">
+            <div className="h-px flex-1 bg-gray-100" />
+            <span className="text-[11px] text-gray-400 font-semibold">OR</span>
+            <div className="h-px flex-1 bg-gray-100" />
+          </div>
 
-      <input
-        ref={fileInputRef}
-        type="file"
-        accept="image/png,image/jpeg,image/webp,image/svg+xml,image/x-icon"
-        className="hidden"
-        onChange={(e) => { const f = e.target.files?.[0]; if (f) uploadFile(f); e.target.value = '' }}
-      />
-      <button
-        type="button"
-        disabled={uploading}
-        onClick={() => fileInputRef.current?.click()}
-        className="w-full flex items-center justify-center gap-2 border-2 border-dashed border-gray-200 hover:border-red-300 disabled:opacity-50 text-gray-600 font-bold px-4 py-3 rounded-xl text-sm transition-colors"
-      >
-        {uploading ? <Loader2 size={15} className="animate-spin" /> : <Upload size={15} />}
-        {uploading ? 'Uploading…' : 'Upload a file from your device'}
-      </button>
-      <p className="text-xs text-gray-400">Uploaded files are stored on this server under /uploads — no external hosting needed.</p>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/png,image/jpeg,image/webp,image/svg+xml,image/x-icon"
+            className="hidden"
+            onChange={(e) => { const f = e.target.files?.[0]; if (f) uploadFile(f); e.target.value = '' }}
+          />
+          <button
+            type="button"
+            disabled={uploading}
+            onClick={() => fileInputRef.current?.click()}
+            className="w-full flex items-center justify-center gap-2 border-2 border-dashed border-gray-200 hover:border-red-300 disabled:opacity-50 text-gray-600 font-bold px-4 py-3 rounded-xl text-sm transition-colors"
+          >
+            {uploading ? <Loader2 size={15} className="animate-spin" /> : <Upload size={15} />}
+            {uploading ? 'Uploading…' : 'Upload a file from your device'}
+          </button>
+          <p className="text-xs text-gray-400">Uploaded files are stored on this server under /uploads — no external hosting needed.</p>
+        </>
+      )}
     </div>
   )
 }

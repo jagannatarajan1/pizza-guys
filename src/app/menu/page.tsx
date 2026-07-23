@@ -3,12 +3,13 @@ import { useState, useRef, useEffect, useMemo, memo, Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
 import Image from 'next/image'
 import { motion } from 'framer-motion'
-import { Search, X } from 'lucide-react'
+import { Search, X, Plus, Minus } from 'lucide-react'
 import type { Product, Category } from '@/lib/types'
 import { formatPrice } from '@/lib/utils'
 import ProductModal from '@/components/ProductModal'
 import CategoryIcon from '@/components/CategoryIcon'
 import { useSiteConfig } from '@/context/SiteConfigContext'
+import { useCartStore } from '@/lib/cart-store'
 
 const fadeUp = {
   hidden: { opacity: 0, y: 20 },
@@ -20,7 +21,32 @@ const stagger = {
   show:   { transition: { staggerChildren: 0.05 } },
 }
 
-const ProductItem = memo(function ProductItem({ product, onSelect }: { product: Product; onSelect: (p: Product) => void }) {
+const ProductItem = memo(function ProductItem({ product, onSelect, priority }: { product: Product; onSelect: (p: Product) => void; priority?: boolean }) {
+  const incrementSimpleProduct = useCartStore((s) => s.incrementSimpleProduct)
+  const decrementSimpleProduct = useCartStore((s) => s.decrementSimpleProduct)
+  const quantity = useCartStore((s) => s.getProductQuantity(product.id))
+  const hasModifiers = product.modifiers.length > 0
+
+  // Simple products (no choices to make) add straight to the cart from the
+  // card and the button becomes a live -/count/+ control. Products with
+  // modifiers always open the picker, since a choice is required — and since
+  // different taps can carry different modifier choices (several cart lines
+  // per product), there's no single line a card minus button could safely
+  // decrement, so removal for those stays on the Cart page only.
+  const handleQuickAction = (e: React.MouseEvent) => {
+    e.stopPropagation()
+    if (hasModifiers) {
+      onSelect(product)
+    } else {
+      incrementSimpleProduct(product)
+    }
+  }
+
+  const handleDecrement = (e: React.MouseEvent) => {
+    e.stopPropagation()
+    decrementSimpleProduct(product)
+  }
+
   return (
     <motion.div
       variants={fadeUp}
@@ -33,6 +59,7 @@ const ProductItem = memo(function ProductItem({ product, onSelect }: { product: 
             src={product.image}
             alt={product.name}
             fill
+            priority={priority}
             className="object-cover group-hover:scale-105 transition-transform duration-300"
             sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 25vw"
           />
@@ -53,14 +80,40 @@ const ProductItem = memo(function ProductItem({ product, onSelect }: { product: 
         )}
         <div className="flex items-center justify-between gap-2">
           <span className="font-black text-gray-900 text-sm">
-            {product.modifiers.length ? `From ${formatPrice(product.price)}` : formatPrice(product.price)}
+            {hasModifiers ? `From ${formatPrice(product.price)}` : formatPrice(product.price)}
           </span>
-          <button
-            onClick={(e) => { e.stopPropagation(); onSelect(product) }}
-            className="btn-brand px-4 py-1.5 rounded-lg text-sm shrink-0"
-          >
-            Add
-          </button>
+          {quantity > 0 && !hasModifiers ? (
+            <div className="shrink-0 flex items-center gap-2 rounded-full h-8 px-1" style={{ background: 'var(--brand-accent)', color: 'var(--brand-dark)' }}>
+              <button
+                onClick={handleDecrement}
+                aria-label={`Remove one ${product.name}`}
+                className="w-6 h-6 flex items-center justify-center shrink-0"
+              >
+                <Minus size={14} strokeWidth={3} />
+              </button>
+              <span className="font-black text-sm min-w-[1ch] text-center">{quantity}</span>
+              <button
+                onClick={handleQuickAction}
+                aria-label={`Add another ${product.name}`}
+                className="w-6 h-6 flex items-center justify-center shrink-0"
+              >
+                <Plus size={14} strokeWidth={3} />
+              </button>
+            </div>
+          ) : (
+            <button
+              onClick={handleQuickAction}
+              aria-label={quantity > 0 ? `${quantity} in cart, add another` : `Add ${product.name}`}
+              className={`shrink-0 flex items-center justify-center font-black transition-colors ${
+                quantity > 0
+                  ? 'h-8 min-w-8 px-2.5 rounded-full text-sm'
+                  : 'w-8 h-8 rounded-full'
+              }`}
+              style={quantity > 0 ? { background: 'var(--brand-accent)', color: 'var(--brand-dark)' } : { background: 'var(--brand-dark)', color: '#fff' }}
+            >
+              {quantity > 0 ? quantity : <Plus size={16} strokeWidth={3} />}
+            </button>
+          )}
         </div>
       </div>
     </motion.div>
@@ -112,13 +165,6 @@ function MenuContent() {
     }).catch(() => setLoading(false))
   }, [])
 
-  useEffect(() => {
-    if (!loading && initialCategory !== 'all') {
-      setTimeout(() => scrollToCategory(initialCategory), 100)
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [loading])
-
   // Search still filters across every category. Category selection no longer hides
   // other categories — it's just used to highlight/scroll to a section, so the menu
   // reads as one continuously scrolling page with every category visible.
@@ -151,6 +197,13 @@ function MenuContent() {
     }, 50)
     suppressSpyTimeout.current = setTimeout(() => { suppressSpyRef.current = false }, 900)
   }
+
+  useEffect(() => {
+    if (!loading && initialCategory !== 'all') {
+      setTimeout(() => scrollToCategory(initialCategory), 100)
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loading])
 
   // Scroll-spy: highlight whichever category section is currently under the
   // sticky nav as the user free-scrolls, so the pill follows naturally instead
@@ -279,13 +332,13 @@ function MenuContent() {
               {filteredProducts.length} result{filteredProducts.length !== 1 ? 's' : ''} for &quot;{search}&quot;
             </h2>
             <motion.div variants={stagger} initial="hidden" animate="show" className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-              {filteredProducts.map((product) => (
-                <ProductItem key={product.id} product={product} onSelect={setSelectedProduct} />
+              {filteredProducts.map((product, i) => (
+                <ProductItem key={product.id} product={product} onSelect={setSelectedProduct} priority={i < 4} />
               ))}
             </motion.div>
           </div>
         ) : (
-          grouped.map(({ category, items }) => (
+          grouped.map(({ category, items }, groupIndex) => (
             <section key={category.id} ref={(el) => { sectionRefs.current[category.slug] = el }} data-slug={category.slug} className="mb-14">
               <div className="flex items-center gap-3 mb-5 pb-3 border-b-2 border-gray-100">
                 <div className="w-11 h-11 bg-yellow-50 border-2 border-yellow-100 rounded-xl flex items-center justify-center text-2xl shrink-0 overflow-hidden">
@@ -297,8 +350,8 @@ function MenuContent() {
                 </div>
               </div>
               <motion.div variants={stagger} initial="hidden" whileInView="show" viewport={{ once: true, margin: '-40px' }} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-                {items.map((product) => (
-                  <ProductItem key={product.id} product={product} onSelect={setSelectedProduct} />
+                {items.map((product, i) => (
+                  <ProductItem key={product.id} product={product} onSelect={setSelectedProduct} priority={groupIndex === 0 && i < 4} />
                 ))}
               </motion.div>
             </section>

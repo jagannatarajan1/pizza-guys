@@ -44,7 +44,7 @@ export default function AdminHoursPage() {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body: JSON.stringify({ config: payload }),
+        body: JSON.stringify({ updates: payload }),
       })
       if (!res.ok) { toast.error('Save failed'); return }
       toast.success('Saved!')

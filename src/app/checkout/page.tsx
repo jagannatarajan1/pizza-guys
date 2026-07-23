@@ -4,8 +4,9 @@ import Link from 'next/link'
 import { Check, MapPin, User, Clock, CreditCard, ShoppingBag, ArrowLeft, ChevronRight, Loader2 } from 'lucide-react'
 import { useCartStore } from '@/lib/cart-store'
 import { useAuth } from '@/lib/auth-context'
-import { formatPrice } from '@/lib/utils'
+import { formatPrice, isValidPostcode } from '@/lib/utils'
 import toast from 'react-hot-toast'
+import { useSiteConfig } from '@/context/SiteConfigContext'
 
 const STEPS = [
   { id: 1, label: 'Order Type', icon: ShoppingBag },
@@ -68,8 +69,9 @@ function PaymentForm({ total, orderPayload }: PaymentFormProps) {
 
 // ─── Main checkout page ─────────────────────────────────────────────────────
 export default function CheckoutPage() {
+  const cfg = useSiteConfig()
   const { user } = useAuth()
-  const { items, couponCode, couponDiscount, deliveryFee, getSubtotal, setDeliveryFee } = useCartStore()
+  const { items, couponCode, couponType, deliveryFee, getSubtotal, setDeliveryFee, getEffectiveDiscount } = useCartStore()
 
   const [step, setStep] = useState(1)
   const [orderType, setOrderType] = useState<'delivery' | 'collection'>('delivery')
@@ -87,7 +89,10 @@ export default function CheckoutPage() {
   const [advancingStep, setAdvancingStep] = useState(false)
 
   const subtotal = getSubtotal()
-  const total = Math.max(0, subtotal - couponDiscount + (orderType === 'delivery' ? deliveryFee : 0))
+  // A freeDelivery coupon only has a real discount value when delivery is
+  // actually being charged — for collection there's no delivery fee to waive.
+  const effectiveDiscount = couponType === 'freeDelivery' && orderType !== 'delivery' ? 0 : getEffectiveDiscount()
+  const total = Math.max(0, subtotal - effectiveDiscount + (orderType === 'delivery' ? deliveryFee : 0))
 
   const resolvedAddress = useNewAddress
     ? newAddress
@@ -106,6 +111,10 @@ export default function CheckoutPage() {
       const addr = resolvedAddress
       if (!addr?.postcode || !addr?.line1 || !addr?.city) {
         toast.error('Please complete your delivery address')
+        return
+      }
+      if (!isValidPostcode(addr.postcode)) {
+        toast.error('Enter a valid UK postcode (e.g. SW1A 1AA)')
         return
       }
       setAdvancingStep(true)
@@ -137,7 +146,7 @@ export default function CheckoutPage() {
     return (
       <div className="min-h-[60vh] flex flex-col items-center justify-center px-4 text-center">
         <div className="text-5xl mb-4">🛒</div>
-        <h2 className="text-xl font-bold text-gray-900 mb-2">Your basket is empty</h2>
+        <h2 className="text-xl font-bold text-gray-900 mb-2">Your cart is empty</h2>
         <Link href="/menu" className="mt-4 bg-red-600 text-white font-bold px-6 py-3 rounded-xl hover:bg-red-700 transition-colors">
           Back to Menu
         </Link>
@@ -150,7 +159,7 @@ export default function CheckoutPage() {
     <div className="max-w-3xl mx-auto px-4 sm:px-6 py-8">
       <div className="flex items-center gap-3 mb-6">
         <Link href="/cart" className="flex items-center gap-2 text-gray-600 hover:text-red-600 transition-colors text-sm font-medium">
-          <ArrowLeft size={16} /> Back to Basket
+          <ArrowLeft size={16} /> Back to Cart
         </Link>
       </div>
       <h1 className="text-2xl font-black text-gray-900 mb-6">Checkout</h1>
@@ -210,8 +219,8 @@ export default function CheckoutPage() {
             </h2>
             {orderType === 'collection' ? (
               <div className="bg-gray-50 rounded-xl p-4">
-                <h3 className="font-bold text-gray-900 mb-1">Pizza Guys</h3>
-                <p className="text-gray-600 text-sm">209 Laleham Road, Staines-upon-Thames, Surrey, TW18 2EA</p>
+                <h3 className="font-bold text-gray-900 mb-1">{cfg.biz_name}</h3>
+                <p className="text-gray-600 text-sm">{cfg.biz_address}</p>
                 <p className="text-sm text-green-600 mt-2 font-medium">✅ Ready for collection in 15-20 min</p>
               </div>
             ) : (
@@ -383,9 +392,9 @@ export default function CheckoutPage() {
                     <span>Delivery</span><span>{formatPrice(deliveryFee)}</span>
                   </div>
                 )}
-                {couponDiscount > 0 && (
+                {effectiveDiscount > 0 && (
                   <div className="flex justify-between text-green-600">
-                    <span>Discount</span><span>-{formatPrice(couponDiscount)}</span>
+                    <span>Discount</span><span>-{formatPrice(effectiveDiscount)}</span>
                   </div>
                 )}
                 <div className="flex justify-between font-bold text-gray-900 text-base border-t border-gray-200 pt-1">

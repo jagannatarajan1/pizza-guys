@@ -51,6 +51,14 @@ export function validatePhone(phone: string): boolean {
   return /^[\d\s+\-().]{7,20}$/.test(phone)
 }
 
+// Standard UK postcode format (e.g. "SW1A 1AA", "M1 1AE", "B33 8TH") — space
+// optional/anywhere, case-insensitive.
+const UK_POSTCODE_RE = /^[A-Z]{1,2}\d[A-Z\d]?\s*\d[A-Z]{2}$/i
+
+export function validatePostcode(postcode: string): boolean {
+  return UK_POSTCODE_RE.test(postcode.trim())
+}
+
 // Derive the real public origin the request came in on. Prefers reverse-proxy
 // headers (x-forwarded-proto/x-forwarded-host), since behind a proxy those
 // reflect the address the customer actually used — falls back to req.nextUrl.origin.

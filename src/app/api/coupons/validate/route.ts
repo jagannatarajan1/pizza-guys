@@ -21,8 +21,9 @@ export async function POST(req: NextRequest) {
 
   const subtotalPence = Math.round(subtotal * 100)
   if (subtotalPence < coupon.minOrder) {
+    const shortfall = ((coupon.minOrder - subtotalPence) / 100).toFixed(2)
     return NextResponse.json({
-      error: `Minimum order of £${(coupon.minOrder / 100).toFixed(2)} required for this coupon`,
+      error: `Add £${shortfall} more to your order to use this coupon (minimum order £${(coupon.minOrder / 100).toFixed(2)}, before delivery fee)`,
     }, { status: 400 })
   }
 
@@ -41,5 +42,6 @@ export async function POST(req: NextRequest) {
     value: coupon.value,
     description: coupon.description,
     discountAmount: discountPence / 100,
+    minOrder: coupon.minOrder / 100,
   })
 }

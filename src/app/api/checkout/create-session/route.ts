@@ -2,7 +2,9 @@ import { NextRequest, NextResponse } from 'next/server'
 import { stripe } from '@/lib/stripe-server'
 import prisma from '@/lib/prisma'
 import { generateOrderNumber } from '@/lib/utils'
-import { requireAuth, sanitizeStr, validateEmail, validatePhone } from '@/lib/api-guard'
+import { requireAuth, sanitizeStr, validateEmail, validatePhone, getOriginFromRequest } from '@/lib/api-guard'
+import { fetchSiteConfig } from '@/lib/site-config'
+import { computeShopStatus } from '@/lib/shop-status'
 
 const MAX_ITEMS    = 50
 const MAX_QUANTITY = 99
@@ -20,7 +22,7 @@ export async function POST(req: NextRequest) {
   if (!guard.ok) return guard.res
   const authUserId = guard.payload.userId
 
-  const origin = req.nextUrl.origin
+  const origin = getOriginFromRequest(req)
   const body   = await req.json().catch(() => null)
   if (!body) return NextResponse.json({ error: 'Invalid request' }, { status: 400 })
 
@@ -41,6 +43,22 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Invalid order type' }, { status: 400 })
   if (!Array.isArray(items) || items.length === 0 || items.length > MAX_ITEMS)
     return NextResponse.json({ error: 'Invalid items' }, { status: 400 })
+
+  // Orders placed for right now must respect the shop's current open/closed
+  // status — a scheduled order for later is exempt from this "right now" check.
+  if (!scheduledTime) {
+    const siteConfig = await fetchSiteConfig()
+    const status = computeShopStatus(siteConfig)
+    if (!status.isOpen) {
+      return NextResponse.json({ error: `We're currently closed — ${status.message}` }, { status: 403 })
+    }
+    if (orderType === 'delivery' && !status.deliveryEnabled) {
+      return NextResponse.json({ error: 'Delivery is currently unavailable' }, { status: 403 })
+    }
+    if (orderType === 'collection' && !status.collectionEnabled) {
+      return NextResponse.json({ error: 'Collection is currently unavailable' }, { status: 403 })
+    }
+  }
 
   // ── Server-side price recalculation ────────────────────────────────────────
   // NEVER trust client-provided prices — always fetch from DB
@@ -108,9 +126,13 @@ export async function POST(req: NextRequest) {
     // Apply coupon only if usage limit not reached and subtotal meets minimum
     const withinUsageLimit = !coupon?.usageLimit || coupon.usageCount < coupon.usageLimit
     if (coupon && withinUsageLimit && serverSubtotalPence >= coupon.minOrder) {
-      serverDiscountPence = coupon.type === 'percent'
-        ? Math.round(serverSubtotalPence * coupon.value / 100)
-        : coupon.value
+      if (coupon.type === 'percentage') {
+        serverDiscountPence = Math.round(serverSubtotalPence * coupon.value / 100)
+      } else if (coupon.type === 'fixed') {
+        serverDiscountPence = Math.min(coupon.value, serverSubtotalPence)
+      } else if (coupon.type === 'freeDelivery') {
+        serverDiscountPence = serverDeliveryFeePence
+      }
       usedCoupon = coupon
     }
   }

@@ -1,6 +1,7 @@
 'use client'
 import { useState, useEffect, useRef, useCallback } from 'react'
 import Link from 'next/link'
+import Image from 'next/image'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 
@@ -15,6 +16,8 @@ type Slide = {
   cta2Href?: string
   bg: string
   emoji: string[]
+  image?: string
+  imageAlt?: string
 }
 
 const SLIDES: Slide[] = [
@@ -29,46 +32,20 @@ const SLIDES: Slide[] = [
     cta2Href: '/offers',
     bg: 'from-[#111] via-[#1a0a00] to-[#2a0f00]',
     emoji: ['🍕', '🌶️', '🧄'],
+    image: '/images/banners/pizza-banner.png',
+    imageAlt: 'Fresh pepperoni pizza with a cheesy pull',
   },
   {
-    badge: '🍕 Fan Favourite',
-    title: 'Handmade',
-    accent: 'Pizzas',
-    subtitle: 'Stone-baked to perfection with your choice of toppings. From classics to crafted specials.',
-    cta: 'View Pizzas',
-    ctaHref: '/menu?category=pizza',
-    bg: 'from-[#1a0000] via-[#2d0a0a] to-[#111]',
-    emoji: ['🍕', '🧀', '🍅'],
-  },
-  {
-    badge: '🤑 Best Value',
-    title: 'Unbeatable',
-    accent: 'Meal Deals',
-    subtitle: 'Feed the whole family from just £9.99. Burger, pizza, wraps and sides — all bundled up.',
-    cta: 'See Deals',
-    ctaHref: '/offers',
+    badge: '🍔 Fan Favourite',
+    title: 'Smashed',
+    accent: 'Burgers',
+    subtitle: 'Juicy, char-grilled beef patties stacked high with melted cheese and all the trimmings.',
+    cta: 'View Burgers',
+    ctaHref: '/menu?category=burgers',
     bg: 'from-[#1a1000] via-[#2a1a00] to-[#111]',
-    emoji: ['🤑', '🍔', '🍟'],
-  },
-  {
-    badge: '⚡ Free Delivery',
-    title: 'Fast & Fresh',
-    accent: 'Delivery',
-    subtitle: 'Free delivery on all orders over £25. Real food, real fast — right to your front door.',
-    cta: 'Order for Delivery',
-    ctaHref: '/menu',
-    bg: 'from-[#001a10] via-[#002a1a] to-[#111]',
-    emoji: ['🚀', '🚚', '📦'],
-  },
-  {
-    badge: '✅ Skip the Wait',
-    title: 'Order &',
-    accent: 'Collect',
-    subtitle: 'Place your order online and collect from our store in as little as 15 minutes.',
-    cta: 'Order to Collect',
-    ctaHref: '/menu',
-    bg: 'from-[#0a0020] via-[#12002d] to-[#111]',
-    emoji: ['🏪', '⏱️', '🎉'],
+    emoji: ['🍔', '🍟'],
+    image: '/images/banners/burger-banner.png',
+    imageAlt: 'Smashed burger with melted cheese and fries',
   },
 ]
 
@@ -126,10 +103,24 @@ export default function HeroBanners() {
           animate="center"
           exit="exit"
           transition={{ duration: 0.55, ease: [0.22, 1, 0.36, 1] }}
-          className={`absolute inset-0 bg-gradient-to-br ${slide.bg} text-white flex items-center`}
+          className={`absolute inset-0 bg-gradient-to-br ${slide.bg} text-white flex items-center overflow-hidden`}
         >
-          {/* Decorative emojis */}
-          {slide.emoji.map((em, i) => (
+          {slide.image && (
+            <>
+              <Image
+                src={slide.image}
+                alt={slide.imageAlt ?? ''}
+                fill
+                priority={index === 0}
+                sizes="100vw"
+                className="object-cover object-center"
+              />
+              <div className="absolute inset-0 bg-linear-to-r from-black/85 via-black/55 to-black/10 sm:from-black/90 sm:via-black/60 sm:to-transparent" />
+            </>
+          )}
+
+          {/* Decorative emojis — skipped on photo slides so they don't clutter a real image */}
+          {!slide.image && slide.emoji.map((em, i) => (
             <span
               key={i}
               className="absolute select-none hidden xl:block"

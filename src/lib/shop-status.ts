@@ -10,7 +10,7 @@ export type ShopStatus = {
 const DAYS = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'] as const
 const DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'] as const
 
-// The shop is physically in Staines-upon-Thames, Surrey, UK — always compute
+// The shop is physically in Shepperton, Surrey, UK — always compute
 // "current time" in the shop's own timezone, not the server's. The server
 // may be deployed anywhere (e.g. a US or Asia region), so relying on
 // `Date.getHours()`/`getDay()` directly would compare the shop's opening

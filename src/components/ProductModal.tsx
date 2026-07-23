@@ -98,7 +98,7 @@ export default function ProductModal({ product, onClose }: Props) {
     const itemTotal = computeTotal()
 
     addItem({ product, quantity, modifiers, specialInstructions: instructions, itemTotal })
-    toast.success(`${product.name} added to basket`)
+    toast.success(`${product.name} added to cart`)
     onClose()
   }
 
@@ -217,7 +217,7 @@ export default function ProductModal({ product, onClose }: Props) {
               canAdd() ? 'bg-red-600 hover:bg-red-700' : 'bg-gray-300 hover:bg-gray-400'
             }`}
           >
-            <span>Add to Basket</span>
+            <span>Add to Cart</span>
             <span>{formatPrice(computeTotal())}</span>
           </button>
         </div>

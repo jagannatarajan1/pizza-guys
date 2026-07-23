@@ -9,23 +9,25 @@ datasource db {
 }
 
 model User {
-  id                  String    @id @default(uuid())
-  name                String    @default("")
-  email               String    @unique
-  phone               String    @default("")
-  passwordHash        String    @map("password_hash")
-  role                String    @default("user")
-  // 2FA
-  twoFactorSecret     String?   @map("two_factor_secret")
-  twoFactorEnabled    Boolean   @default(false) @map("two_factor_enabled")
-  twoFactorBackup     String    @default("[]") @map("two_factor_backup")
-  passwordResetToken   String?   @map("password_reset_token")
+  id                   String    @id @default(uuid())
+  name                 String    @default("")
+  email                String    @unique
+  phone                String    @default("")
+  passwordHash         String    @map("password_hash")
+  role                 String    @default("user")
+  createdAt            DateTime  @default(now()) @map("created_at")
+  failedLogins         Int       @default(0) @map("failed_logins")
+  lockedUntil          DateTime? @map("locked_until")
+  twoFactorBackup      String    @default("[]") @map("two_factor_backup")
+  twoFactorEnabled     Boolean   @default(false) @map("two_factor_enabled")
+  twoFactorSecret      String?   @map("two_factor_secret")
   passwordResetExpires DateTime? @map("password_reset_expires")
-  failedLogins        Int       @default(0) @map("failed_logins")
-  lockedUntil         DateTime? @map("locked_until")
-  createdAt           DateTime  @default(now()) @map("created_at")
-  addresses           Address[]
-  orders              Order[]
+  passwordResetToken   String?   @map("password_reset_token")
+  pendingEmail         String?   @map("pending_email")
+  pendingEmailToken    String?   @unique @map("pending_email_token")
+  pendingEmailExpires  DateTime? @map("pending_email_expires")
+  addresses            Address[]
+  orders               Order[]
 
   @@map("users")
 }
@@ -77,8 +79,8 @@ model Order {
   paymentMethod   String      @default("card") @map("payment_method")
   scheduledTime   DateTime?   @map("scheduled_time")
   createdAt       DateTime    @default(now()) @map("created_at")
-  user            User?       @relation(fields: [userId], references: [id], onDelete: SetNull)
   items           OrderItem[]
+  user            User?       @relation(fields: [userId], references: [id])
 
   @@map("orders")
 }
@@ -88,9 +90,9 @@ model Category {
   name    String
   slug    String  @unique
   icon    String  @default("🍽️")
-  image   String  @default("")
   visible Boolean @default(true)
   order   Int     @default(0)
+  image   String  @default("")
 
   @@map("categories")
 }
@@ -107,7 +109,7 @@ model Product {
   modifiers   String   @default("[]")
   allergens   String   @default("[]")
   createdAt   DateTime @default(now()) @map("created_at")
-  updatedAt   DateTime @updatedAt       @map("updated_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
 
   @@map("products")
 }
@@ -124,7 +126,7 @@ model DeliveryZone {
   id          String  @id @default(uuid())
   postcode    String  @unique
   minOrder    Int     @default(1000) @map("min_order")
-  deliveryFee Int     @default(199)  @map("delivery_fee")
+  deliveryFee Int     @default(199) @map("delivery_fee")
   enabled     Boolean @default(true)
 
   @@map("delivery_zones")
@@ -135,11 +137,11 @@ model Coupon {
   code        String    @unique
   type        String
   value       Int       @default(0)
-  minOrder    Int       @default(0)  @map("min_order")
+  minOrder    Int       @default(0) @map("min_order")
   description String    @default("")
   active      Boolean   @default(true)
   usageLimit  Int?      @map("usage_limit")
-  usageCount  Int       @default(0)  @map("usage_count")
+  usageCount  Int       @default(0) @map("usage_count")
   expiresAt   DateTime? @map("expires_at")
   createdAt   DateTime  @default(now()) @map("created_at")
 
@@ -153,7 +155,7 @@ model ModifierGroup {
   multiSelect Boolean          @default(false) @map("multi_select")
   min         Int              @default(0)
   max         Int              @default(1)
-  sortOrder   Int              @default(0)    @map("sort_order")
+  sortOrder   Int              @default(0) @map("sort_order")
   options     ModifierOption[]
 
   @@map("modifier_groups")

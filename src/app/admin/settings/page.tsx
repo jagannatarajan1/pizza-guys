@@ -1,9 +1,9 @@
 'use client'
 import { useState, useEffect, useCallback } from 'react'
+import { useRouter } from 'next/navigation'
 import { Loader2, Palette, Store, Sparkles, Users, Share2, Clock, Search, Save, RotateCcw } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { DEFAULTS } from '@/lib/site-config'
-import ImageUpload from '@/components/ImageUpload'
 
 type Config = Record<string, string>
 
@@ -153,7 +153,7 @@ function ThemeTab({ cfg, set, save, reset, saving }: { cfg: Config; set: (k: str
 }
 
 function BusinessTab({ cfg, set, save, reset, saving }: { cfg: Config; set: (k: string, v: string) => void; save: (keys: string[]) => void; reset: (keys: string[]) => void; saving: boolean }) {
-  const keys = ['biz_name', 'biz_logo_image', 'biz_favicon_image', 'biz_logo_line1', 'biz_logo_line2', 'biz_logo_abbr', 'biz_tagline', 'biz_phone', 'biz_email', 'biz_address', 'biz_founded']
+  const keys = ['biz_name', 'biz_logo_line1', 'biz_logo_line2', 'biz_logo_abbr', 'biz_tagline', 'biz_phone', 'biz_email', 'biz_address', 'biz_founded']
   return (
     <div className="space-y-5">
       <SectionCard title="Business Identity">
@@ -163,24 +163,6 @@ function BusinessTab({ cfg, set, save, reset, saving }: { cfg: Config; set: (k: 
           <Field label="Logo Line 1" note="First word in the logo text"><Input value={cfg.biz_logo_line1} onChange={(v) => set('biz_logo_line1', v)} placeholder="Pizza" /></Field>
           <Field label="Logo Line 2" note="Second word in the logo text"><Input value={cfg.biz_logo_line2} onChange={(v) => set('biz_logo_line2', v)} placeholder="Guys" /></Field>
           <Field label="Logo Abbreviation" note="Fallback monogram if no image uploaded"><Input value={cfg.biz_logo_abbr} onChange={(v) => set('biz_logo_abbr', v)} placeholder="PG" /></Field>
-        </div>
-        <div className="mt-5 grid sm:grid-cols-2 gap-5">
-          <Field label="Logo Image" note="Upload an image logo — replaces the text logo across the site. Leave empty to use the text logo.">
-            <ImageUpload value={cfg.biz_logo_image} onChange={(url) => set('biz_logo_image', url)} label="Logo Image" />
-            {cfg.biz_logo_image && (
-              <button onClick={() => set('biz_logo_image', '')} className="mt-2 text-xs text-red-500 hover:underline">
-                Remove image — revert to text logo
-              </button>
-            )}
-          </Field>
-          <Field label="Favicon / Web Icon" note="Shown in the browser tab. Square PNG or ICO recommended. Leave empty to use the default favicon.">
-            <ImageUpload value={cfg.biz_favicon_image} onChange={(url) => set('biz_favicon_image', url)} label="Favicon" />
-            {cfg.biz_favicon_image && (
-              <button onClick={() => set('biz_favicon_image', '')} className="mt-2 text-xs text-red-500 hover:underline">
-                Remove — revert to default favicon
-              </button>
-            )}
-          </Field>
         </div>
         <div className="mt-5">
           <Field label="Brand Tagline" note="Shown in the footer below the logo">
@@ -198,10 +180,28 @@ function BusinessTab({ cfg, set, save, reset, saving }: { cfg: Config; set: (k: 
         </div>
         <div className="mt-5">
           <Field label="Full Address">
-            <Textarea value={cfg.biz_address} onChange={(v) => set('biz_address', v)} rows={2} placeholder="209 Laleham Road, Staines-upon-Thames, Surrey, TW18 2EA" />
+            <Textarea value={cfg.biz_address} onChange={(v) => set('biz_address', v)} rows={2} placeholder="209 Laleham Rd, Shepperton, TW17 0AH" />
           </Field>
         </div>
-        <SaveBar onSave={save} onReset={reset} saving={saving} keys={['biz_phone', 'biz_phone2', 'biz_email', 'biz_address']} />
+        <div className="mt-5">
+          <Field label="Directions Link" note="Paste your Google Maps share link (open your location in Google Maps, tap Share, copy the link) — used for the 'Get Directions' button">
+            <Input value={cfg.biz_map_link ?? ''} onChange={(v) => set('biz_map_link', v)} placeholder="https://maps.app.goo.gl/..." type="url" />
+          </Field>
+        </div>
+        <div className="mt-5 grid sm:grid-cols-2 gap-5">
+          <Field label="Map Latitude" note="Only needed if the shop moves — right-click your location on Google Maps and copy the first number">
+            <Input value={cfg.biz_map_lat ?? ''} onChange={(v) => set('biz_map_lat', v)} placeholder="51.4003305" />
+          </Field>
+          <Field label="Map Longitude" note="The second number from the same Google Maps right-click">
+            <Input value={cfg.biz_map_lng ?? ''} onChange={(v) => set('biz_map_lng', v)} placeholder="-0.4590982" />
+          </Field>
+        </div>
+        <div className="mt-5">
+          <Field label="Google Maps API Key" note="Optional — paste a free key here to show the real Google Map on your site instead of the basic free map. Leave blank and the basic map keeps working.">
+            <Input value={cfg.google_maps_api_key ?? ''} onChange={(v) => set('google_maps_api_key', v)} placeholder="AIzaSy..." />
+          </Field>
+        </div>
+        <SaveBar onSave={save} onReset={reset} saving={saving} keys={['biz_phone', 'biz_phone2', 'biz_email', 'biz_address', 'biz_map_link', 'biz_map_lat', 'biz_map_lng', 'google_maps_api_key']} />
       </SectionCard>
     </div>
   )
@@ -391,6 +391,7 @@ function SeoTab({ cfg, set, save, reset, saving }: { cfg: Config; set: (k: strin
 // ─── Main page ─────────────────────────────────────────────
 
 export default function AdminSettingsPage() {
+  const router = useRouter()
   const [activeTab, setActiveTab] = useState('theme')
   const [config, setConfig]       = useState<Config>({})
   const [loading, setLoading]     = useState(true)
@@ -420,13 +421,14 @@ export default function AdminSettingsPage() {
       const data = await res.json()
       if (!res.ok) throw new Error(data.error ?? 'Save failed')
       setConfig(data.config)
-      toast.success('Saved! Reload the page to see theme changes.')
+      router.refresh() // re-fetches site config used by the header/footer/logo/etc. so changes show up immediately
+      toast.success('Saved!')
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Save failed')
     } finally {
       setSaving(false)
     }
-  }, [config])
+  }, [config, router])
 
   const reset = useCallback((keys: string[]) => {
     setConfig((prev) => {

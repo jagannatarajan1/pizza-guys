@@ -8,7 +8,7 @@ const CSP = [
   "img-src 'self' data: blob: *",
   "font-src 'self'",
   "connect-src 'self' https://api.stripe.com https://checkout.stripe.com",
-  "frame-src https://js.stripe.com https://hooks.stripe.com https://checkout.stripe.com",
+  "frame-src https://js.stripe.com https://hooks.stripe.com https://checkout.stripe.com https://www.openstreetmap.org",
   "object-src 'none'",
   "base-uri 'self'",
   "form-action 'self'",

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
 import { verifyToken, AUTH_COOKIE } from '@/lib/auth-utils'
+import { validatePostcode } from '@/lib/api-guard'
 
 export async function PUT(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   const token = req.cookies.get(AUTH_COOKIE)?.value
@@ -9,6 +10,10 @@ export async function PUT(req: NextRequest, ctx: { params: Promise<{ id: string 
 
   const { id } = await ctx.params
   const { label, line1, line2, city, postcode, notes, isDefault } = await req.json()
+
+  if (postcode !== undefined && !validatePostcode(postcode)) {
+    return NextResponse.json({ error: 'Enter a valid UK postcode (e.g. SW1A 1AA)' }, { status: 400 })
+  }
 
   if (isDefault) {
     await prisma.address.updateMany({

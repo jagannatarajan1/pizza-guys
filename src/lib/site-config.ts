@@ -20,8 +20,12 @@ export const DEFAULTS: SiteConfig = {
   biz_phone:          '01784 452 888',
   biz_phone2:         '',
   biz_email:          'info@pizzaguys.co.uk',
-  biz_address:        '209 Laleham Road, Staines-upon-Thames, Surrey, TW18 2EA',
+  biz_address:        '209 Laleham Rd, Shepperton, TW17 0AH',
   biz_founded:        '2009',
+  biz_map_lat:        '51.4003305',
+  biz_map_lng:        '-0.4590982',
+  biz_map_link:       'https://maps.app.goo.gl/7bKEz5rrXfhDsTY4A',
+  google_maps_api_key: '',
 
   // ── Hero ──────────────────────────────────────────────────
   hero_badge:         '🔥 Hot & Fresh Since 2009',

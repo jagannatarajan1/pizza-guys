@@ -18,7 +18,7 @@ export default function ShopStatusBanner() {
 
   if (status.isOpen) {
     return (
-      <div className="relative z-50 border-b border-green-300/30 py-2.5 px-4 text-center text-sm font-bold flex items-center justify-center gap-2" style={{ background: '#001a06', color: '#4ADE80' }}>
+      <div className="relative z-10 border-b border-green-300/30 py-2.5 px-4 text-center text-sm font-bold flex items-center justify-center gap-2" style={{ background: '#001a06', color: '#4ADE80' }}>
         <CheckCircle2 size={14} className="shrink-0" style={{ color: '#4ADE80' }} />
         <span>
           <span className="text-green-400">Shop is Open</span>
@@ -36,7 +36,7 @@ export default function ShopStatusBanner() {
   }
 
   return (
-    <div className="relative z-50 border-b border-amber-300/30 py-2.5 px-4 text-center text-sm font-bold flex items-center justify-center gap-2" style={{ background: '#1a0a00', color: '#FFD700' }}>
+    <div className="relative z-10 border-b border-amber-300/30 py-2.5 px-4 text-center text-sm font-bold flex items-center justify-center gap-2" style={{ background: '#1a0a00', color: '#FFD700' }}>
       <Clock size={14} className="shrink-0" style={{ color: '#FFD700' }} />
       <span>
         <span className="text-amber-400">Shop Closed</span>

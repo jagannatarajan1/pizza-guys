@@ -7,11 +7,11 @@ const sections = [
   },
   {
     title: '2. Cookies We Use',
-    body: 'We use the following types of cookies: (a) Essential cookies — required for the website to function, including your login session and shopping basket; (b) Preference cookies — remember your order type selection (delivery or collection) and other settings; (c) Analytics cookies — help us understand how customers use our site so we can improve it.',
+    body: 'We use the following types of cookies: (a) Essential cookies — required for the website to function, including your login session and shopping cart; (b) Preference cookies — remember your order type selection (delivery or collection) and other settings; (c) Analytics cookies — help us understand how customers use our site so we can improve it.',
   },
   {
     title: '3. Essential Cookies',
-    body: 'These cookies are necessary for the website to work and cannot be switched off. They include session cookies that keep you logged in and basket cookies that save your cart items between page loads.',
+    body: 'These cookies are necessary for the website to work and cannot be switched off. They include session cookies that keep you logged in and cart cookies that save your cart items between page loads.',
   },
   {
     title: '4. Third-Party Cookies',

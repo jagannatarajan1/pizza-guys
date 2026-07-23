@@ -5,7 +5,7 @@ import { AnimatePresence, motion } from 'framer-motion'
 import { ShoppingCart, ChevronRight } from 'lucide-react'
 import { useCartStore } from '@/lib/cart-store'
 
-// Global sticky bar pinned to the bottom of the viewport whenever the basket
+// Global sticky bar pinned to the bottom of the viewport whenever the cart
 // has items in it. Reuses the same cart store the header badge uses, so the
 // count always stays in sync. Hidden on the cart page itself (no point
 // telling you to go to the cart while you're already there).
@@ -39,7 +39,7 @@ export default function StickyCartBar() {
                 </span>
               </span>
               <span className="flex items-center gap-1 font-black text-[#FFD700] text-sm">
-                View Basket <ChevronRight size={16} />
+                View Cart <ChevronRight size={16} />
               </span>
             </Link>
           </div>

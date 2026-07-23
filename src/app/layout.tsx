@@ -12,6 +12,12 @@ import ShopStatusBanner from '@/components/ShopStatusBanner'
 import StickyCartBar from '@/components/StickyCartBar'
 import { fetchSiteConfig } from '@/lib/site-config'
 
+// Every page reads site_config (logo, colours, hours, hero text, SEO, etc.)
+// through this layout. Without this, Next.js statically freezes the render
+// at build time and admin edits in /admin/settings never reach visitors
+// until the app is rebuilt — this forces every request to read fresh data.
+export const dynamic = 'force-dynamic'
+
 const nunito = Nunito({
   subsets: ['latin'],
   weight: ['400', '600', '700', '800', '900'],
