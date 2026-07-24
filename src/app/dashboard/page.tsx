@@ -44,7 +44,7 @@ type CustomerOrder = {
 function DashboardContent() {
   const router       = useRouter()
   const searchParams = useSearchParams()
-  const { user, updateProfile, addAddress, updateAddress, deleteAddress, logout } = useAuth()
+  const { user, isLoading: authLoading, updateProfile, addAddress, updateAddress, deleteAddress, logout } = useAuth()
   const validTabs = ['profile', 'addresses', 'orders', 'payment', 'password']
   const tabParam  = searchParams.get('tab') ?? ''
   const [activeTab, setActiveTab] = useState(validTabs.includes(tabParam) ? tabParam : 'profile')
@@ -71,13 +71,23 @@ function DashboardContent() {
       .finally(() => setOrdersLoading(false))
   }, [activeTab])
   const [pwForm, setPwForm] = useState({ current: '', newPw: '', confirm: '' })
+  const [emailSaving, setEmailSaving] = useState(false)
 
-  if (!user) {
-    router.push('/login')
+  // Redirect must happen in an effect, never during render — calling
+  // router.push() directly in the render body also runs during the server's
+  // render pass (this is a client component, but still server-rendered for
+  // the initial HTML), and Next's router touches browser-only APIs there,
+  // crashing the server with "location is not defined". Also wait for the
+  // auth check to finish before deciding — `user` is briefly null on every
+  // fresh load while /api/auth/me is still in flight, so redirecting on that
+  // alone would bounce a logged-in visitor straight back to /login.
+  useEffect(() => {
+    if (!authLoading && !user) router.push('/login')
+  }, [authLoading, user, router])
+
+  if (authLoading || !user) {
     return null
   }
-
-  const [emailSaving, setEmailSaving] = useState(false)
 
   const saveProfile = async () => {
     const emailChanged = profileForm.email.trim().toLowerCase() !== user.email.toLowerCase()

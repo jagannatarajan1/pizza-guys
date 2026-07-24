@@ -7,6 +7,7 @@ import { useAuth } from '@/lib/auth-context'
 import { formatPrice, isValidPostcode } from '@/lib/utils'
 import toast from 'react-hot-toast'
 import { useSiteConfig } from '@/context/SiteConfigContext'
+import { useOrderType } from '@/context/OrderTypeContext'
 
 const STEPS = [
   { id: 1, label: 'Order Type', icon: ShoppingBag },
@@ -72,9 +73,24 @@ export default function CheckoutPage() {
   const cfg = useSiteConfig()
   const { user, isLoading: authLoading } = useAuth()
   const { items, couponCode, couponType, deliveryFee, getSubtotal, setDeliveryFee, getEffectiveDiscount } = useCartStore()
+  const { orderType: homeOrderType, setOrderType: setHomeOrderType } = useOrderType()
 
   const [step, setStep] = useState(1)
-  const [orderType, setOrderType] = useState<'delivery' | 'collection'>('delivery')
+  // Pre-select whatever the customer already chose on the homepage — falls
+  // back to 'delivery' the first time they land straight on checkout.
+  const [orderType, setOrderType] = useState<'delivery' | 'collection'>(homeOrderType ?? 'delivery')
+
+  // The shared order-type context loads its saved value from localStorage a
+  // moment AFTER mount (it starts out null on every fresh page load), so the
+  // useState initializer above often runs too early and misses it. Adjusting
+  // state during render (React's documented pattern for this) rather than in
+  // an effect — this also re-fires harmlessly when the user picks an option
+  // here, since that updates the shared context to the same value.
+  const [prevHomeOrderType, setPrevHomeOrderType] = useState(homeOrderType)
+  if (homeOrderType !== prevHomeOrderType) {
+    setPrevHomeOrderType(homeOrderType)
+    if (homeOrderType) setOrderType(homeOrderType)
+  }
   const [selectedAddressId, setSelectedAddressId] = useState(user?.addresses.find((a) => a.isDefault)?.id || '')
   const [newAddress, setNewAddress] = useState({ postcode: '', line1: '', line2: '', city: '', notes: '' })
   const [useNewAddress, setUseNewAddress] = useState(!user?.addresses.length)
@@ -225,7 +241,7 @@ export default function CheckoutPage() {
               ] as const).map((opt) => (
                 <button
                   key={opt.value}
-                  onClick={() => setOrderType(opt.value)}
+                  onClick={() => { setOrderType(opt.value); setHomeOrderType(opt.value) }}
                   className={`p-5 rounded-xl border-2 text-left transition-all ${orderType === opt.value ? 'border-red-500 bg-red-50' : 'border-gray-100 hover:border-gray-300'}`}
                 >
                   <div className="text-3xl mb-2">{opt.icon}</div>
