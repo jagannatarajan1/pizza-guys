@@ -70,7 +70,7 @@ function PaymentForm({ total, orderPayload }: PaymentFormProps) {
 // ─── Main checkout page ─────────────────────────────────────────────────────
 export default function CheckoutPage() {
   const cfg = useSiteConfig()
-  const { user } = useAuth()
+  const { user, isLoading: authLoading } = useAuth()
   const { items, couponCode, couponType, deliveryFee, getSubtotal, setDeliveryFee, getEffectiveDiscount } = useCartStore()
 
   const [step, setStep] = useState(1)
@@ -99,11 +99,12 @@ export default function CheckoutPage() {
     : user?.addresses.find((a) => a.id === selectedAddressId) ?? null
 
   const lookupDeliveryFee = async (postcode: string) => {
-    const res  = await fetch('/api/delivery-zones')
-    const data = await res.json()
-    const prefix = postcode.trim().toUpperCase().replace(/\s+.*/,'')
-    const zone = (data.zones ?? []).find((z: { postcode: string; minOrder: number; deliveryFee: number }) => z.postcode === prefix)
-    return zone ?? null
+    const res  = await fetch('/api/delivery/check', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ postcode }),
+    })
+    return res.json()
   }
 
   const nextStep = async () => {
@@ -120,10 +121,10 @@ export default function CheckoutPage() {
       setAdvancingStep(true)
       setZoneError('')
       try {
-        const zone = await lookupDeliveryFee(addr.postcode)
-        if (!zone) { setZoneError(`Sorry, we don't deliver to ${addr.postcode.split(/\s/)[0].toUpperCase()} postcodes yet.`); return }
-        if (subtotal < zone.minOrder) { setZoneError(`Minimum order for your area is ${formatPrice(zone.minOrder)}`); return }
-        setDeliveryFee(zone.deliveryFee)
+        const result = await lookupDeliveryFee(addr.postcode)
+        if (!result.available) { setZoneError(result.message ?? "Sorry, we don't deliver to that address yet."); return }
+        if (subtotal < result.minOrder) { setZoneError(`Minimum order for your area is ${formatPrice(result.minOrder)}`); return }
+        setDeliveryFee(result.deliveryFee)
       } finally { setAdvancingStep(false) }
     }
     setStep((s) => Math.min(5, s + 1))
@@ -150,6 +151,31 @@ export default function CheckoutPage() {
         <Link href="/menu" className="mt-4 bg-red-600 text-white font-bold px-6 py-3 rounded-xl hover:bg-red-700 transition-colors">
           Back to Menu
         </Link>
+      </div>
+    )
+  }
+
+  // Ordering requires an account — gate the whole checkout wizard (not just
+  // the final Pay button) so a guest is prompted up front instead of filling
+  // in every step only to be rejected by the server at payment time.
+  if (!authLoading && !user) {
+    return (
+      <div className="min-h-[60vh] flex flex-col items-center justify-center px-4 text-center">
+        <div className="w-14 h-14 bg-red-600 rounded-2xl flex items-center justify-center mx-auto mb-5">
+          <User size={26} className="text-white" />
+        </div>
+        <h2 className="text-xl font-black text-gray-900 mb-2">Sign in to place your order</h2>
+        <p className="text-gray-500 text-sm mb-6 max-w-sm">
+          Create a free account or sign in to track your order, save addresses and check out faster next time.
+        </p>
+        <div className="flex flex-col sm:flex-row gap-3">
+          <Link href="/login?redirect=/checkout" className="bg-red-600 hover:bg-red-700 text-white font-bold px-6 py-3 rounded-xl transition-colors">
+            Sign In
+          </Link>
+          <Link href="/register" className="bg-gray-100 hover:bg-gray-200 text-gray-900 font-bold px-6 py-3 rounded-xl transition-colors">
+            Create Account
+          </Link>
+        </div>
       </div>
     )
   }

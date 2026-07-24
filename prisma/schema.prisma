@@ -132,6 +132,32 @@ model DeliveryZone {
   @@map("delivery_zones")
 }
 
+// Distance bands from the restaurant (in miles), replacing postcode-prefix
+// zones above with actual straight-line distance — see DeliveryBand usage in
+// src/lib/delivery.ts. Old DeliveryZone table is left in place but unused.
+model DeliveryBand {
+  id          String @id @default(uuid())
+  fromMiles   Float  @map("from_miles")
+  toMiles     Float  @map("to_miles")
+  minOrder    Int    @map("min_order")
+  deliveryFee Int    @map("delivery_fee")
+  sortOrder   Int    @default(0) @map("sort_order")
+
+  @@map("delivery_bands")
+}
+
+// Caches postcode -> lat/lng lookups from postcodes.io so repeat customers
+// (very common — UK postcodes cover a handful of houses each) don't cost a
+// fresh external API call every time.
+model PostcodeGeocode {
+  postcode  String   @id
+  latitude  Float
+  longitude Float
+  cachedAt  DateTime @default(now()) @map("cached_at")
+
+  @@map("postcode_geocode_cache")
+}
+
 model Coupon {
   id          String    @id @default(uuid())
   code        String    @unique

@@ -26,6 +26,7 @@ export const DEFAULTS: SiteConfig = {
   biz_map_lng:        '-0.4590982',
   biz_map_link:       'https://maps.app.goo.gl/7bKEz5rrXfhDsTY4A',
   google_maps_api_key: '',
+  delivery_max_radius_miles: '3',
 
   // ── Hero ──────────────────────────────────────────────────
   hero_badge:         '🔥 Hot & Fresh Since 2009',

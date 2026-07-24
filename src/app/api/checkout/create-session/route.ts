@@ -5,6 +5,7 @@ import { generateOrderNumber } from '@/lib/utils'
 import { requireAuth, sanitizeStr, validateEmail, validatePhone, getOriginFromRequest } from '@/lib/api-guard'
 import { fetchSiteConfig } from '@/lib/site-config'
 import { computeShopStatus } from '@/lib/shop-status'
+import { resolveDelivery } from '@/lib/delivery'
 
 const MAX_ITEMS    = 50
 const MAX_QUANTITY = 99
@@ -99,16 +100,18 @@ export async function POST(req: NextRequest) {
     })
   }
 
-  // ── Delivery fee from DB ────────────────────────────────────────────────────
+  // ── Delivery fee from distance, never trust the client's postcode/fee ──────
   let serverDeliveryFeePence = 0
   if (orderType === 'delivery') {
-    const postcode = typeof deliveryAddress === 'object'
-      ? sanitizeStr(deliveryAddress?.postcode, 10).toUpperCase().replace(/\s/g, '')
-      : ''
-    const zone = postcode
-      ? await prisma.deliveryZone.findFirst({ where: { postcode, enabled: true } })
-      : null
-    serverDeliveryFeePence = zone?.deliveryFee ?? 199 // default £1.99
+    const postcode = typeof deliveryAddress === 'object' ? sanitizeStr(deliveryAddress?.postcode, 10) : ''
+    const delivery = postcode ? await resolveDelivery(postcode) : { available: false as const, reason: 'not_found' as const }
+    if (!delivery.available) {
+      return NextResponse.json({ error: "We can't deliver to that address — please check your postcode" }, { status: 400 })
+    }
+    if (serverSubtotalPence < delivery.minOrder) {
+      return NextResponse.json({ error: `Minimum order for your area is £${(delivery.minOrder / 100).toFixed(2)}` }, { status: 400 })
+    }
+    serverDeliveryFeePence = delivery.deliveryFee
   }
 
   // ── Coupon validation ───────────────────────────────────────────────────────

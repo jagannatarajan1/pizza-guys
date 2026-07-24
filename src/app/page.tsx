@@ -9,7 +9,7 @@ import CategoryIcon from '@/components/CategoryIcon'
 import { openingHours } from '@/lib/menu-data'
 
 type LiveCoupon = { code: string; type: string; value: number; description: string }
-import { checkDelivery, formatPrice } from '@/lib/utils'
+import { formatPrice, isValidPostcode } from '@/lib/utils'
 import ProductModal from '@/components/ProductModal'
 import type { Product, Category } from '@/lib/types'
 import { useSiteConfig } from '@/context/SiteConfigContext'
@@ -108,13 +108,13 @@ export default function HomePage() {
   const cfg = useSiteConfig()
   const { orderType, setOrderType } = useOrderType()
   const [postcode, setPostcode] = useState('')
-  const [deliveryResult, setDeliveryResult] = useState<{ available: boolean; fee: number; minOrder: number } | null | 'not-found'>(null)
+  const [checkingDelivery, setCheckingDelivery] = useState(false)
+  const [deliveryResult, setDeliveryResult] = useState<{ available: boolean; message?: string; minOrder?: number; deliveryFee?: number } | null>(null)
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null)
   const [popularProducts, setPopularProducts] = useState<Product[]>([])
   const [mealDealProducts, setMealDealProducts] = useState<Product[]>([])
   const [categories, setCategories]           = useState<Category[]>([])
   const [shopStatus, setShopStatus]           = useState<ShopStatus | null>(null)
-  const [dbZones, setDbZones]           = useState<{ postcode: string; minOrder: number; deliveryFee: number }[]>([])
   const [liveCoupons, setLiveCoupons]   = useState<LiveCoupon[]>([])
 
   useEffect(() => {
@@ -128,9 +128,6 @@ export default function HomePage() {
     fetch('/api/shop-status').then((r) => r.json()).then((d: ShopStatus) => {
       setShopStatus(d)
     }).catch(() => {})
-    fetch('/api/delivery-zones').then((r) => r.json()).then((d) => {
-      setDbZones(d.zones ?? [])
-    }).catch(() => {})
     fetch('/api/coupons').then((r) => r.json()).then((d) => {
       setLiveCoupons(d.coupons ?? [])
     }).catch(() => {})
@@ -139,9 +136,27 @@ export default function HomePage() {
   const open       = shopStatus ? shopStatus.isOpen : false
   const todayHours = shopStatus ? shopStatus.todayHours : ''
 
-  const handleDeliveryCheck = () => {
+  const handleDeliveryCheck = async () => {
     if (!postcode.trim()) return
-    setDeliveryResult(checkDelivery(postcode, dbZones) ?? 'not-found')
+    if (!isValidPostcode(postcode)) {
+      setDeliveryResult({ available: false, message: 'Enter a valid UK postcode (e.g. SW1A 1AA)' })
+      return
+    }
+    setCheckingDelivery(true)
+    setDeliveryResult(null)
+    try {
+      const res  = await fetch('/api/delivery/check', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ postcode }),
+      })
+      const data = await res.json()
+      setDeliveryResult(data)
+    } catch {
+      setDeliveryResult({ available: false, message: 'Something went wrong — please try again' })
+    } finally {
+      setCheckingDelivery(false)
+    }
   }
 
   return (
@@ -223,20 +238,21 @@ export default function HomePage() {
             />
             <button
               onClick={handleDeliveryCheck}
-              className="btn-brand px-5 py-3 rounded-xl text-sm shrink-0"
+              disabled={checkingDelivery}
+              className="btn-brand px-5 py-3 rounded-xl text-sm shrink-0 disabled:opacity-60"
             >
-              Check
+              {checkingDelivery ? 'Checking…' : 'Check'}
             </button>
           </div>
 
-          {deliveryResult === 'not-found' && (
+          {deliveryResult && !deliveryResult.available && (
             <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} className="mt-3 p-3 bg-red-50 text-red-700 rounded-xl text-sm font-semibold flex items-center gap-2">
-              ❌ Sorry, we don&apos;t deliver to your area yet. You can still collect in-store!
+              ❌ {(deliveryResult.message ?? "Sorry, we don't deliver to your area yet").replace(/[.!]+$/, '')}. You can still collect in-store!
             </motion.div>
           )}
-          {deliveryResult && deliveryResult !== 'not-found' && (
+          {deliveryResult?.available && (
             <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} className="mt-3 p-3 bg-green-50 text-green-700 rounded-xl text-sm font-semibold flex items-center gap-2">
-              ✅ We deliver to you! Fee: {formatPrice(deliveryResult.fee)} · Min order: {formatPrice(deliveryResult.minOrder)}
+              ✅ We deliver to you! Fee: {formatPrice(deliveryResult.deliveryFee ?? 0)} · Min order: {formatPrice(deliveryResult.minOrder ?? 0)}
             </motion.div>
           )}
         </motion.div>
