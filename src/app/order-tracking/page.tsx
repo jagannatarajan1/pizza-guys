@@ -199,8 +199,19 @@ function TrackingContent() {
     }
 
     fetchOrder()
+    // Safety-net poll in case the live connection below ever drops.
     const iv = setInterval(fetchOrder, 20_000)
-    return () => clearInterval(iv)
+
+    // Live push: the moment the kitchen/admin moves this order to the next
+    // stage (or payment finishes confirming), re-fetch immediately instead
+    // of waiting up to 20s for the next poll.
+    const es = new EventSource(`/api/orders/${orderNo}/stream`)
+    es.onmessage = () => fetchOrder()
+
+    return () => {
+      clearInterval(iv)
+      es.close()
+    }
   }, [orderNo])
 
   if (!orderNo) {

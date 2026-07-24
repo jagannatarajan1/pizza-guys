@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
 import { requireStaff } from '@/lib/api-guard'
+import { emitStatusChanged } from '@/lib/order-events'
 
 const VALID_STATUSES = [
   'confirmed', 'New', 'Accepted', 'Preparing', 'Ready',
@@ -25,6 +26,8 @@ export async function PATCH(
     where: { id },
     data:  { status },
   })
+
+  emitStatusChanged({ orderNumber: order.orderNumber, status: order.status })
 
   return NextResponse.json({ status: order.status })
 }

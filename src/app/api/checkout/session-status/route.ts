@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { stripe } from '@/lib/stripe-server'
 import prisma from '@/lib/prisma'
+import { emitNewOrder, emitStatusChanged } from '@/lib/order-events'
 
 export async function GET(req: NextRequest) {
   const sessionId = req.nextUrl.searchParams.get('session_id')
@@ -17,14 +18,22 @@ export async function GET(req: NextRequest) {
   // session as the source of truth — the DB write is a no-op if the webhook
   // already did it.
   const orderId = session.metadata?.orderId
+  const orderNumber = session.metadata?.orderNumber
   if (orderId && session.payment_status === 'paid') {
-    await prisma.order.updateMany({
+    const result = await prisma.order.updateMany({
       where: { id: orderId, status: { not: 'confirmed' } },
       data: {
         status: 'confirmed',
         ...(typeof session.payment_intent === 'string' ? { paymentIntentId: session.payment_intent } : {}),
       },
-    }).catch(() => {})
+    }).catch(() => ({ count: 0 }))
+    // Only announce it if this call is the one that actually flipped the
+    // status — avoids a duplicate beep/notification if the webhook already
+    // beat this reconciliation check to it.
+    if (result.count > 0 && orderNumber) {
+      emitNewOrder({ orderNumber })
+      emitStatusChanged({ orderNumber, status: 'confirmed' })
+    }
   }
 
   return NextResponse.json({

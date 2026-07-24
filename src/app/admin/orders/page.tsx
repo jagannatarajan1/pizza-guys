@@ -1,9 +1,10 @@
 'use client'
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { Search, Check, X, ChevronDown, RefreshCw, Loader2, Printer } from 'lucide-react'
 import { formatPrice } from '@/lib/utils'
 import toast from 'react-hot-toast'
 import { useSiteConfig } from '@/context/SiteConfigContext'
+import { unlockAudio, playNewOrderBeep } from '@/lib/beep'
 
 const STATUSES = ['All', 'confirmed', 'New', 'Accepted', 'Preparing', 'Ready', 'Out for Delivery', 'Completed', 'Cancelled']
 
@@ -200,11 +201,44 @@ export default function AdminOrdersPage() {
     return () => clearTimeout(t)
   }, [statusFilter, search, load])
 
-  // Auto-refresh every 30 s so new orders appear
+  // Safety-net refresh in case the live connection below ever drops for a
+  // while — the live push is the real mechanism for "no delay".
   useEffect(() => {
     const iv = setInterval(() => load(statusFilter, search), 30_000)
     return () => clearInterval(iv)
   }, [statusFilter, search, load])
+
+  // Live push: the instant a new order is paid, or any order's status
+  // changes, refresh the list right away instead of waiting for the next
+  // poll — and beep so a busy staff member notices a new order without
+  // having to be looking at the screen. Kept as one persistent connection
+  // (not reopened on every filter change) using a ref so the handler always
+  // reads the current filter/search values.
+  const filterRef = useRef({ statusFilter, search })
+  useEffect(() => { filterRef.current = { statusFilter, search } }, [statusFilter, search])
+
+  useEffect(() => {
+    unlockAudio()
+    const onFirstClick = () => unlockAudio()
+    window.addEventListener('click', onFirstClick, { once: true })
+
+    const es = new EventSource('/api/admin/orders/stream')
+    es.onmessage = (e) => {
+      let data: { type?: string; orderNumber?: string } = {}
+      try { data = JSON.parse(e.data) } catch { return }
+      if (data.type === 'new-order') {
+        playNewOrderBeep()
+        toast.success(`🛎️ New order #${data.orderNumber}!`)
+      }
+      load(filterRef.current.statusFilter, filterRef.current.search)
+    }
+
+    return () => {
+      es.close()
+      window.removeEventListener('click', onFirstClick)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   const updateStatus = async (order: Order, newStatus: string) => {
     setUpdatingId(order.id)
