@@ -1,6 +1,6 @@
 'use client'
 import { useState, useEffect, useCallback } from 'react'
-import { Plus, Trash2, X, Loader2, Tag, ToggleLeft, ToggleRight } from 'lucide-react'
+import { Plus, Trash2, X, Loader2, Tag, ToggleLeft, ToggleRight, Pencil } from 'lucide-react'
 import { formatPrice } from '@/lib/utils'
 import toast from 'react-hot-toast'
 
@@ -15,16 +15,34 @@ type Coupon = {
   usageCount: number
   usageLimit: number | null
   expiresAt: string | null
+  orderTypes: string[]
+  combinable: boolean
+  combinesWith: string[]
+  applicableCategories: string[]
 }
 
-const emptyForm = { code: '', type: 'percentage' as Coupon['type'], value: 10, minOrder: 15, description: '', usageLimit: '', expiresAt: '' }
+type CategoryOption = { slug: string; name: string }
+
+const emptyForm = {
+  code: '', type: 'percentage' as Coupon['type'], value: 10, minOrder: 15, description: '',
+  usageLimit: '', expiresAt: '', orderTypes: [] as string[], combinable: false, combinesWith: [] as string[],
+  applicableCategories: [] as string[],
+}
 
 export default function AdminOffersPage() {
-  const [coupons, setCoupons]   = useState<Coupon[]>([])
-  const [loading, setLoading]   = useState(true)
-  const [saving, setSaving]     = useState(false)
-  const [showForm, setShowForm] = useState(false)
-  const [form, setForm]         = useState(emptyForm)
+  const [coupons, setCoupons]     = useState<Coupon[]>([])
+  const [categories, setCategories] = useState<CategoryOption[]>([])
+  const [loading, setLoading]     = useState(true)
+  const [saving, setSaving]       = useState(false)
+  const [showForm, setShowForm]   = useState(false)
+  const [editingId, setEditingId] = useState<string | null>(null)
+  const [form, setForm]           = useState(emptyForm)
+
+  useEffect(() => {
+    fetch('/api/menu/categories').then((r) => r.json()).then((d) => {
+      setCategories((d.categories ?? []).map((c: { slug: string; name: string }) => ({ slug: c.slug, name: c.name })))
+    }).catch(() => {})
+  }, [])
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -38,27 +56,57 @@ export default function AdminOffersPage() {
 
   useEffect(() => { load() }, [load])
 
+  const openCreate = () => {
+    setEditingId(null)
+    setForm(emptyForm)
+    setShowForm(true)
+  }
+
+  const openEdit = (c: Coupon) => {
+    setEditingId(c.id)
+    setForm({
+      code: c.code,
+      type: c.type,
+      value: c.value,
+      minOrder: c.minOrder,
+      description: c.description,
+      usageLimit: c.usageLimit ? String(c.usageLimit) : '',
+      expiresAt: c.expiresAt ? c.expiresAt.slice(0, 10) : '',
+      orderTypes: c.orderTypes,
+      combinable: c.combinable,
+      combinesWith: c.combinesWith,
+      applicableCategories: c.applicableCategories,
+    })
+    setShowForm(true)
+  }
+
   const save = async () => {
     if (!form.code || !form.description) { toast.error('Code and description required'); return }
     setSaving(true)
     try {
-      const res = await fetch('/api/admin/coupons', {
-        method: 'POST',
+      const payload = {
+        code: form.code,
+        type: form.type,
+        value: form.value,
+        minOrder: form.minOrder,
+        description: form.description,
+        usageLimit: form.usageLimit ? parseInt(form.usageLimit) : null,
+        expiresAt: form.expiresAt || null,
+        orderTypes: form.orderTypes,
+        combinable: form.combinable,
+        combinesWith: form.combinesWith,
+        applicableCategories: form.applicableCategories,
+      }
+      const res = await fetch(editingId ? `/api/admin/coupons/${editingId}` : '/api/admin/coupons', {
+        method: editingId ? 'PUT' : 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          code: form.code,
-          type: form.type,
-          value: form.value,
-          minOrder: form.minOrder,
-          description: form.description,
-          usageLimit: form.usageLimit ? parseInt(form.usageLimit) : null,
-          expiresAt: form.expiresAt || null,
-        }),
+        body: JSON.stringify(payload),
       })
       if (res.status === 409) { toast.error('Coupon code already exists'); return }
-      if (!res.ok) { toast.error('Failed to create coupon'); return }
-      toast.success('Coupon created!')
+      if (!res.ok) { toast.error(editingId ? 'Failed to update coupon' : 'Failed to create coupon'); return }
+      toast.success(editingId ? 'Coupon updated!' : 'Coupon created!')
       setShowForm(false)
+      setEditingId(null)
       setForm(emptyForm)
       load()
     } finally { setSaving(false) }
@@ -84,12 +132,37 @@ export default function AdminOffersPage() {
     return ''
   }
 
+  const toggleOrderType = (value: string) => {
+    setForm((p) => ({
+      ...p,
+      orderTypes: p.orderTypes.includes(value) ? p.orderTypes.filter((v) => v !== value) : [...p.orderTypes, value],
+    }))
+  }
+
+  const toggleCombinesWith = (code: string) => {
+    setForm((p) => ({
+      ...p,
+      combinesWith: p.combinesWith.includes(code) ? p.combinesWith.filter((v) => v !== code) : [...p.combinesWith, code],
+    }))
+  }
+
+  const toggleCategory = (slug: string) => {
+    setForm((p) => ({
+      ...p,
+      applicableCategories: p.applicableCategories.includes(slug)
+        ? p.applicableCategories.filter((v) => v !== slug)
+        : [...p.applicableCategories, slug],
+    }))
+  }
+
+  const otherCoupons = coupons.filter((c) => c.code !== form.code)
+
   return (
     <div>
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-2xl font-black text-gray-900">Offers &amp; Coupons</h1>
         <button
-          onClick={() => setShowForm(true)}
+          onClick={openCreate}
           className="flex items-center gap-2 bg-red-600 hover:bg-red-700 text-white font-bold px-4 py-2 rounded-xl text-sm transition-colors"
         >
           <Plus size={16} /> New Coupon
@@ -99,8 +172,8 @@ export default function AdminOffersPage() {
       {showForm && (
         <div className="bg-white rounded-2xl border border-gray-200 p-5 mb-5 shadow-sm">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="font-bold text-gray-900">New Coupon</h2>
-            <button onClick={() => setShowForm(false)}><X size={18} className="text-gray-400" /></button>
+            <h2 className="font-bold text-gray-900">{editingId ? 'Edit Coupon' : 'New Coupon'}</h2>
+            <button onClick={() => { setShowForm(false); setEditingId(null) }}><X size={18} className="text-gray-400" /></button>
           </div>
           <div className="grid sm:grid-cols-2 gap-4 mb-4">
             <div>
@@ -175,11 +248,103 @@ export default function AdminOffersPage() {
               />
             </div>
           </div>
+
+          {/* Order type restriction */}
+          <div className="mb-4">
+            <label className="block text-xs font-semibold text-gray-700 mb-2">Applicable Order Types</label>
+            <div className="flex gap-4">
+              {(['delivery', 'collection'] as const).map((v) => (
+                <label key={v} className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={form.orderTypes.length === 0 || form.orderTypes.includes(v)}
+                    onChange={() => toggleOrderType(v)}
+                    className="rounded border-gray-300 text-red-600 focus:ring-red-400"
+                  />
+                  {v === 'delivery' ? 'Delivery' : 'Collection'}
+                </label>
+              ))}
+            </div>
+            <p className="text-[11px] text-gray-400 mt-1">Leave both checked to allow either order type.</p>
+          </div>
+
+          {/* Category restriction */}
+          <div className="mb-4">
+            <label className="block text-xs font-semibold text-gray-700 mb-2">Applicable Categories</label>
+            {categories.length === 0 ? (
+              <p className="text-xs text-gray-400">No categories found.</p>
+            ) : (
+              <div className="flex flex-wrap gap-3">
+                {categories.map((cat) => (
+                  <label key={cat.slug} className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={form.applicableCategories.includes(cat.slug)}
+                      onChange={() => toggleCategory(cat.slug)}
+                      className="rounded border-gray-300 text-red-600 focus:ring-red-400"
+                    />
+                    {cat.name}
+                  </label>
+                ))}
+              </div>
+            )}
+            <p className="text-[11px] text-gray-400 mt-1">Leave all unchecked to apply to the whole order.</p>
+          </div>
+
+          {/* Combination rules */}
+          <div className="mb-4">
+            <label className="block text-xs font-semibold text-gray-700 mb-2">Can this coupon be combined with other coupons?</label>
+            <div className="flex gap-4 mb-2">
+              <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
+                <input
+                  type="radio" name="combinable"
+                  checked={!form.combinable}
+                  onChange={() => setForm((p) => ({ ...p, combinable: false, combinesWith: [] }))}
+                  className="text-red-600 focus:ring-red-400"
+                />
+                No (Exclusive)
+              </label>
+              <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
+                <input
+                  type="radio" name="combinable"
+                  checked={form.combinable}
+                  onChange={() => setForm((p) => ({ ...p, combinable: true }))}
+                  className="text-red-600 focus:ring-red-400"
+                />
+                Yes
+              </label>
+            </div>
+
+            {form.combinable && (
+              <div className="bg-gray-50 rounded-xl p-3">
+                <p className="text-xs font-semibold text-gray-600 mb-2">Combine With</p>
+                {otherCoupons.length === 0 ? (
+                  <p className="text-xs text-gray-400">No other coupons yet.</p>
+                ) : (
+                  <div className="space-y-1.5">
+                    {otherCoupons.map((c) => (
+                      <label key={c.code} className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={form.combinesWith.includes(c.code)}
+                          onChange={() => toggleCombinesWith(c.code)}
+                          className="rounded border-gray-300 text-red-600 focus:ring-red-400"
+                        />
+                        <span className="font-mono font-bold">{c.code}</span>
+                        {!c.combinable && <span className="text-[11px] text-amber-600">(also needs "{c.code}" set to Yes to actually combine)</span>}
+                      </label>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
           <div className="flex gap-3">
             <button onClick={save} disabled={saving} className="bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white font-bold px-5 py-2 rounded-xl text-sm transition-colors flex items-center gap-2">
-              {saving && <Loader2 size={14} className="animate-spin" />} Create Coupon
+              {saving && <Loader2 size={14} className="animate-spin" />} {editingId ? 'Save Changes' : 'Create Coupon'}
             </button>
-            <button onClick={() => setShowForm(false)} className="bg-gray-100 text-gray-700 font-bold px-5 py-2 rounded-xl text-sm hover:bg-gray-200 transition-colors">Cancel</button>
+            <button onClick={() => { setShowForm(false); setEditingId(null) }} className="bg-gray-100 text-gray-700 font-bold px-5 py-2 rounded-xl text-sm hover:bg-gray-200 transition-colors">Cancel</button>
           </div>
         </div>
       )}
@@ -198,6 +363,9 @@ export default function AdminOffersPage() {
                   <span className="font-black text-gray-900 font-mono text-sm">{c.code}</span>
                 </div>
                 <div className="flex items-center gap-3">
+                  <button onClick={() => openEdit(c)} title="Edit" className="text-gray-400 hover:text-blue-600 transition-colors">
+                    <Pencil size={15} />
+                  </button>
                   <button onClick={() => toggleActive(c)} title={c.active ? 'Deactivate' : 'Activate'}>
                     {c.active
                       ? <ToggleRight size={18} className="text-green-500" />
@@ -213,6 +381,15 @@ export default function AdminOffersPage() {
                 <div>Min order: {formatPrice(c.minOrder)}</div>
                 {c.usageLimit !== null && <div>Usage: {c.usageCount}/{c.usageLimit}</div>}
                 {c.expiresAt && <div>Expires: {new Date(c.expiresAt).toLocaleDateString('en-GB')}</div>}
+                <div>
+                  {c.orderTypes.length === 0 ? 'Delivery & Collection' : c.orderTypes.map((t) => t === 'delivery' ? 'Delivery' : 'Collection').join(' & ')}
+                </div>
+                <div>{c.combinable ? `Combinable with: ${c.combinesWith.length ? c.combinesWith.join(', ') : 'none selected'}` : 'Exclusive (no combining)'}</div>
+                <div>
+                  {c.applicableCategories.length === 0
+                    ? 'Applies to whole order'
+                    : `Applies to: ${c.applicableCategories.map((slug) => categories.find((cat) => cat.slug === slug)?.name ?? slug).join(', ')}`}
+                </div>
               </div>
               {!c.active && (
                 <div className="mt-2 text-xs font-semibold text-gray-400 uppercase tracking-wide">Inactive</div>

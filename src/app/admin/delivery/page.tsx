@@ -1,6 +1,6 @@
 'use client'
 import { useState, useEffect, useCallback } from 'react'
-import { Plus, Pencil, Trash2, X, Loader2, MapPin } from 'lucide-react'
+import { Plus, Pencil, Trash2, X, Loader2, MapPin, Gift } from 'lucide-react'
 import { formatPrice } from '@/lib/utils'
 import toast from 'react-hot-toast'
 
@@ -19,6 +19,8 @@ export default function AdminDeliveryPage() {
   const [radius, setRadius]         = useState('3')
   const [radiusSaving, setRadiusSaving] = useState(false)
   const [restaurantCoords, setRestaurantCoords] = useState({ lat: '', lng: '' })
+  const [freeDeliveryThreshold, setFreeDeliveryThreshold] = useState('0')
+  const [freeDeliverySaving, setFreeDeliverySaving] = useState(false)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -32,6 +34,7 @@ export default function AdminDeliveryPage() {
       setBands(bandsData.bands ?? [])
       setRadius(cfgData.config?.delivery_max_radius_miles ?? '3')
       setRestaurantCoords({ lat: cfgData.config?.biz_map_lat ?? '', lng: cfgData.config?.biz_map_lng ?? '' })
+      setFreeDeliveryThreshold(cfgData.config?.free_delivery_threshold ?? '0')
     } catch { toast.error('Failed to load delivery settings') }
     finally { setLoading(false) }
   }, [])
@@ -49,6 +52,19 @@ export default function AdminDeliveryPage() {
       if (res.ok) toast.success('Delivery radius saved!')
       else toast.error('Failed to save')
     } finally { setRadiusSaving(false) }
+  }
+
+  const saveFreeDeliveryThreshold = async () => {
+    setFreeDeliverySaving(true)
+    try {
+      const res = await fetch('/api/admin/site-config', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ updates: { free_delivery_threshold: freeDeliveryThreshold } }),
+      })
+      if (res.ok) toast.success('Free delivery threshold saved!')
+      else toast.error('Failed to save')
+    } finally { setFreeDeliverySaving(false) }
   }
 
   const openEdit = (band: Band) => {
@@ -122,6 +138,36 @@ export default function AdminDeliveryPage() {
             className="bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white font-bold px-4 py-2 rounded-xl text-sm transition-colors flex items-center gap-2"
           >
             {radiusSaving && <Loader2 size={14} className="animate-spin" />} Save
+          </button>
+        </div>
+      </div>
+
+      {/* Free delivery threshold */}
+      <div className="bg-white rounded-2xl border border-gray-100 p-5 mb-6">
+        <div className="flex items-center gap-2 mb-4">
+          <Gift size={16} className="text-red-500" />
+          <h2 className="font-bold text-gray-900 text-sm">Free Delivery Threshold</h2>
+        </div>
+        <p className="text-xs text-gray-400 mb-4">
+          When a delivery order's subtotal reaches this amount, the delivery fee is automatically waived —
+          no coupon code needed. Set to £0 to turn this off.
+        </p>
+        <div className="flex items-end gap-3">
+          <div>
+            <label className="block text-xs font-semibold text-gray-700 mb-1">Free Delivery Over (£)</label>
+            <input
+              type="number" step="0.01" min="0"
+              value={freeDeliveryThreshold}
+              onChange={(e) => setFreeDeliveryThreshold(e.target.value)}
+              className="w-40 border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-red-400"
+            />
+          </div>
+          <button
+            onClick={saveFreeDeliveryThreshold}
+            disabled={freeDeliverySaving}
+            className="bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white font-bold px-4 py-2 rounded-xl text-sm transition-colors flex items-center gap-2"
+          >
+            {freeDeliverySaving && <Loader2 size={14} className="animate-spin" />} Save
           </button>
         </div>
       </div>

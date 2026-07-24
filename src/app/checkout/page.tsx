@@ -72,7 +72,7 @@ function PaymentForm({ total, orderPayload }: PaymentFormProps) {
 export default function CheckoutPage() {
   const cfg = useSiteConfig()
   const { user, isLoading: authLoading } = useAuth()
-  const { items, couponCode, couponType, deliveryFee, getSubtotal, setDeliveryFee, getEffectiveDiscount } = useCartStore()
+  const { items, appliedCoupons, deliveryFee, getSubtotal, setDeliveryFee, getEffectiveDiscount } = useCartStore()
   const { orderType: homeOrderType, setOrderType: setHomeOrderType } = useOrderType()
 
   const [step, setStep] = useState(1)
@@ -99,15 +99,33 @@ export default function CheckoutPage() {
     phone: user?.phone || '',
     email: user?.email || '',
   })
+
+  // Like homeOrderType above: the account (with its saved addresses/name/
+  // phone/email) loads a moment after mount, so the useState initializers
+  // above almost always miss it — defaulting to the blank "add new address"
+  // form even for a customer with a saved default address, and leaving Your
+  // Details blank even though we already know who they are. Sync once the
+  // real data lands, same "adjust state during render" pattern as the
+  // order-type fix.
+  const [prevUser, setPrevUser] = useState(user)
+  if (user !== prevUser) {
+    setPrevUser(user)
+    if (user?.addresses?.length) {
+      const defaultAddr = user.addresses.find((a) => a.isDefault) ?? user.addresses[0]
+      setSelectedAddressId(defaultAddr.id)
+      setUseNewAddress(false)
+    }
+    if (user) {
+      setCustomerDetails({ name: user.name || '', phone: user.phone || '', email: user.email || '' })
+    }
+  }
   const [timing, setTiming] = useState<'asap' | 'scheduled'>('asap')
   const [scheduledTime, setScheduledTime] = useState('')
   const [zoneError, setZoneError] = useState('')
   const [advancingStep, setAdvancingStep] = useState(false)
 
   const subtotal = getSubtotal()
-  // A freeDelivery coupon only has a real discount value when delivery is
-  // actually being charged — for collection there's no delivery fee to waive.
-  const effectiveDiscount = couponType === 'freeDelivery' && orderType !== 'delivery' ? 0 : getEffectiveDiscount()
+  const effectiveDiscount = getEffectiveDiscount(orderType)
   const total = Math.max(0, subtotal - effectiveDiscount + (orderType === 'delivery' ? deliveryFee : 0))
 
   const resolvedAddress = useNewAddress
@@ -118,7 +136,7 @@ export default function CheckoutPage() {
     const res  = await fetch('/api/delivery/check', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ postcode }),
+      body: JSON.stringify({ postcode, subtotal }),
     })
     return res.json()
   }
@@ -141,6 +159,7 @@ export default function CheckoutPage() {
         if (!result.available) { setZoneError(result.message ?? "Sorry, we don't deliver to that address yet."); return }
         if (subtotal < result.minOrder) { setZoneError(`Minimum order for your area is ${formatPrice(result.minOrder)}`); return }
         setDeliveryFee(result.deliveryFee)
+        if (result.freeDeliveryApplied) toast.success('🎉 Free delivery applied to your order!')
       } finally { setAdvancingStep(false) }
     }
     setStep((s) => Math.min(5, s + 1))
@@ -155,7 +174,7 @@ export default function CheckoutPage() {
     customerPhone: customerDetails.phone,
     deliveryAddress: orderType === 'delivery' ? resolvedAddress : null,
     items,
-    couponCode: couponCode || undefined,
+    couponCodes: appliedCoupons.map((c) => c.code),
     scheduledTime: timing === 'scheduled' ? scheduledTime : null,
   }
 
@@ -436,7 +455,7 @@ export default function CheckoutPage() {
                 )}
                 {effectiveDiscount > 0 && (
                   <div className="flex justify-between text-green-600">
-                    <span>Discount</span><span>-{formatPrice(effectiveDiscount)}</span>
+                    <span>Discount ({appliedCoupons.map((c) => c.code).join(', ')})</span><span>-{formatPrice(effectiveDiscount)}</span>
                   </div>
                 )}
                 <div className="flex justify-between font-bold text-gray-900 text-base border-t border-gray-200 pt-1">

@@ -4,13 +4,19 @@ import { geocodePostcode } from './geocode'
 import { haversineMiles } from './distance'
 
 export type DeliveryResult =
-  | { available: true; distanceMiles: number; minOrder: number; deliveryFee: number }
+  | {
+      available: true; distanceMiles: number; minOrder: number; deliveryFee: number
+      freeDeliveryApplied: boolean; freeDeliveryThreshold: number
+    }
   | { available: false; reason: 'not_found' | 'out_of_range' | 'no_band'; distanceMiles?: number }
 
 // Single source of truth for "can we deliver here, and for how much" — used
 // both by the public postcode-check endpoint (for UI feedback) and by the
 // checkout route (for the actual charge). Money amounts are in pence.
-export async function resolveDelivery(postcode: string): Promise<DeliveryResult> {
+// subtotalPence lets it apply the admin-configured "free delivery over £X"
+// threshold consistently everywhere delivery fee is calculated, rather than
+// leaving that logic to be duplicated (and possibly drift) per caller.
+export async function resolveDelivery(postcode: string, subtotalPence = 0): Promise<DeliveryResult> {
   const coords = await geocodePostcode(postcode)
   if (!coords) return { available: false, reason: 'not_found' }
 
@@ -32,10 +38,15 @@ export async function resolveDelivery(postcode: string): Promise<DeliveryResult>
 
   if (!band) return { available: false, reason: 'no_band', distanceMiles }
 
+  const freeDeliveryThreshold = Math.round((parseFloat(cfg.free_delivery_threshold) || 0) * 100)
+  const freeDeliveryApplied = freeDeliveryThreshold > 0 && subtotalPence >= freeDeliveryThreshold
+
   return {
     available: true,
     distanceMiles,
     minOrder: band.minOrder,
-    deliveryFee: band.deliveryFee,
+    deliveryFee: freeDeliveryApplied ? 0 : band.deliveryFee,
+    freeDeliveryApplied,
+    freeDeliveryThreshold,
   }
 }

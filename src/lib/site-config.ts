@@ -27,6 +27,10 @@ export const DEFAULTS: SiteConfig = {
   biz_map_link:       'https://maps.app.goo.gl/7bKEz5rrXfhDsTY4A',
   google_maps_api_key: '',
   delivery_max_radius_miles: '3',
+  // Delivery fee is automatically waived once the cart subtotal reaches this
+  // amount (pounds). '0' means the feature is off — every order pays the
+  // normal per-band fee.
+  free_delivery_threshold: '0',
 
   // ── Hero ──────────────────────────────────────────────────
   hero_badge:         '🔥 Hot & Fresh Since 2009',

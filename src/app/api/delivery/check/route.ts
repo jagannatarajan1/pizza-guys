@@ -7,12 +7,13 @@ export const dynamic = 'force-dynamic'
 export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => null)
   const postcode = typeof body?.postcode === 'string' ? body.postcode.trim() : ''
+  const subtotalPence = Math.round((Number(body?.subtotal) || 0) * 100)
 
   if (!postcode || !isValidPostcode(postcode)) {
     return NextResponse.json({ error: 'Enter a valid UK postcode (e.g. SW1A 1AA)' }, { status: 400 })
   }
 
-  const result = await resolveDelivery(postcode)
+  const result = await resolveDelivery(postcode, subtotalPence)
 
   if (!result.available) {
     const message = result.reason === 'not_found'
@@ -30,5 +31,7 @@ export async function POST(req: NextRequest) {
     distanceMiles: Math.round(result.distanceMiles * 10) / 10,
     minOrder: result.minOrder / 100,
     deliveryFee: result.deliveryFee / 100,
+    freeDeliveryApplied: result.freeDeliveryApplied,
+    freeDeliveryThreshold: result.freeDeliveryThreshold / 100,
   })
 }

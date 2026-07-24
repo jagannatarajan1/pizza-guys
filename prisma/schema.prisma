@@ -170,6 +170,15 @@ model Coupon {
   usageCount  Int       @default(0) @map("usage_count")
   expiresAt   DateTime? @map("expires_at")
   createdAt   DateTime  @default(now()) @map("created_at")
+  // Empty orderTypes means "valid for both delivery and collection" — avoids
+  // needing a non-empty array default and keeps every existing coupon
+  // unrestricted until an admin explicitly narrows it.
+  orderTypes   String[] @default([]) @map("order_types")
+  combinable   Boolean  @default(false)
+  combinesWith String[] @default([]) @map("combines_with")
+  // Empty means "applies to every item in the cart" — category slugs (e.g.
+  // "pizza", "desserts") that this coupon's discount is restricted to.
+  applicableCategories String[] @default([]) @map("applicable_categories")
 
   @@map("coupons")
 }

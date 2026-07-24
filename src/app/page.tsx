@@ -3,17 +3,18 @@ import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import Image from 'next/image'
 import { motion } from 'framer-motion'
-import { Clock, ChevronRight, Star, Truck, Award, Heart, Zap, Plus, Minus } from 'lucide-react'
+import { Clock, ChevronRight, Star, Truck, Award, Heart, Zap, Plus, Minus, MapPin } from 'lucide-react'
 import HeroBanners from '@/components/HeroBanners'
 import CategoryIcon from '@/components/CategoryIcon'
 import { openingHours } from '@/lib/menu-data'
 
 type LiveCoupon = { code: string; type: string; value: number; description: string }
-import { formatPrice } from '@/lib/utils'
+import { formatPrice, isValidPostcode } from '@/lib/utils'
 import ProductModal from '@/components/ProductModal'
 import type { Product, Category } from '@/lib/types'
 import { useSiteConfig } from '@/context/SiteConfigContext'
 import { useCartStore } from '@/lib/cart-store'
+import { useOrderType } from '@/context/OrderTypeContext'
 import type { ShopStatus } from '@/lib/shop-status'
 
 const fadeUp = {
@@ -105,12 +106,17 @@ function HomeProductCard({ product, badge, onSelect }: { product: Product; badge
 
 export default function HomePage() {
   const cfg = useSiteConfig()
+  const { orderType, setOrderType } = useOrderType()
+  const cartSubtotal = useCartStore((s) => s.getSubtotal())
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null)
   const [popularProducts, setPopularProducts] = useState<Product[]>([])
   const [mealDealProducts, setMealDealProducts] = useState<Product[]>([])
   const [categories, setCategories]           = useState<Category[]>([])
   const [shopStatus, setShopStatus]           = useState<ShopStatus | null>(null)
   const [liveCoupons, setLiveCoupons]   = useState<LiveCoupon[]>([])
+  const [postcode, setPostcode] = useState('')
+  const [checkingDelivery, setCheckingDelivery] = useState(false)
+  const [deliveryResult, setDeliveryResult] = useState<{ available: boolean; message?: string; minOrder?: number; deliveryFee?: number; freeDeliveryApplied?: boolean } | null>(null)
 
   useEffect(() => {
     fetch('/api/menu/products').then((r) => r.json()).then((d) => {
@@ -131,6 +137,29 @@ export default function HomePage() {
   const open       = shopStatus ? shopStatus.isOpen : false
   const todayHours = shopStatus ? shopStatus.todayHours : ''
 
+  const handleDeliveryCheck = async () => {
+    if (!postcode.trim()) return
+    if (!isValidPostcode(postcode)) {
+      setDeliveryResult({ available: false, message: 'Enter a valid UK postcode (e.g. SW1A 1AA)' })
+      return
+    }
+    setCheckingDelivery(true)
+    setDeliveryResult(null)
+    try {
+      const res  = await fetch('/api/delivery/check', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ postcode, subtotal: cartSubtotal }),
+      })
+      const data = await res.json()
+      setDeliveryResult(data)
+    } catch {
+      setDeliveryResult({ available: false, message: 'Something went wrong — please try again' })
+    } finally {
+      setCheckingDelivery(false)
+    }
+  }
+
   return (
     <>
       <ProductModal product={selectedProduct} onClose={() => setSelectedProduct(null)} />
@@ -138,8 +167,103 @@ export default function HomePage() {
       {/* ── HERO BANNERS ─────────────────────────────────── */}
       <HeroBanners />
 
+      {/* ── ORDER TYPE SELECTION ─────────────────────────── */}
+      <section className="max-w-7xl mx-auto px-4 sm:px-6 -mt-8 relative z-10 mb-4">
+        <motion.div
+          initial={{ opacity: 0, y: 24 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.3, duration: 0.5, ease: [0.22,1,0.36,1] }}
+          className="bg-white rounded-2xl shadow-2xl shadow-black/10 p-5 sm:p-6 border border-gray-100"
+        >
+          <h2 className="font-black text-gray-900 mb-4 text-base">How would you like your order?</h2>
+          <div className="grid grid-cols-2 gap-3">
+            {([
+              { value: 'delivery'   as const, label: 'Delivery',   desc: 'To your door',    icon: '🚚', available: shopStatus ? shopStatus.deliveryEnabled   : true },
+              { value: 'collection' as const, label: 'Collection', desc: 'Pick up in-store', icon: '🏪', available: shopStatus ? shopStatus.collectionEnabled : true },
+            ]).map((opt) => {
+              const selected = orderType === opt.value
+              return (
+                <button
+                  key={opt.value}
+                  onClick={() => opt.available && setOrderType(opt.value)}
+                  disabled={!opt.available}
+                  className={`relative p-4 sm:p-5 rounded-2xl border-2 text-left transition-all duration-150 ${
+                    !opt.available
+                      ? 'border-gray-100 bg-gray-50 opacity-50 cursor-not-allowed'
+                      : selected
+                        ? 'border-red-500 bg-red-50'
+                        : 'border-gray-100 hover:border-gray-300 bg-white'
+                  }`}
+                >
+                  {selected && (
+                    <span className="absolute top-2 right-2 w-5 h-5 rounded-full bg-red-500 flex items-center justify-center text-white text-xs font-black">✓</span>
+                  )}
+                  <div className="text-3xl mb-2">{opt.icon}</div>
+                  <div className="font-black text-gray-900 text-sm sm:text-base">{opt.label}</div>
+                  <div className="text-xs text-gray-500 mt-0.5">{opt.available ? opt.desc : 'Currently unavailable'}</div>
+                </button>
+              )
+            })}
+          </div>
+          {orderType && (
+            <motion.p
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: 'auto' }}
+              className="text-xs text-green-600 font-bold mt-3"
+            >
+              ✅ {orderType === 'delivery' ? 'Delivery selected — enter your postcode below' : 'Collection selected — we\'ll have your order ready in 15–20 min'}
+            </motion.p>
+          )}
+        </motion.div>
+      </section>
+
+      {/* ── DELIVERY CHECKER ─────────────────────────────── */}
+      <section className="max-w-7xl mx-auto px-4 sm:px-6 relative z-10">
+        <motion.div
+          initial={{ opacity: 0, y: 24 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.35, duration: 0.5, ease: [0.22,1,0.36,1] }}
+          className="bg-white rounded-2xl shadow-2xl shadow-black/10 p-5 sm:p-6 border border-gray-100"
+        >
+          <h2 className="font-black text-gray-900 mb-3 flex items-center gap-2 text-base">
+            <MapPin size={17} className="text-[#E53935]" /> Check if we deliver to you
+          </h2>
+          <div className="flex gap-2">
+            <input
+              type="text"
+              value={postcode}
+              onChange={(e) => setPostcode(e.target.value.toUpperCase())}
+              onKeyDown={(e) => e.key === 'Enter' && handleDeliveryCheck()}
+              placeholder="Enter postcode e.g. TW18 1AB"
+              className="flex-1 border-2 border-gray-100 rounded-xl px-4 py-3 text-sm font-semibold focus:outline-none focus:border-[#FFD700] transition-colors"
+            />
+            <button
+              onClick={handleDeliveryCheck}
+              disabled={checkingDelivery}
+              className="btn-brand px-5 py-3 rounded-xl text-sm shrink-0 disabled:opacity-60"
+            >
+              {checkingDelivery ? 'Checking…' : 'Check'}
+            </button>
+          </div>
+
+          {deliveryResult && !deliveryResult.available && (
+            <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} className="mt-3 p-3 bg-red-50 text-red-700 rounded-xl text-sm font-semibold flex items-center gap-2">
+              ❌ {(deliveryResult.message ?? "Sorry, we don't deliver to your area yet").replace(/[.!]+$/, '')}. You can still collect in-store!
+            </motion.div>
+          )}
+          {deliveryResult?.available && (
+            <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} className="mt-3 p-3 bg-green-50 text-green-700 rounded-xl text-sm font-semibold flex items-center gap-2">
+              {deliveryResult.freeDeliveryApplied
+                ? <>🎉 We deliver to you — and your order qualifies for free delivery!</>
+                : <>✅ We deliver to you! Fee: {formatPrice(deliveryResult.deliveryFee ?? 0)} · Min order: {formatPrice(deliveryResult.minOrder ?? 0)}</>
+              }
+            </motion.div>
+          )}
+        </motion.div>
+      </section>
+
       {/* ── OPEN STATUS ──────────────────────────────────── */}
-      <section className="max-w-7xl mx-auto px-4 sm:px-6 -mt-8 relative z-10">
+      <section className="max-w-7xl mx-auto px-4 sm:px-6 mt-4">
         {shopStatus && (
           <div className={`inline-flex items-center gap-2.5 px-4 py-2 rounded-full text-sm font-bold ${
             open ? 'bg-green-50 text-green-700' : 'bg-gray-100 text-gray-600'

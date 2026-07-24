@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
 import { verifyToken, AUTH_COOKIE } from '@/lib/auth-utils'
+import type { Coupon } from '@prisma/client'
 
 function adminOnly(req: NextRequest) {
   const token = req.cookies.get(AUTH_COOKIE)?.value
@@ -24,7 +25,7 @@ async function ensureSeeded() {
   if (count === 0) await prisma.coupon.createMany({ data: SEED })
 }
 
-function fmt(c: { id: string; code: string; type: string; value: number; minOrder: number; description: string; active: boolean; usageCount: number; usageLimit: number | null; expiresAt: Date | null; createdAt: Date }) {
+function fmt(c: Coupon) {
   return {
     id: c.id, code: c.code, type: c.type,
     value: c.type === 'fixed' ? c.value / 100 : c.value,
@@ -32,6 +33,10 @@ function fmt(c: { id: string; code: string; type: string; value: number; minOrde
     description: c.description, active: c.active,
     usageCount: c.usageCount, usageLimit: c.usageLimit,
     expiresAt: c.expiresAt,
+    orderTypes: c.orderTypes,
+    combinable: c.combinable,
+    combinesWith: c.combinesWith,
+    applicableCategories: c.applicableCategories,
   }
 }
 
@@ -46,7 +51,7 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   const deny = adminOnly(req)
   if (deny) return deny
-  const { code, type, value, minOrder, description, usageLimit, expiresAt } = await req.json()
+  const { code, type, value, minOrder, description, usageLimit, expiresAt, orderTypes, combinable, combinesWith, applicableCategories } = await req.json()
   if (!code || !type || !description) return NextResponse.json({ error: 'code, type and description required' }, { status: 400 })
   const existing = await prisma.coupon.findUnique({ where: { code: code.toUpperCase() } })
   if (existing) return NextResponse.json({ error: 'Coupon code already exists' }, { status: 409 })
@@ -59,6 +64,10 @@ export async function POST(req: NextRequest) {
       description,
       usageLimit: usageLimit ?? null,
       expiresAt: expiresAt ? new Date(expiresAt) : null,
+      orderTypes: Array.isArray(orderTypes) ? orderTypes : [],
+      combinable: !!combinable,
+      combinesWith: combinable && Array.isArray(combinesWith) ? combinesWith.map((c: string) => c.toUpperCase()) : [],
+      applicableCategories: Array.isArray(applicableCategories) ? applicableCategories : [],
     },
   })
   return NextResponse.json({ coupon: fmt(coupon) }, { status: 201 })

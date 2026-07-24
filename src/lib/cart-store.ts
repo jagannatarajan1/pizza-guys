@@ -17,14 +17,14 @@ export type CartItem = {
   itemTotal: number
 }
 
-type CouponType = 'percentage' | 'fixed' | 'freeDelivery' | ''
+export type CouponType = 'percentage' | 'fixed' | 'freeDelivery' | ''
+export type OrderTypeForPricing = 'delivery' | 'collection'
+
+export type AppliedCoupon = { code: string; type: CouponType; value: number; minOrder: number; applicableCategories: string[] }
 
 type CartStore = {
   items: CartItem[]
-  couponCode: string
-  couponDiscount: number
-  couponType: CouponType
-  couponMinOrder: number
+  appliedCoupons: AppliedCoupon[]
   deliveryFee: number
   addItem: (item: Omit<CartItem, 'cartId'>) => void
   removeItem: (cartId: string) => void
@@ -33,14 +33,19 @@ type CartStore = {
   incrementSimpleProduct: (product: Product) => void
   decrementSimpleProduct: (product: Product) => void
   clearCart: () => void
-  applyCoupon: (code: string, discount: number, type: CouponType, minOrder: number) => void
-  removeCoupon: () => void
+  addCoupon: (coupon: AppliedCoupon) => void
+  removeCoupon: (code: string) => void
+  clearCoupons: () => void
   setDeliveryFee: (fee: number) => void
   getSubtotal: () => number
-  getTotal: () => number
   getItemCount: () => number
   getProductQuantity: (productId: string) => number
-  getEffectiveDiscount: () => number
+  // A freeDelivery coupon's real-money value is whatever the delivery fee
+  // actually is right now (it can change once a postcode/zone is picked at
+  // checkout) and only applies at all for delivery orders — so it's computed
+  // live from the caller's current order type rather than stored as a fixed
+  // amount.
+  getEffectiveDiscount: (orderType: OrderTypeForPricing) => number
 }
 
 function computeItemTotal(product: Product, modifiers: CartItemModifier[], quantity: number): number {
@@ -54,10 +59,7 @@ export const useCartStore = create<CartStore>()(
   persist(
     (set, get) => ({
       items: [],
-      couponCode: '',
-      couponDiscount: 0,
-      couponType: '' as CouponType,
-      couponMinOrder: 0,
+      appliedCoupons: [],
       deliveryFee: 1.99,
 
       addItem: (item) => {
@@ -128,12 +130,17 @@ export const useCartStore = create<CartStore>()(
         }))
       },
 
-      clearCart: () => set({ items: [], couponCode: '', couponDiscount: 0, couponType: '', couponMinOrder: 0 }),
+      clearCart: () => set({ items: [], appliedCoupons: [] }),
 
-      applyCoupon: (code, discount, type, minOrder) =>
-        set({ couponCode: code, couponDiscount: discount, couponType: type, couponMinOrder: minOrder }),
+      addCoupon: (coupon) =>
+        set((state) => ({
+          appliedCoupons: [...state.appliedCoupons.filter((c) => c.code !== coupon.code), coupon],
+        })),
 
-      removeCoupon: () => set({ couponCode: '', couponDiscount: 0, couponType: '', couponMinOrder: 0 }),
+      removeCoupon: (code) =>
+        set((state) => ({ appliedCoupons: state.appliedCoupons.filter((c) => c.code !== code) })),
+
+      clearCoupons: () => set({ appliedCoupons: [] }),
 
       setDeliveryFee: (fee) => set({ deliveryFee: fee }),
 
@@ -141,18 +148,23 @@ export const useCartStore = create<CartStore>()(
         return get().items.reduce((sum, item) => sum + item.itemTotal, 0)
       },
 
-      // A freeDelivery coupon's real-money value is whatever the delivery fee
-      // actually is right now (it can change once a postcode/zone is picked
-      // at checkout), so it's computed live rather than stored as a fixed amount.
-      getEffectiveDiscount: () => {
-        const { couponType, couponDiscount, deliveryFee } = get()
-        return couponType === 'freeDelivery' ? deliveryFee : couponDiscount
-      },
-
-      getTotal: () => {
-        const { deliveryFee } = get()
+      getEffectiveDiscount: (orderType) => {
+        const { appliedCoupons, deliveryFee, items } = get()
         const subtotal = get().getSubtotal()
-        return Math.max(0, subtotal - get().getEffectiveDiscount() + deliveryFee)
+        const raw = appliedCoupons.reduce((sum, c) => {
+          // Category-restricted coupons only discount the matching items'
+          // spend, not the whole cart — mirrors the server's qualifying-
+          // subtotal logic in src/lib/coupons.ts so the two never disagree.
+          const qualifying = c.applicableCategories.length === 0
+            ? subtotal
+            : items.filter((i) => c.applicableCategories.includes(i.product.category)).reduce((s, i) => s + i.itemTotal, 0)
+          if (c.type === 'percentage') return sum + Math.round(qualifying * c.value) / 100
+          if (c.type === 'fixed') return sum + Math.min(c.value, qualifying)
+          if (c.type === 'freeDelivery') return sum + (orderType === 'delivery' ? deliveryFee : 0)
+          return sum
+        }, 0)
+        const cap = subtotal + (orderType === 'delivery' ? deliveryFee : 0)
+        return Math.min(raw, cap)
       },
 
       getItemCount: () => {

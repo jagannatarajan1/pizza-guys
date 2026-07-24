@@ -1,47 +1,37 @@
 import { NextRequest, NextResponse } from 'next/server'
-import prisma from '@/lib/prisma'
+import { validateCouponSet, type CouponCartItem } from '@/lib/coupons'
 
 export async function POST(req: NextRequest) {
-  const { code, subtotal } = await req.json()
-  if (!code) return NextResponse.json({ error: 'Code required' }, { status: 400 })
+  const body = await req.json().catch(() => null)
+  const codes = Array.isArray(body?.codes) ? body.codes : typeof body?.code === 'string' ? [body.code] : []
+  const orderType = body?.orderType === 'collection' ? 'collection' : 'delivery'
+  const deliveryFeePence = Math.round((Number(body?.deliveryFee) || 0) * 100)
 
-  const coupon = await prisma.coupon.findUnique({ where: { code: code.toUpperCase() } })
+  const items: CouponCartItem[] = Array.isArray(body?.items)
+    ? body.items.map((i: { category?: unknown; itemTotal?: unknown }) => ({
+        category: typeof i?.category === 'string' ? i.category : '',
+        itemTotalPence: Math.round((Number(i?.itemTotal) || 0) * 100),
+      }))
+    : []
 
-  if (!coupon || !coupon.active) {
-    return NextResponse.json({ error: 'Invalid or inactive coupon code' }, { status: 404 })
-  }
+  if (codes.length === 0) return NextResponse.json({ error: 'Code required' }, { status: 400 })
 
-  if (coupon.expiresAt && coupon.expiresAt < new Date()) {
-    return NextResponse.json({ error: 'This coupon has expired' }, { status: 400 })
-  }
-
-  if (coupon.usageLimit !== null && coupon.usageCount >= coupon.usageLimit) {
-    return NextResponse.json({ error: 'This coupon has reached its usage limit' }, { status: 400 })
-  }
-
-  const subtotalPence = Math.round(subtotal * 100)
-  if (subtotalPence < coupon.minOrder) {
-    const shortfall = ((coupon.minOrder - subtotalPence) / 100).toFixed(2)
-    return NextResponse.json({
-      error: `Add £${shortfall} more to your order to use this coupon (minimum order £${(coupon.minOrder / 100).toFixed(2)}, before delivery fee)`,
-    }, { status: 400 })
-  }
-
-  let discountPence = 0
-  if (coupon.type === 'percentage') {
-    discountPence = Math.round(subtotalPence * (coupon.value / 100))
-  } else if (coupon.type === 'fixed') {
-    discountPence = Math.min(coupon.value, subtotalPence)
-  }
-  // freeDelivery: discount is applied to deliveryFee on the client
+  const result = await validateCouponSet(codes, items, deliveryFeePence, orderType)
+  if (!result.ok) return NextResponse.json({ error: result.error, code: result.code }, { status: 400 })
 
   return NextResponse.json({
     valid: true,
-    code: coupon.code,
-    type: coupon.type,
-    value: coupon.value,
-    description: coupon.description,
-    discountAmount: discountPence / 100,
-    minOrder: coupon.minOrder / 100,
+    discountAmount: result.discountPence / 100,
+    coupons: result.coupons.map((c) => ({
+      code: c.code,
+      type: c.type,
+      value: c.type === 'fixed' ? c.value / 100 : c.value,
+      description: c.description,
+      minOrder: c.minOrder / 100,
+      orderTypes: c.orderTypes,
+      combinable: c.combinable,
+      combinesWith: c.combinesWith,
+      applicableCategories: c.applicableCategories,
+    })),
   })
 }

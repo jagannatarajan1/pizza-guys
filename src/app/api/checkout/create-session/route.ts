@@ -6,6 +6,7 @@ import { requireAuth, sanitizeStr, validateEmail, validatePhone, getOriginFromRe
 import { fetchSiteConfig } from '@/lib/site-config'
 import { computeShopStatus } from '@/lib/shop-status'
 import { resolveDelivery } from '@/lib/delivery'
+import { validateCouponSet } from '@/lib/coupons'
 
 const MAX_ITEMS    = 50
 const MAX_QUANTITY = 99
@@ -29,7 +30,7 @@ export async function POST(req: NextRequest) {
 
   const {
     orderType, customerName, customerEmail, customerPhone,
-    deliveryAddress, items, couponCode, scheduledTime,
+    deliveryAddress, items, couponCodes, scheduledTime,
   } = body
 
   // ── Basic input validation ──────────────────────────────────────────────────
@@ -68,7 +69,7 @@ export async function POST(req: NextRequest) {
 
   const dbProducts = await prisma.product.findMany({
     where: { id: { in: productIds }, available: true },
-    select: { id: true, name: true, price: true },
+    select: { id: true, name: true, price: true, category: true },
   })
   const productMap = Object.fromEntries(dbProducts.map((p) => [p.id, p]))
 
@@ -77,6 +78,7 @@ export async function POST(req: NextRequest) {
     productId: string; productName: string; quantity: number
     unitPrice: number; modifiers: string; specialInstructions: string; itemTotal: number
   }[] = []
+  const couponItems: { category: string; itemTotalPence: number }[] = []
 
   for (const item of items as CartItem[]) {
     const product = productMap[item.product?.id]
@@ -98,13 +100,14 @@ export async function POST(req: NextRequest) {
       specialInstructions: sanitizeStr(item.specialInstructions, 300),
       itemTotal:           itemTotalPence,
     })
+    couponItems.push({ category: product.category, itemTotalPence })
   }
 
   // ── Delivery fee from distance, never trust the client's postcode/fee ──────
   let serverDeliveryFeePence = 0
   if (orderType === 'delivery') {
     const postcode = typeof deliveryAddress === 'object' ? sanitizeStr(deliveryAddress?.postcode, 10) : ''
-    const delivery = postcode ? await resolveDelivery(postcode) : { available: false as const, reason: 'not_found' as const }
+    const delivery = postcode ? await resolveDelivery(postcode, serverSubtotalPence) : { available: false as const, reason: 'not_found' as const }
     if (!delivery.available) {
       return NextResponse.json({ error: "We can't deliver to that address — please check your postcode" }, { status: 400 })
     }
@@ -115,29 +118,21 @@ export async function POST(req: NextRequest) {
   }
 
   // ── Coupon validation ───────────────────────────────────────────────────────
+  // Never trust client-provided discount amounts — only the codes are used,
+  // everything else (eligibility, combination rules, discount) is recomputed
+  // here from scratch using the same logic the customer-facing preview uses.
   let serverDiscountPence = 0
-  let usedCoupon = null
-  if (couponCode) {
-    const coupon = await prisma.coupon.findFirst({
-      where: {
-        code:   sanitizeStr(couponCode, 50).toUpperCase(),
-        active: true,
-        OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }],
-      },
-    }).catch(() => null)
-
-    // Apply coupon only if usage limit not reached and subtotal meets minimum
-    const withinUsageLimit = !coupon?.usageLimit || coupon.usageCount < coupon.usageLimit
-    if (coupon && withinUsageLimit && serverSubtotalPence >= coupon.minOrder) {
-      if (coupon.type === 'percentage') {
-        serverDiscountPence = Math.round(serverSubtotalPence * coupon.value / 100)
-      } else if (coupon.type === 'fixed') {
-        serverDiscountPence = Math.min(coupon.value, serverSubtotalPence)
-      } else if (coupon.type === 'freeDelivery') {
-        serverDiscountPence = serverDeliveryFeePence
-      }
-      usedCoupon = coupon
+  let usedCoupons: { id: string }[] = []
+  const requestedCodes = Array.isArray(couponCodes)
+    ? couponCodes.filter((c): c is string => typeof c === 'string').map((c) => sanitizeStr(c, 50))
+    : []
+  if (requestedCodes.length > 0) {
+    const result = await validateCouponSet(requestedCodes, couponItems, serverDeliveryFeePence, orderType)
+    if (!result.ok) {
+      return NextResponse.json({ error: result.error }, { status: 400 })
     }
+    serverDiscountPence = result.discountPence
+    usedCoupons = result.coupons
   }
 
   const serverTotalPence = Math.max(0, serverSubtotalPence + serverDeliveryFeePence - serverDiscountPence)
@@ -167,10 +162,10 @@ export async function POST(req: NextRequest) {
     },
   })
 
-  // Increment coupon usage
-  if (usedCoupon) {
-    await prisma.coupon.update({
-      where: { id: usedCoupon.id },
+  // Increment coupon usage for every coupon actually applied
+  if (usedCoupons.length > 0) {
+    await prisma.coupon.updateMany({
+      where: { id: { in: usedCoupons.map((c) => c.id) } },
       data:  { usageCount: { increment: 1 } },
     })
   }
