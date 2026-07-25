@@ -155,9 +155,12 @@ export const useCartStore = create<CartStore>()(
           // Category-restricted coupons only discount the matching items'
           // spend, not the whole cart — mirrors the server's qualifying-
           // subtotal logic in src/lib/coupons.ts so the two never disagree.
-          const qualifying = c.applicableCategories.length === 0
+          // Defaulted because a cart persisted by an older build can still
+          // be sitting in someone's browser without this field.
+          const categories = c.applicableCategories ?? []
+          const qualifying = categories.length === 0
             ? subtotal
-            : items.filter((i) => c.applicableCategories.includes(i.product.category)).reduce((s, i) => s + i.itemTotal, 0)
+            : items.filter((i) => categories.includes(i.product.category)).reduce((s, i) => s + i.itemTotal, 0)
           if (c.type === 'percentage') return sum + Math.round(qualifying * c.value) / 100
           if (c.type === 'fixed') return sum + Math.min(c.value, qualifying)
           if (c.type === 'freeDelivery') return sum + (orderType === 'delivery' ? deliveryFee : 0)
@@ -177,6 +180,31 @@ export const useCartStore = create<CartStore>()(
           .reduce((sum, i) => sum + i.quantity, 0)
       },
     }),
-    { name: 'pizza-guys-cart' }
+    {
+      name: 'pizza-guys-cart',
+      // Carts live in the browser indefinitely, so a shopper can return with
+      // one saved by an older build whose coupon shape has since changed
+      // (single coupon fields, or applied coupons with no category list).
+      // Normalise it on load rather than letting the page crash reading a
+      // field that isn't there.
+      version: 1,
+      migrate: (persisted: unknown) => {
+        const state = (persisted ?? {}) as Record<string, unknown>
+        const raw = Array.isArray(state.appliedCoupons) ? state.appliedCoupons : []
+        return {
+          ...state,
+          appliedCoupons: raw
+            .filter((c): c is Record<string, unknown> => !!c && typeof c === 'object')
+            .map((c) => ({
+              code: String(c.code ?? ''),
+              type: (c.type ?? '') as CouponType,
+              value: Number(c.value ?? 0),
+              minOrder: Number(c.minOrder ?? 0),
+              applicableCategories: Array.isArray(c.applicableCategories) ? c.applicableCategories as string[] : [],
+            }))
+            .filter((c) => c.code),
+        }
+      },
+    }
   )
 )

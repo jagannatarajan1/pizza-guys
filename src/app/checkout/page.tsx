@@ -1,5 +1,5 @@
 'use client'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { Check, MapPin, User, Clock, CreditCard, ShoppingBag, ArrowLeft, ChevronRight, Loader2 } from 'lucide-react'
 import { useCartStore } from '@/lib/cart-store'
@@ -72,7 +72,7 @@ function PaymentForm({ total, orderPayload }: PaymentFormProps) {
 export default function CheckoutPage() {
   const cfg = useSiteConfig()
   const { user, isLoading: authLoading } = useAuth()
-  const { items, appliedCoupons, deliveryFee, getSubtotal, setDeliveryFee, getEffectiveDiscount } = useCartStore()
+  const { items, appliedCoupons, deliveryFee, getSubtotal, setDeliveryFee, getEffectiveDiscount, clearCoupons } = useCartStore()
   const { orderType: homeOrderType, setOrderType: setHomeOrderType } = useOrderType()
 
   const [step, setStep] = useState(1)
@@ -127,6 +127,36 @@ export default function CheckoutPage() {
   const subtotal = getSubtotal()
   const effectiveDiscount = getEffectiveDiscount(orderType)
   const total = Math.max(0, subtotal - effectiveDiscount + (orderType === 'delivery' ? deliveryFee : 0))
+
+  // A coupon the customer picked in the cart may not survive switching order
+  // type here (an admin can mark one delivery-only, and a free-delivery
+  // coupon is worthless on collection). Re-check with the server whenever
+  // the order type changes so an ineligible coupon is dropped up front with
+  // a clear reason, instead of the order being rejected at the Pay step.
+  const appliedCodes = appliedCoupons.map((c) => c.code).join(',')
+  useEffect(() => {
+    if (!appliedCodes) return
+    let cancelled = false
+    fetch('/api/coupons/validate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        codes: appliedCodes.split(','),
+        items: items.map((i) => ({ category: i.product.category, itemTotal: i.itemTotal })),
+        deliveryFee,
+        orderType,
+      }),
+    })
+      .then((r) => r.json().then((d) => ({ ok: r.ok, d })))
+      .then(({ ok, d }) => {
+        if (cancelled || ok) return
+        clearCoupons()
+        toast.error(d.error ?? 'Your coupon isn’t valid for this order type and has been removed')
+      })
+      .catch(() => {})
+    return () => { cancelled = true }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [orderType, appliedCodes])
 
   const resolvedAddress = useNewAddress
     ? newAddress

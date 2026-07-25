@@ -7,12 +7,16 @@ export async function POST(req: NextRequest) {
   const orderType = body?.orderType === 'collection' ? 'collection' : 'delivery'
   const deliveryFeePence = Math.round((Number(body?.deliveryFee) || 0) * 100)
 
-  const items: CouponCartItem[] = Array.isArray(body?.items)
+  // Preferred shape is a per-item list (needed for category-restricted
+  // coupons). Fall back to a plain subtotal so an older page still open in
+  // someone's browser keeps working instead of silently seeing every coupon
+  // rejected for "minimum order not met" against a £0 cart.
+  const items: CouponCartItem[] = Array.isArray(body?.items) && body.items.length > 0
     ? body.items.map((i: { category?: unknown; itemTotal?: unknown }) => ({
         category: typeof i?.category === 'string' ? i.category : '',
         itemTotalPence: Math.round((Number(i?.itemTotal) || 0) * 100),
       }))
-    : []
+    : [{ category: '', itemTotalPence: Math.round((Number(body?.subtotal) || 0) * 100) }]
 
   if (codes.length === 0) return NextResponse.json({ error: 'Code required' }, { status: 400 })
 

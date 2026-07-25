@@ -1,13 +1,15 @@
 'use client'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import Link from 'next/link'
-import { usePathname } from 'next/navigation'
+import { usePathname, useRouter } from 'next/navigation'
 import {
   LayoutDashboard, ShoppingBag, Package, Grid3X3, Settings,
   Tag, Users, Truck, Clock, BarChart2, ChevronLeft, Menu, X,
-  SlidersHorizontal, UserCog, ShieldCheck,
+  SlidersHorizontal, UserCog, ShieldCheck, Bell,
 } from 'lucide-react'
+import toast from 'react-hot-toast'
 import { canAccess, ROLE_LABELS } from '@/lib/roles'
+import { unlockAudio, playNewOrderBeep } from '@/lib/beep'
 
 const NAV = [
   { href: '/admin',            label: 'Dashboard',      icon: LayoutDashboard },
@@ -27,6 +29,7 @@ const NAV = [
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const pathname            = usePathname()
+  const router              = useRouter()
   const [sidebarOpen, setSidebarOpen]           = useState(true)
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false)
   const [role, setRole]                         = useState<string>('admin')
@@ -36,6 +39,48 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       .then((r) => r.json())
       .then((d) => { if (d.user?.role) setRole(d.user.role) })
       .catch(() => {})
+  }, [])
+
+  // New-order alert lives here (not on the Orders page itself) so it fires
+  // no matter which admin page someone is currently looking at — Settings,
+  // Menu, wherever. Beeps and shows a clickable popup; tapping it jumps
+  // straight to Orders.
+  useEffect(() => {
+    unlockAudio()
+    const onFirstClick = () => unlockAudio()
+    window.addEventListener('click', onFirstClick, { once: true })
+
+    const es = new EventSource('/api/admin/orders/stream')
+    es.onmessage = (e) => {
+      let data: { type?: string; orderNumber?: string } = {}
+      try { data = JSON.parse(e.data) } catch { return }
+      if (data.type !== 'new-order') return
+
+      playNewOrderBeep()
+      toast.custom(
+        (t) => (
+          <div
+            onClick={() => { router.push('/admin/orders'); toast.dismiss(t.id) }}
+            className="cursor-pointer bg-white border-2 border-red-500 rounded-2xl shadow-xl p-4 flex items-center gap-3 max-w-sm"
+          >
+            <div className="w-10 h-10 bg-red-600 rounded-xl flex items-center justify-center shrink-0">
+              <Bell size={18} className="text-white" />
+            </div>
+            <div className="min-w-0">
+              <div className="font-black text-gray-900 text-sm">New Order Received!</div>
+              <div className="text-xs text-gray-500 truncate">#{data.orderNumber} — tap to view</div>
+            </div>
+          </div>
+        ),
+        { duration: 10_000 }
+      )
+    }
+
+    return () => {
+      es.close()
+      window.removeEventListener('click', onFirstClick)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   const visibleNav = NAV.filter((item) => canAccess(role, item.href))
