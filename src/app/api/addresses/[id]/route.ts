@@ -1,11 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
-import { verifyToken, AUTH_COOKIE } from '@/lib/auth-utils'
+import { getSessionPayload } from '@/lib/auth-utils'
 import { validatePostcode } from '@/lib/api-guard'
 
 export async function PUT(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
-  const token = req.cookies.get(AUTH_COOKIE)?.value
-  const payload = token ? verifyToken(token) : null
+  const payload = await getSessionPayload(req)
   if (!payload) return NextResponse.json({ error: 'Unauthorised' }, { status: 401 })
 
   const { id } = await ctx.params
@@ -39,8 +38,7 @@ export async function PUT(req: NextRequest, ctx: { params: Promise<{ id: string 
 }
 
 export async function DELETE(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
-  const token = req.cookies.get(AUTH_COOKIE)?.value
-  const payload = token ? verifyToken(token) : null
+  const payload = await getSessionPayload(req)
   if (!payload) return NextResponse.json({ error: 'Unauthorised' }, { status: 401 })
 
   const { id } = await ctx.params

@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { stripe } from '@/lib/stripe-server'
 import prisma from '@/lib/prisma'
 import { generateOrderNumber } from '@/lib/utils'
-import { requireAuth, sanitizeStr, validateEmail, validatePhone, getOriginFromRequest } from '@/lib/api-guard'
+import { requireAuth, sanitizeStr, validateEmail, validatePhone, validatePostcode, getOriginFromRequest } from '@/lib/api-guard'
 import { fetchSiteConfig } from '@/lib/site-config'
 import { computeShopStatus } from '@/lib/shop-status'
 import { resolveDelivery } from '@/lib/delivery'
@@ -20,7 +20,7 @@ type CartItem = {
 
 export async function POST(req: NextRequest) {
   // Must be logged in to place an order
-  const guard = requireAuth(req)
+  const guard = await requireAuth(req)
   if (!guard.ok) return guard.res
   const authUserId = guard.payload.userId
 
@@ -107,8 +107,20 @@ export async function POST(req: NextRequest) {
   let serverDeliveryFeePence = 0
   if (orderType === 'delivery') {
     const postcode = typeof deliveryAddress === 'object' ? sanitizeStr(deliveryAddress?.postcode, 10) : ''
-    const delivery = postcode ? await resolveDelivery(postcode, serverSubtotalPence) : { available: false as const, reason: 'not_found' as const }
+    // Screen the format here so obviously-malformed input fails fast instead of
+    // spending an external lookup that would only ever come back not-found.
+    const delivery = postcode && validatePostcode(postcode)
+      ? await resolveDelivery(postcode, serverSubtotalPence)
+      : { available: false as const, reason: 'not_found' as const }
     if (!delivery.available) {
+      // Never blame the customer's address for our own outage — that turns a
+      // transient lookup failure into a lost order and a confused customer.
+      if (delivery.reason === 'lookup_failed' || delivery.reason === 'misconfigured') {
+        return NextResponse.json(
+          { error: "We couldn't verify your delivery address just now — please try again in a moment" },
+          { status: 503 }
+        )
+      }
       return NextResponse.json({ error: "We can't deliver to that address — please check your postcode" }, { status: 400 })
     }
     if (serverSubtotalPence < delivery.minOrder) {

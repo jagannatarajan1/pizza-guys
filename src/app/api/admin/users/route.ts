@@ -1,10 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
-import { verifyToken, AUTH_COOKIE, hashPassword } from '@/lib/auth-utils'
+import { getSessionPayload, hashPassword } from '@/lib/auth-utils'
 
-function superAdminOnly(req: NextRequest) {
-  const token   = req.cookies.get(AUTH_COOKIE)?.value
-  const payload = token ? verifyToken(token) : null
+async function superAdminOnly(req: NextRequest) {
+  const payload = await getSessionPayload(req)
   if (!payload || payload.role !== 'admin') {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
@@ -15,7 +14,7 @@ export const dynamic = 'force-dynamic'
 
 // List all staff/admin users
 export async function GET(req: NextRequest) {
-  const deny = superAdminOnly(req)
+  const deny = await superAdminOnly(req)
   if (deny) return deny
 
   const users = await prisma.user.findMany({
@@ -29,7 +28,7 @@ export async function GET(req: NextRequest) {
 
 // Create a new staff user
 export async function POST(req: NextRequest) {
-  const deny = superAdminOnly(req)
+  const deny = await superAdminOnly(req)
   if (deny) return deny
 
   const { name, email, password, role } = await req.json()

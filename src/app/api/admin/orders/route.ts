@@ -5,7 +5,7 @@ import { requireViewer } from '@/lib/api-guard'
 export const dynamic = 'force-dynamic'
 
 export async function GET(req: NextRequest) {
-  const guard = requireViewer(req)
+  const guard = await requireViewer(req)
   if (!guard.ok) return guard.res
 
   const { searchParams } = new URL(req.url)

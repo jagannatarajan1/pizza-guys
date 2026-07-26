@@ -1,12 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
-import { verifyToken, AUTH_COOKIE } from '@/lib/auth-utils'
+import { getSessionPayload } from '@/lib/auth-utils'
 import { generateSecret, generateQRCode, generateBackupCodes, hashBackupCodes, verifyTOTP } from '@/lib/totp'
 
 // GET — generate a new secret + QR code (not saved yet)
 export async function GET(req: NextRequest) {
-  const token   = req.cookies.get(AUTH_COOKIE)?.value
-  const payload = token ? verifyToken(token) : null
+  const payload = await getSessionPayload(req)
   if (!payload) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const user = await prisma.user.findUnique({ where: { id: payload.userId } })
@@ -24,8 +23,7 @@ export async function GET(req: NextRequest) {
 
 // POST — confirm the TOTP code works, enable 2FA, return backup codes
 export async function POST(req: NextRequest) {
-  const token   = req.cookies.get(AUTH_COOKIE)?.value
-  const payload = token ? verifyToken(token) : null
+  const payload = await getSessionPayload(req)
   if (!payload) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const { code } = await req.json()
@@ -51,8 +49,7 @@ export async function POST(req: NextRequest) {
 
 // DELETE — disable 2FA (requires valid TOTP)
 export async function DELETE(req: NextRequest) {
-  const token   = req.cookies.get(AUTH_COOKIE)?.value
-  const payload = token ? verifyToken(token) : null
+  const payload = await getSessionPayload(req)
   if (!payload) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const { code } = await req.json()

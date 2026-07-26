@@ -1,10 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
-import { verifyToken, AUTH_COOKIE } from '@/lib/auth-utils'
+import { getSessionPayload } from '@/lib/auth-utils'
 
-function adminOnly(req: NextRequest) {
-  const token = req.cookies.get(AUTH_COOKIE)?.value
-  const payload = token ? verifyToken(token) : null
+async function adminOnly(req: NextRequest) {
+  const payload = await getSessionPayload(req)
   if (!payload || payload.role !== 'admin') {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
@@ -152,7 +151,7 @@ const PRODUCTS = [
 ]
 
 export async function POST(req: NextRequest) {
-  const deny = adminOnly(req)
+  const deny = await adminOnly(req)
   if (deny) return deny
 
   const catCount  = await prisma.category.count()

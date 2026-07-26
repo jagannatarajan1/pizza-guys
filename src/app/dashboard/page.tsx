@@ -44,7 +44,7 @@ type CustomerOrder = {
 function DashboardContent() {
   const router       = useRouter()
   const searchParams = useSearchParams()
-  const { user, isLoading: authLoading, updateProfile, addAddress, updateAddress, deleteAddress, logout } = useAuth()
+  const { user, isLoading: authLoading, updateProfile, addAddress, updateAddress, deleteAddress, logout, setUser } = useAuth()
   const validTabs = ['profile', 'addresses', 'orders', 'payment', 'password']
   const tabParam  = searchParams.get('tab') ?? ''
   const [activeTab, setActiveTab] = useState(validTabs.includes(tabParam) ? tabParam : 'profile')
@@ -71,7 +71,22 @@ function DashboardContent() {
       .finally(() => setOrdersLoading(false))
   }, [activeTab])
   const [pwForm, setPwForm] = useState({ current: '', newPw: '', confirm: '' })
+  const [pwSubmitting, setPwSubmitting] = useState(false)
   const [emailSaving, setEmailSaving] = useState(false)
+  const [changeEmailPassword, setChangeEmailPassword] = useState('')
+  const [emailStep, setEmailStep] = useState<'idle' | 'otp'>('idle')
+  const [otpCode, setOtpCode] = useState('')
+  const [otpSubmitting, setOtpSubmitting] = useState(false)
+  const [otpError, setOtpError] = useState('')
+  const [resendSubmitting, setResendSubmitting] = useState(false)
+
+  const pwChecks = [
+    { label: 'At least 8 characters', met: pwForm.newPw.length >= 8 },
+    { label: 'One uppercase letter', met: /[A-Z]/.test(pwForm.newPw) },
+    { label: 'One lowercase letter', met: /[a-z]/.test(pwForm.newPw) },
+    { label: 'One number', met: /[0-9]/.test(pwForm.newPw) },
+    { label: 'One special character', met: /[^A-Za-z0-9]/.test(pwForm.newPw) },
+  ]
 
   // Redirect must happen in an effect, never during render — calling
   // router.push() directly in the render body also runs during the server's
@@ -97,19 +112,26 @@ function DashboardContent() {
     await updateProfile({ name: profileForm.name, phone: profileForm.phone })
 
     if (emailChanged) {
+      if (!changeEmailPassword) {
+        toast.error('Enter your current password to change your email')
+        return
+      }
       setEmailSaving(true)
       try {
         const res  = await fetch('/api/auth/change-email', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ newEmail: profileForm.email.trim() }),
+          body: JSON.stringify({ newEmail: profileForm.email.trim(), currentPassword: changeEmailPassword }),
         })
         const data = await res.json()
         if (!res.ok) {
           toast.error(data.error ?? 'Could not start email change')
           setProfileForm((p) => ({ ...p, email: user.email })) // revert the unconfirmed value shown in the form
         } else {
-          toast.success(`Check ${profileForm.email} — click the link there to confirm your new email`)
+          toast.success(`We sent a code to ${profileForm.email} — enter it below to confirm`)
+          setEmailStep('otp')
+          setChangeEmailPassword('')
+          return
         }
       } catch {
         toast.error('Could not start email change')
@@ -124,6 +146,53 @@ function DashboardContent() {
     setEditingProfile(false)
   }
 
+  const verifyEmailOtp = async () => {
+    if (otpCode.length !== 6) { setOtpError('Enter the 6-digit code'); return }
+    setOtpSubmitting(true)
+    setOtpError('')
+    try {
+      const res  = await fetch('/api/auth/verify-email-change', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ otp: otpCode }),
+      })
+      const data = await res.json()
+      if (!res.ok) { setOtpError(data.error ?? 'Incorrect code'); return }
+      setUser({ ...user, email: data.email })
+      toast.success('Email updated!')
+      setEmailStep('idle')
+      setOtpCode('')
+      setEditingProfile(false)
+    } catch {
+      setOtpError('Network error — please try again')
+    } finally {
+      setOtpSubmitting(false)
+    }
+  }
+
+  const resendEmailOtp = async () => {
+    setResendSubmitting(true)
+    setOtpError('')
+    try {
+      const res  = await fetch('/api/auth/resend-email-change-otp', { method: 'POST' })
+      const data = await res.json()
+      if (!res.ok) { toast.error(data.error ?? 'Could not resend code'); return }
+      toast.success('New code sent!')
+    } catch {
+      toast.error('Could not resend code')
+    } finally {
+      setResendSubmitting(false)
+    }
+  }
+
+  const cancelEmailChange = () => {
+    setEmailStep('idle')
+    setOtpCode('')
+    setOtpError('')
+    setProfileForm((p) => ({ ...p, email: user.email }))
+    setEditingProfile(false)
+  }
+
   const saveAddress = () => {
     if (!newAddr.postcode || !newAddr.line1 || !newAddr.city) { toast.error('Please fill required fields'); return }
     if (!isValidPostcode(newAddr.postcode)) { toast.error('Enter a valid UK postcode (e.g. SW1A 1AA)'); return }
@@ -133,12 +202,31 @@ function DashboardContent() {
     toast.success('Address saved!')
   }
 
-  const changePassword = () => {
+  const changePassword = async () => {
     if (!pwForm.current || !pwForm.newPw || !pwForm.confirm) { toast.error('Fill all fields'); return }
     if (pwForm.newPw !== pwForm.confirm) { toast.error('Passwords do not match'); return }
-    if (pwForm.newPw.length < 6) { toast.error('Password must be 6+ characters'); return }
-    setPwForm({ current: '', newPw: '', confirm: '' })
-    toast.success('Password updated!')
+    if (pwChecks.some((c) => !c.met)) { toast.error('Your new password does not meet all requirements'); return }
+
+    setPwSubmitting(true)
+    try {
+      const res  = await fetch('/api/auth/change-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          currentPassword: pwForm.current,
+          newPassword: pwForm.newPw,
+          confirmPassword: pwForm.confirm,
+        }),
+      })
+      const data = await res.json()
+      if (!res.ok) { toast.error(data.error ?? 'Could not change password'); return }
+      setPwForm({ current: '', newPw: '', confirm: '' })
+      toast.success("Password updated! You've been signed out on all other devices.")
+    } catch {
+      toast.error('Could not change password')
+    } finally {
+      setPwSubmitting(false)
+    }
   }
 
   return (
@@ -185,11 +273,51 @@ function DashboardContent() {
             <div>
               <div className="flex items-center justify-between mb-5">
                 <h2 className="font-bold text-gray-900">Profile Information</h2>
-                <button onClick={() => setEditingProfile((v) => !v)} className="flex items-center gap-1.5 text-sm text-red-600 font-semibold hover:underline">
-                  <Pencil size={13} /> {editingProfile ? 'Cancel' : 'Edit'}
-                </button>
+                {emailStep !== 'otp' && (
+                  <button onClick={() => setEditingProfile((v) => !v)} className="flex items-center gap-1.5 text-sm text-red-600 font-semibold hover:underline">
+                    <Pencil size={13} /> {editingProfile ? 'Cancel' : 'Edit'}
+                  </button>
+                )}
               </div>
-              {editingProfile ? (
+              {emailStep === 'otp' ? (
+                <div className="max-w-sm">
+                  <p className="text-sm text-gray-600 mb-4">
+                    We sent a 6-digit code to <strong>{profileForm.email}</strong>. Enter it below to confirm your new email.
+                  </p>
+                  <label className="block text-xs font-semibold text-gray-700 mb-1">Verification Code</label>
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    autoComplete="one-time-code"
+                    maxLength={6}
+                    value={otpCode}
+                    onChange={(e) => { setOtpCode(e.target.value.replace(/\D/g, '').slice(0, 6)); setOtpError('') }}
+                    placeholder="123456"
+                    className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-lg tracking-[0.4em] text-center font-bold focus:outline-none focus:border-red-400 mb-1"
+                  />
+                  {otpError && <p className="text-xs text-red-600 mb-3">{otpError}</p>}
+                  <div className="flex items-center gap-4 mt-3">
+                    <button
+                      onClick={verifyEmailOtp}
+                      disabled={otpSubmitting || otpCode.length !== 6}
+                      className="flex items-center gap-2 bg-red-600 hover:bg-red-700 disabled:opacity-60 text-white font-bold px-6 py-2.5 rounded-xl text-sm transition-colors"
+                    >
+                      {otpSubmitting && <Loader2 size={14} className="animate-spin" />}
+                      Verify
+                    </button>
+                    <button
+                      onClick={resendEmailOtp}
+                      disabled={resendSubmitting}
+                      className="text-sm text-red-600 font-semibold hover:underline disabled:opacity-60"
+                    >
+                      {resendSubmitting ? 'Sending…' : 'Resend code'}
+                    </button>
+                  </div>
+                  <button onClick={cancelEmailChange} className="block mt-4 text-xs text-gray-400 hover:text-gray-600">
+                    Cancel email change
+                  </button>
+                </div>
+              ) : editingProfile ? (
                 <div className="space-y-3">
                   {[
                     { key: 'name', label: 'Full Name', type: 'text' },
@@ -205,10 +333,22 @@ function DashboardContent() {
                         className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-red-400"
                       />
                       {f.key === 'email' && profileForm.email.trim().toLowerCase() !== user.email.toLowerCase() && (
-                        <p className="text-xs text-amber-600 mt-1">We'll email a confirmation link to this address — your current email stays active until you click it.</p>
+                        <p className="text-xs text-amber-600 mt-1">We&apos;ll send a verification code to this address — your current email stays active until you confirm it.</p>
                       )}
                     </div>
                   ))}
+                  {profileForm.email.trim().toLowerCase() !== user.email.toLowerCase() && (
+                    <div>
+                      <label className="block text-xs font-semibold text-gray-700 mb-1">Current Password</label>
+                      <input
+                        type="password"
+                        value={changeEmailPassword}
+                        onChange={(e) => setChangeEmailPassword(e.target.value)}
+                        placeholder="Confirm it's you to change your email"
+                        className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-red-400"
+                      />
+                    </div>
+                  )}
                   <button
                     onClick={saveProfile}
                     disabled={emailSaving}
@@ -415,21 +555,37 @@ function DashboardContent() {
               <div className="space-y-3 max-w-sm">
                 {[
                   { key: 'current', label: 'Current Password', placeholder: '••••••••' },
-                  { key: 'newPw', label: 'New Password', placeholder: 'Min 6 characters' },
+                  { key: 'newPw', label: 'New Password', placeholder: 'Min 8 characters' },
                   { key: 'confirm', label: 'Confirm New Password', placeholder: '••••••••' },
                 ].map((f) => (
                   <div key={f.key}>
                     <label className="block text-xs font-semibold text-gray-700 mb-1">{f.label}</label>
                     <input
                       type="password"
+                      autoComplete={f.key === 'current' ? 'current-password' : 'new-password'}
                       value={pwForm[f.key as keyof typeof pwForm]}
                       onChange={(e) => setPwForm((p) => ({ ...p, [f.key]: e.target.value }))}
                       placeholder={f.placeholder}
                       className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-red-400"
                     />
+                    {f.key === 'newPw' && pwForm.newPw.length > 0 && (
+                      <ul className="mt-2 space-y-0.5">
+                        {pwChecks.map((c) => (
+                          <li key={c.label} className={`text-xs flex items-center gap-1.5 ${c.met ? 'text-green-600' : 'text-gray-400'}`}>
+                            <Check size={12} className={c.met ? 'opacity-100' : 'opacity-30'} />
+                            {c.label}
+                          </li>
+                        ))}
+                      </ul>
+                    )}
                   </div>
                 ))}
-                <button onClick={changePassword} className="bg-red-600 hover:bg-red-700 text-white font-bold px-6 py-2.5 rounded-xl text-sm transition-colors">
+                <button
+                  onClick={changePassword}
+                  disabled={pwSubmitting}
+                  className="flex items-center gap-2 bg-red-600 hover:bg-red-700 disabled:opacity-60 text-white font-bold px-6 py-2.5 rounded-xl text-sm transition-colors"
+                >
+                  {pwSubmitting && <Loader2 size={14} className="animate-spin" />}
                   Update Password
                 </button>
               </div>

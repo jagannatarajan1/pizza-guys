@@ -1,10 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
-import { verifyToken, AUTH_COOKIE } from '@/lib/auth-utils'
+import { getSessionPayload } from '@/lib/auth-utils'
 
-function adminOnly(req: NextRequest) {
-  const token = req.cookies.get(AUTH_COOKIE)?.value
-  const payload = token ? verifyToken(token) : null
+async function adminOnly(req: NextRequest) {
+  const payload = await getSessionPayload(req)
   if (!payload || payload.role !== 'admin') {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
@@ -12,7 +11,7 @@ function adminOnly(req: NextRequest) {
 }
 
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const deny = adminOnly(req)
+  const deny = await adminOnly(req)
   if (deny) return deny
   const { id } = await params
   const body    = await req.json()
@@ -25,7 +24,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 // Full edit — updates every editable property of an existing coupon rather
 // than requiring it to be deleted and recreated.
 export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const deny = adminOnly(req)
+  const deny = await adminOnly(req)
   if (deny) return deny
   const { id } = await params
   const { code, type, value, minOrder, description, usageLimit, expiresAt, active, orderTypes, combinable, combinesWith, applicableCategories } = await req.json()
@@ -66,7 +65,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
 }
 
 export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const deny = adminOnly(req)
+  const deny = await adminOnly(req)
   if (deny) return deny
   const { id } = await params
   await prisma.coupon.delete({ where: { id } })

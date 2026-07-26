@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
-import { verifyToken, AUTH_COOKIE } from '@/lib/auth-utils'
+import { getSessionPayload } from '@/lib/auth-utils'
 
 export const dynamic = 'force-dynamic'
 
@@ -41,8 +41,7 @@ export async function GET(
   const imageMap = Object.fromEntries(products.map((p) => [p.id, p.image]))
 
   // Check if the requester is the order owner or an admin/staff/viewer
-  const token   = req.cookies.get(AUTH_COOKIE)?.value
-  const payload = token ? verifyToken(token) : null
+  const payload = await getSessionPayload(req)
   const isOwner = payload?.userId && order.userId === payload.userId
   const isStaff = payload && ['admin', 'staff', 'viewer'].includes(payload.role)
 

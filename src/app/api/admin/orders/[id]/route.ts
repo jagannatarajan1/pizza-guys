@@ -12,7 +12,7 @@ export async function PATCH(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const guard = requireStaff(req)
+  const guard = await requireStaff(req)
   if (!guard.ok) return guard.res
 
   const { id }     = await params

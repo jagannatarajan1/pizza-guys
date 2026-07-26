@@ -4,7 +4,7 @@ import prisma from '@/lib/prisma'
 import { hashPassword } from '@/lib/auth-utils'
 import { sendVerificationEmail } from '@/lib/email'
 import { rateLimit, getClientIp } from '@/lib/rate-limit'
-import { sanitizeStr, validateEmail, validatePhone, getOriginFromRequest } from '@/lib/api-guard'
+import { sanitizeStr, validateEmail, validatePhone, validatePasswordStrength, getOriginFromRequest } from '@/lib/api-guard'
 
 export async function POST(req: NextRequest) {
   const ip = getClientIp(req as unknown as Request)
@@ -25,12 +25,8 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Invalid email address' }, { status: 400 })
   if (!validatePhone(phone))
     return NextResponse.json({ error: 'Invalid phone number' }, { status: 400 })
-  if (password.length < 8 || password.length > 128)
-    return NextResponse.json({ error: 'Password must be 8–128 characters' }, { status: 400 })
-  if (!/[A-Z]/.test(password))
-    return NextResponse.json({ error: 'Password must contain at least one uppercase letter' }, { status: 400 })
-  if (!/[0-9]/.test(password))
-    return NextResponse.json({ error: 'Password must contain at least one number' }, { status: 400 })
+  const strengthError = validatePasswordStrength(password)
+  if (strengthError) return NextResponse.json({ error: strengthError }, { status: 400 })
 
   // If a fully verified account already exists — return ok silently (no enumeration)
   const existingUser = await prisma.user.findUnique({ where: { email } })

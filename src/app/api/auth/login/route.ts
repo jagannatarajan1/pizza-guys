@@ -81,7 +81,7 @@ export async function POST(req: NextRequest) {
 
   // Admin without 2FA → log in but flag that setup is required
   if (ADMIN_ROLES.includes(user.role) && !user.twoFactorEnabled) {
-    const token = signToken({ userId: user.id, email: user.email, role: user.role })
+    const token = signToken({ userId: user.id, email: user.email, role: user.role, tokenVersion: user.tokenVersion })
     const res   = NextResponse.json({
       user: { id: user.id, name: user.name, email: user.email, phone: user.phone, role: user.role, addresses: user.addresses },
       mustSetup2FA: true,
@@ -91,7 +91,7 @@ export async function POST(req: NextRequest) {
   }
 
   // Regular customer → full login immediately
-  const token = signToken({ userId: user.id, email: user.email, role: user.role })
+  const token = signToken({ userId: user.id, email: user.email, role: user.role, tokenVersion: user.tokenVersion })
   const res   = NextResponse.json({
     user: { id: user.id, name: user.name, email: user.email, phone: user.phone, role: user.role, addresses: user.addresses },
   })

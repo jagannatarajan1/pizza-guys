@@ -14,7 +14,7 @@ function fmt(b: { id: string; fromMiles: number; toMiles: number; minOrder: numb
 }
 
 export async function PUT(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
-  const guard = requireAdmin(req)
+  const guard = await requireAdmin(req)
   if (!guard.ok) return guard.res
   const { id } = await ctx.params
 
@@ -31,7 +31,7 @@ export async function PUT(req: NextRequest, ctx: { params: Promise<{ id: string 
 }
 
 export async function DELETE(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
-  const guard = requireAdmin(req)
+  const guard = await requireAdmin(req)
   if (!guard.ok) return guard.res
   const { id } = await ctx.params
   await prisma.deliveryBand.delete({ where: { id } })

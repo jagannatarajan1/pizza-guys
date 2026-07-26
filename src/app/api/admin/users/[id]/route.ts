@@ -1,10 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
-import { verifyToken, AUTH_COOKIE } from '@/lib/auth-utils'
+import { getSessionPayload } from '@/lib/auth-utils'
 
-function superAdminOnly(req: NextRequest) {
-  const token   = req.cookies.get(AUTH_COOKIE)?.value
-  const payload = token ? verifyToken(token) : null
+async function superAdminOnly(req: NextRequest) {
+  const payload = await getSessionPayload(req)
   if (!payload || payload.role !== 'admin') {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
@@ -16,7 +15,7 @@ export async function PATCH(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const payload = superAdminOnly(req)
+  const payload = await superAdminOnly(req)
   if (payload instanceof NextResponse) return payload
 
   const { id }   = await params
@@ -40,7 +39,7 @@ export async function DELETE(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const payload = superAdminOnly(req)
+  const payload = await superAdminOnly(req)
   if (payload instanceof NextResponse) return payload
 
   const { id } = await params

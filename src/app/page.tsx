@@ -116,7 +116,7 @@ export default function HomePage() {
   const [liveCoupons, setLiveCoupons]   = useState<LiveCoupon[]>([])
   const [postcode, setPostcode] = useState('')
   const [checkingDelivery, setCheckingDelivery] = useState(false)
-  const [deliveryResult, setDeliveryResult] = useState<{ available: boolean; message?: string; minOrder?: number; deliveryFee?: number; freeDeliveryApplied?: boolean } | null>(null)
+  const [deliveryResult, setDeliveryResult] = useState<{ available: boolean; message?: string; minOrder?: number; deliveryFee?: number; freeDeliveryApplied?: boolean; retryable?: boolean } | null>(null)
 
   useEffect(() => {
     fetch('/api/menu/products').then((r) => r.json()).then((d) => {
@@ -154,7 +154,7 @@ export default function HomePage() {
       const data = await res.json()
       setDeliveryResult(data)
     } catch {
-      setDeliveryResult({ available: false, message: 'Something went wrong — please try again' })
+      setDeliveryResult({ available: false, retryable: true, message: 'Something went wrong — please try again' })
     } finally {
       setCheckingDelivery(false)
     }
@@ -246,7 +246,14 @@ export default function HomePage() {
             </button>
           </div>
 
-          {deliveryResult && !deliveryResult.available && (
+          {/* A postcode we can't check isn't a postcode we don't deliver to —
+              don't push the customer to collection over a temporary glitch. */}
+          {deliveryResult && !deliveryResult.available && deliveryResult.retryable && (
+            <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} className="mt-3 p-3 bg-amber-50 text-amber-700 rounded-xl text-sm font-semibold flex items-center gap-2">
+              ⚠️ {deliveryResult.message ?? 'Something went wrong — please try again'}
+            </motion.div>
+          )}
+          {deliveryResult && !deliveryResult.available && !deliveryResult.retryable && (
             <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} className="mt-3 p-3 bg-red-50 text-red-700 rounded-xl text-sm font-semibold flex items-center gap-2">
               ❌ {(deliveryResult.message ?? "Sorry, we don't deliver to your area yet").replace(/[.!]+$/, '')}. You can still collect in-store!
             </motion.div>

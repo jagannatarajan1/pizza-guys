@@ -16,14 +16,14 @@ function fmt(b: { id: string; fromMiles: number; toMiles: number; minOrder: numb
 }
 
 export async function GET(req: NextRequest) {
-  const guard = requireAdmin(req)
+  const guard = await requireAdmin(req)
   if (!guard.ok) return guard.res
   const bands = await prisma.deliveryBand.findMany({ orderBy: { fromMiles: 'asc' } })
   return NextResponse.json({ bands: bands.map(fmt) })
 }
 
 export async function POST(req: NextRequest) {
-  const guard = requireAdmin(req)
+  const guard = await requireAdmin(req)
   if (!guard.ok) return guard.res
 
   const { fromMiles, toMiles, minOrder, deliveryFee } = await req.json()

@@ -23,13 +23,55 @@ model User {
   twoFactorSecret      String?   @map("two_factor_secret")
   passwordResetExpires DateTime? @map("password_reset_expires")
   passwordResetToken   String?   @map("password_reset_token")
+  // Bumped on every successful password change/reset. Embedded in each JWT at
+  // sign time — a request is only trusted if its token's value still matches
+  // this column, which is what lets us kill every other session on demand
+  // even though auth itself is a stateless JWT with no server-side session store.
+  tokenVersion         Int       @default(0) @map("token_version")
+  passwordChangedAt    DateTime? @map("password_changed_at")
   pendingEmail         String?   @map("pending_email")
-  pendingEmailToken    String?   @unique @map("pending_email_token")
-  pendingEmailExpires  DateTime? @map("pending_email_expires")
+  // OTP-based email-change verification (replaces the old emailed-link token).
+  pendingEmailOtpHash     String?   @map("pending_email_otp_hash")
+  pendingEmailOtpExpires  DateTime? @map("pending_email_otp_expires")
+  pendingEmailAttempts    Int       @default(0) @map("pending_email_attempts")
   addresses            Address[]
   orders               Order[]
+  passwordHistory      PasswordHistory[]
+  auditLogs            AuditLog[]
 
   @@map("users")
+}
+
+// Last few password hashes for this user, so a "new" password can be checked
+// against recently-used ones and not just the single current password.
+model PasswordHistory {
+  id           String   @id @default(uuid())
+  userId       String   @map("user_id")
+  passwordHash String   @map("password_hash")
+  createdAt    DateTime @default(now()) @map("created_at")
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("password_history")
+}
+
+// Security-relevant account events (password/email changes, failures) kept
+// for auditing — independent of the live User row so history survives even
+// if the account is later deleted.
+model AuditLog {
+  id        String   @id @default(uuid())
+  userId    String?  @map("user_id")
+  email     String?
+  action    String
+  detail    String   @default("")
+  ip        String?
+  userAgent String?  @map("user_agent")
+  createdAt DateTime @default(now()) @map("created_at")
+  user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([action])
+  @@map("audit_logs")
 }
 
 model PendingRegistration {

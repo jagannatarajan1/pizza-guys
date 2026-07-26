@@ -6,7 +6,7 @@ import { createEventStream } from '@/lib/sse'
 export const dynamic = 'force-dynamic'
 
 export async function GET(req: NextRequest) {
-  const guard = requireViewer(req)
+  const guard = await requireViewer(req)
   if (!guard.ok) return guard.res
 
   return createEventStream((send) => {

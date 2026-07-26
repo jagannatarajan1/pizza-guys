@@ -41,7 +41,7 @@ export async function GET(req: NextRequest) {
   await prisma.pendingRegistration.delete({ where: { id: pending.id } })
 
   // Auto-login
-  const sessionToken = signToken({ userId: user.id, email: user.email, role: user.role })
+  const sessionToken = signToken({ userId: user.id, email: user.email, role: user.role, tokenVersion: user.tokenVersion })
   const res = NextResponse.json({ ok: true, redirectTo: '/dashboard?verified=1' })
   setAuthCookie(res, sessionToken)
   return res

@@ -1,11 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
-import { verifyToken, AUTH_COOKIE } from '@/lib/auth-utils'
+import { getSessionPayload } from '@/lib/auth-utils'
 import type { Coupon } from '@prisma/client'
 
-function adminOnly(req: NextRequest) {
-  const token = req.cookies.get(AUTH_COOKIE)?.value
-  const payload = token ? verifyToken(token) : null
+async function adminOnly(req: NextRequest) {
+  const payload = await getSessionPayload(req)
   if (!payload || payload.role !== 'admin') {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
@@ -41,7 +40,7 @@ function fmt(c: Coupon) {
 }
 
 export async function GET(req: NextRequest) {
-  const deny = adminOnly(req)
+  const deny = await adminOnly(req)
   if (deny) return deny
   await ensureSeeded()
   const coupons = await prisma.coupon.findMany({ orderBy: { createdAt: 'desc' } })
@@ -49,7 +48,7 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  const deny = adminOnly(req)
+  const deny = await adminOnly(req)
   if (deny) return deny
   const { code, type, value, minOrder, description, usageLimit, expiresAt, orderTypes, combinable, combinesWith, applicableCategories } = await req.json()
   if (!code || !type || !description) return NextResponse.json({ error: 'code, type and description required' }, { status: 400 })

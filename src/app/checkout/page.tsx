@@ -190,6 +190,11 @@ export default function CheckoutPage() {
         if (subtotal < result.minOrder) { setZoneError(`Minimum order for your area is ${formatPrice(result.minOrder)}`); return }
         setDeliveryFee(result.deliveryFee)
         if (result.freeDeliveryApplied) toast.success('🎉 Free delivery applied to your order!')
+      } catch {
+        // Without this the rejection escapes the click handler and the customer
+        // is left on the same step with no explanation at all.
+        setZoneError("We couldn't check your postcode just now — please try again in a moment")
+        return
       } finally { setAdvancingStep(false) }
     }
     setStep((s) => Math.min(5, s + 1))

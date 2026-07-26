@@ -6,8 +6,10 @@ export function generateOrderNumber(): string {
   return `PG${Date.now().toString().slice(-6)}`
 }
 
-// Standard UK postcode format (e.g. "SW1A 1AA", "M1 1AE", "B33 8TH") — kept
-// in sync with the server-side check in src/lib/api-guard.ts.
+// Standard UK postcode format (e.g. "SW1A 1AA", "M1 1AE", "B33 8TH"), space
+// optional. Single source of truth — api-guard's validatePostcode delegates
+// here so a server request can never be judged by a different rule than the
+// one the customer's browser already applied.
 export function isValidPostcode(postcode: string): boolean {
   return /^[A-Z]{1,2}\d[A-Z\d]?\s*\d[A-Z]{2}$/i.test(postcode.trim())
 }

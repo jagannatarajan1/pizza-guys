@@ -63,7 +63,7 @@ export async function POST(req: NextRequest) {
   }
 
   // Issue full session token
-  const sessionToken = signToken({ userId: user.id, email: user.email, role: user.role })
+  const sessionToken = signToken({ userId: user.id, email: user.email, role: user.role, tokenVersion: user.tokenVersion })
   const res = NextResponse.json({
     user: { id: user.id, name: user.name, email: user.email, phone: user.phone, role: user.role, addresses: user.addresses },
   })

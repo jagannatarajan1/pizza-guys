@@ -34,11 +34,24 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false)
   const [role, setRole]                         = useState<string>('admin')
 
+  // The proxy only checks that the cookie's signature is valid, which is
+  // deliberately an optimistic check. A session revoked server-side (someone
+  // changed their password elsewhere) still renders this shell, so confirm the
+  // session is genuinely live here and bounce to login rather than leaving
+  // staff on a panel where every request silently fails.
   useEffect(() => {
     fetch('/api/auth/me')
       .then((r) => r.json())
-      .then((d) => { if (d.user?.role) setRole(d.user.role) })
+      .then((d) => {
+        const liveRole = d.user?.role
+        if (!liveRole || !['admin', 'staff', 'viewer'].includes(liveRole)) {
+          router.replace(`/login?redirect=${encodeURIComponent(pathname)}`)
+          return
+        }
+        setRole(liveRole)
+      })
       .catch(() => {})
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   // New-order alert lives here (not on the Orders page itself) so it fires

@@ -16,6 +16,15 @@ export async function POST(req: NextRequest) {
   const result = await resolveDelivery(postcode, subtotalPence)
 
   if (!result.available) {
+    // A lookup outage is our fault, not a bad address — say so honestly and
+    // answer 503 so the UI can invite a retry instead of telling someone with
+    // a perfectly good postcode that we don't deliver to them.
+    if (result.reason === 'lookup_failed' || result.reason === 'misconfigured') {
+      return NextResponse.json(
+        { available: false, retryable: true, message: "We couldn't check your postcode just now — please try again in a moment" },
+        { status: 503 }
+      )
+    }
     const message = result.reason === 'not_found'
       ? "We couldn't recognise that postcode — please double-check it"
       : "Sorry, that's outside our delivery area"

@@ -108,25 +108,103 @@ export async function sendVerificationEmail(to: string, name: string, token: str
   })
 }
 
-export async function sendEmailChangeVerification(to: string, name: string, token: string, baseUrl?: string) {
-  const cfg     = await fetchSiteConfig()
-  const url     = `${resolveBase(baseUrl)}/verify-email-change?token=${token}`
-  const primary = cfg.theme_primary || '#E53935'
+// Shows a 6-digit code prominently rather than a link — the new email-change
+// flow is verified in-app (the user is already logged in and switches back
+// to the browser tab to type the code) rather than by clicking through.
+function codeBlock(code: string, accent: string) {
+  return `
+    <div style="background:#f4f4f5;border-radius:12px;padding:20px;text-align:center;margin:20px 0">
+      <span style="font-size:32px;font-weight:900;letter-spacing:8px;color:${accent}">${code}</span>
+    </div>
+  `
+}
+
+export async function sendEmailChangeOtp(to: string, name: string, otp: string, expiryMinutes: number) {
+  const cfg      = await fetchSiteConfig()
+  const dark     = cfg.theme_dark || '#111111'
   const fromAddr = process.env.EMAIL_FROM ?? `${cfg.biz_name || 'Pizza Guys'} <${process.env.SMTP_USER}>`
 
   const body = `
     <h1 style="font-size:22px;font-weight:900;color:#111;margin:0 0 8px">Confirm your new email</h1>
     <p style="color:#555;font-size:15px;line-height:1.6;margin:0 0 8px">Hi <strong>${name}</strong>,</p>
-    <p style="color:#555;font-size:15px;line-height:1.6;margin:0 0 20px">You asked to change the email address on your account to this one. Click below to confirm — your old email stays active until you do.</p>
-    ${btn(url, 'Confirm new email', primary)}
-    ${fallbackLink(url)}
-    <p style="color:#bbb;font-size:12px;margin:24px 0 0;padding-top:16px;border-top:1px solid #eee">This link expires in 24 hours. If you didn't request this change, you can safely ignore this email — your account email will not change.</p>
+    <p style="color:#555;font-size:15px;line-height:1.6;margin:0 0 8px">Enter this code to confirm this is your new ${cfg.biz_name || 'Pizza Guys'} email address:</p>
+    ${codeBlock(otp, dark)}
+    <p style="color:#bbb;font-size:12px;margin:24px 0 0;padding-top:16px;border-top:1px solid #eee">This code expires in ${expiryMinutes} minutes and can only be used once. If you didn't request this change, you can safely ignore this email — your account email will not change.</p>
   `
 
   return getTransport().sendMail({
     from:    fromAddr,
     to,
-    subject: `Confirm your new ${cfg.biz_name || 'Pizza Guys'} email address`,
+    subject: `Your ${cfg.biz_name || 'Pizza Guys'} email verification code`,
+    html:    emailShell(cfg, body),
+  })
+}
+
+// Sent to the OLD address once the change is complete — the one place someone
+// who didn't request this would actually see it happen.
+export async function sendEmailChangedOldAddressNotice(to: string, name: string, newEmail: string, baseUrl?: string) {
+  const cfg      = await fetchSiteConfig()
+  const url      = `${resolveBase(baseUrl)}/forgot-password`
+  const primary  = cfg.theme_primary || '#E53935'
+  const fromAddr = process.env.EMAIL_FROM ?? `${cfg.biz_name || 'Pizza Guys'} <${process.env.SMTP_USER}>`
+
+  const body = `
+    <h1 style="font-size:22px;font-weight:900;color:#111;margin:0 0 8px">Your email address was changed</h1>
+    <p style="color:#555;font-size:15px;line-height:1.6;margin:0 0 8px">Hi <strong>${name}</strong>,</p>
+    <p style="color:#555;font-size:15px;line-height:1.6;margin:0 0 20px">The email address on your account was just changed from this address to <strong>${newEmail}</strong>. If you made this change, no action is needed.</p>
+    <p style="color:#555;font-size:15px;line-height:1.6;margin:0 0 8px">If you didn't make this change, secure your account now:</p>
+    ${btn(url, 'Reset my password', primary)}
+    ${fallbackLink(url)}
+  `
+
+  return getTransport().sendMail({
+    from:    fromAddr,
+    to,
+    subject: `Your ${cfg.biz_name || 'Pizza Guys'} email address was changed`,
+    html:    emailShell(cfg, body),
+  })
+}
+
+// Sent to the NEW address once it's live — confirms the switch actually happened.
+export async function sendEmailChangeConfirmedNewAddress(to: string, name: string) {
+  const cfg      = await fetchSiteConfig()
+  const fromAddr = process.env.EMAIL_FROM ?? `${cfg.biz_name || 'Pizza Guys'} <${process.env.SMTP_USER}>`
+
+  const body = `
+    <h1 style="font-size:22px;font-weight:900;color:#111;margin:0 0 8px">This is now your account email</h1>
+    <p style="color:#555;font-size:15px;line-height:1.6;margin:0 0 8px">Hi <strong>${name}</strong>,</p>
+    <p style="color:#555;font-size:15px;line-height:1.6;margin:0 0 20px">This address has been verified and is now the email on your ${cfg.biz_name || 'Pizza Guys'} account. Order updates and receipts will be sent here from now on.</p>
+  `
+
+  return getTransport().sendMail({
+    from:    fromAddr,
+    to,
+    subject: `You're all set — email updated on ${cfg.biz_name || 'Pizza Guys'}`,
+    html:    emailShell(cfg, body),
+  })
+}
+
+// Sent after any successful password change (self-service or via reset link)
+// so an account owner finds out even if they weren't the one who did it.
+export async function sendPasswordChangedEmail(to: string, name: string, baseUrl?: string) {
+  const cfg      = await fetchSiteConfig()
+  const url      = `${resolveBase(baseUrl)}/forgot-password`
+  const primary  = cfg.theme_primary || '#E53935'
+  const fromAddr = process.env.EMAIL_FROM ?? `${cfg.biz_name || 'Pizza Guys'} <${process.env.SMTP_USER}>`
+
+  const body = `
+    <h1 style="font-size:22px;font-weight:900;color:#111;margin:0 0 8px">Your password was changed</h1>
+    <p style="color:#555;font-size:15px;line-height:1.6;margin:0 0 8px">Hi <strong>${name}</strong>,</p>
+    <p style="color:#555;font-size:15px;line-height:1.6;margin:0 0 20px">The password on your ${cfg.biz_name || 'Pizza Guys'} account was just changed, and you've been signed out on every other device — they'll need to log in again with the new password.</p>
+    <p style="color:#555;font-size:15px;line-height:1.6;margin:0 0 8px">If you didn't make this change, reset your password immediately:</p>
+    ${btn(url, 'Reset my password', primary)}
+    ${fallbackLink(url)}
+  `
+
+  return getTransport().sendMail({
+    from:    fromAddr,
+    to,
+    subject: `Your ${cfg.biz_name || 'Pizza Guys'} password was changed`,
     html:    emailShell(cfg, body),
   })
 }
