@@ -1,48 +1,76 @@
-'use client'
-import { useState, useEffect } from 'react'
-import Link from 'next/link'
-import Image from 'next/image'
-import { motion } from 'framer-motion'
-import { Clock, ChevronRight, Star, Truck, Award, Heart, Zap, Plus, Minus, MapPin } from 'lucide-react'
-import HeroBanners from '@/components/HeroBanners'
-import CategoryIcon from '@/components/CategoryIcon'
-import { openingHours } from '@/lib/menu-data'
+"use client";
+import { useState, useEffect } from "react";
+import Link from "next/link";
+import Image from "next/image";
+import { motion } from "framer-motion";
+import {
+  Clock,
+  ChevronRight,
+  Star,
+  Truck,
+  Award,
+  Heart,
+  Zap,
+  Plus,
+  Minus,
+  MapPin,
+} from "lucide-react";
+import HeroBanners from "@/components/HeroBanners";
+import CategoryIcon from "@/components/CategoryIcon";
+import { openingHours } from "@/lib/menu-data";
 
-type LiveCoupon = { code: string; type: string; value: number; description: string }
-import { formatPrice, isValidPostcode } from '@/lib/utils'
-import ProductModal from '@/components/ProductModal'
-import type { Product, Category } from '@/lib/types'
-import { useSiteConfig } from '@/context/SiteConfigContext'
-import { useCartStore } from '@/lib/cart-store'
-import { useOrderType } from '@/context/OrderTypeContext'
-import type { ShopStatus } from '@/lib/shop-status'
+type LiveCoupon = {
+  code: string;
+  type: string;
+  value: number;
+  description: string;
+};
+import { formatPrice, isValidPostcode } from "@/lib/utils";
+import ProductModal from "@/components/ProductModal";
+import type { Product, Category } from "@/lib/types";
+import { useSiteConfig } from "@/context/SiteConfigContext";
+import { useCartStore } from "@/lib/cart-store";
+import { useOrderType } from "@/context/OrderTypeContext";
+import type { ShopStatus } from "@/lib/shop-status";
 
 const fadeUp = {
   hidden: { opacity: 0, y: 32 },
-  show:   { opacity: 1, y: 0, transition: { duration: 0.55, ease: 'easeOut' as const } },
-}
+  show: {
+    opacity: 1,
+    y: 0,
+    transition: { duration: 0.55, ease: "easeOut" as const },
+  },
+};
 
 const stagger = {
   hidden: {},
-  show:   { transition: { staggerChildren: 0.08 } },
-}
+  show: { transition: { staggerChildren: 0.08 } },
+};
 
-function HomeProductCard({ product, badge, onSelect }: { product: Product; badge: string; onSelect: (p: Product) => void }) {
-  const incrementSimpleProduct = useCartStore((s) => s.incrementSimpleProduct)
-  const decrementSimpleProduct = useCartStore((s) => s.decrementSimpleProduct)
-  const quantity = useCartStore((s) => s.getProductQuantity(product.id))
-  const hasModifiers = product.modifiers.length > 0
+function HomeProductCard({
+  product,
+  badge,
+  onSelect,
+}: {
+  product: Product;
+  badge: string;
+  onSelect: (p: Product) => void;
+}) {
+  const incrementSimpleProduct = useCartStore((s) => s.incrementSimpleProduct);
+  const decrementSimpleProduct = useCartStore((s) => s.decrementSimpleProduct);
+  const quantity = useCartStore((s) => s.getProductQuantity(product.id));
+  const hasModifiers = product.modifiers.length > 0;
 
   const handleQuickAction = (e: React.MouseEvent) => {
-    e.stopPropagation()
-    if (hasModifiers) onSelect(product)
-    else incrementSimpleProduct(product)
-  }
+    e.stopPropagation();
+    if (hasModifiers) onSelect(product);
+    else incrementSimpleProduct(product);
+  };
 
   const handleDecrement = (e: React.MouseEvent) => {
-    e.stopPropagation()
-    decrementSimpleProduct(product)
-  }
+    e.stopPropagation();
+    decrementSimpleProduct(product);
+  };
 
   return (
     <motion.div
@@ -63,13 +91,23 @@ function HomeProductCard({ product, badge, onSelect }: { product: Product; badge
         </div>
       </div>
       <div className="p-3">
-        <h3 className="font-black text-gray-900 text-sm mb-2 line-clamp-1">{product.name}</h3>
+        <h3 className="font-black text-gray-900 text-sm mb-2 line-clamp-1">
+          {product.name}
+        </h3>
         <div className="flex items-center justify-between gap-2">
           <span className="font-black text-gray-900 text-sm">
-            {hasModifiers ? `From ${formatPrice(product.price)}` : formatPrice(product.price)}
+            {hasModifiers
+              ? `From ${formatPrice(product.price)}`
+              : formatPrice(product.price)}
           </span>
           {quantity > 0 && !hasModifiers ? (
-            <div className="shrink-0 flex items-center gap-1.5 rounded-full h-7 px-1" style={{ background: 'var(--brand-accent)', color: 'var(--brand-dark)' }}>
+            <div
+              className="shrink-0 flex items-center gap-1.5 rounded-full h-7 px-1"
+              style={{
+                background: "var(--brand-accent)",
+                color: "var(--brand-dark)",
+              }}
+            >
               <button
                 onClick={handleDecrement}
                 aria-label={`Remove one ${product.name}`}
@@ -77,7 +115,9 @@ function HomeProductCard({ product, badge, onSelect }: { product: Product; badge
               >
                 <Minus size={12} strokeWidth={3} />
               </button>
-              <span className="font-black text-xs min-w-[1ch] text-center">{quantity}</span>
+              <span className="font-black text-xs min-w-[1ch] text-center">
+                {quantity}
+              </span>
               <button
                 onClick={handleQuickAction}
                 aria-label={`Add another ${product.name}`}
@@ -89,11 +129,24 @@ function HomeProductCard({ product, badge, onSelect }: { product: Product; badge
           ) : (
             <button
               onClick={handleQuickAction}
-              aria-label={quantity > 0 ? `${quantity} in cart, add another` : `Add ${product.name}`}
+              aria-label={
+                quantity > 0
+                  ? `${quantity} in cart, add another`
+                  : `Add ${product.name}`
+              }
               className={`shrink-0 flex items-center justify-center font-black transition-colors ${
-                quantity > 0 ? 'h-7 min-w-7 px-2 rounded-full text-xs' : 'w-7 h-7 rounded-full'
+                quantity > 0
+                  ? "h-7 min-w-7 px-2 rounded-full text-xs"
+                  : "w-7 h-7 rounded-full"
               }`}
-              style={quantity > 0 ? { background: 'var(--brand-accent)', color: 'var(--brand-dark)' } : { background: 'var(--brand-dark)', color: '#fff' }}
+              style={
+                quantity > 0
+                  ? {
+                      background: "var(--brand-accent)",
+                      color: "var(--brand-dark)",
+                    }
+                  : { background: "var(--brand-dark)", color: "#fff" }
+              }
             >
               {quantity > 0 ? quantity : <Plus size={14} strokeWidth={3} />}
             </button>
@@ -101,68 +154,101 @@ function HomeProductCard({ product, badge, onSelect }: { product: Product; badge
         </div>
       </div>
     </motion.div>
-  )
+  );
 }
 
 export default function HomePage() {
-  const cfg = useSiteConfig()
-  const { orderType, setOrderType } = useOrderType()
-  const cartSubtotal = useCartStore((s) => s.getSubtotal())
-  const [selectedProduct, setSelectedProduct] = useState<Product | null>(null)
-  const [popularProducts, setPopularProducts] = useState<Product[]>([])
-  const [mealDealProducts, setMealDealProducts] = useState<Product[]>([])
-  const [categories, setCategories]           = useState<Category[]>([])
-  const [shopStatus, setShopStatus]           = useState<ShopStatus | null>(null)
-  const [liveCoupons, setLiveCoupons]   = useState<LiveCoupon[]>([])
-  const [postcode, setPostcode] = useState('')
-  const [checkingDelivery, setCheckingDelivery] = useState(false)
-  const [deliveryResult, setDeliveryResult] = useState<{ available: boolean; message?: string; minOrder?: number; deliveryFee?: number; freeDeliveryApplied?: boolean; retryable?: boolean } | null>(null)
+  const cfg = useSiteConfig();
+  const { orderType, setOrderType } = useOrderType();
+  const cartSubtotal = useCartStore((s) => s.getSubtotal());
+  const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
+  const [popularProducts, setPopularProducts] = useState<Product[]>([]);
+  const [mealDealProducts, setMealDealProducts] = useState<Product[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [shopStatus, setShopStatus] = useState<ShopStatus | null>(null);
+  const [liveCoupons, setLiveCoupons] = useState<LiveCoupon[]>([]);
+  const [postcode, setPostcode] = useState("");
+  const [checkingDelivery, setCheckingDelivery] = useState(false);
+  const [deliveryResult, setDeliveryResult] = useState<{
+    available: boolean;
+    message?: string;
+    minOrder?: number;
+    deliveryFee?: number;
+    freeDeliveryApplied?: boolean;
+    retryable?: boolean;
+  } | null>(null);
 
   useEffect(() => {
-    fetch('/api/menu/products').then((r) => r.json()).then((d) => {
-      setPopularProducts((d.products ?? []).filter((p: Product) => p.popular))
-      setMealDealProducts((d.products ?? []).filter((p: Product) => p.category === 'pizza-meal'))
-    })
-    fetch('/api/menu/categories').then((r) => r.json()).then((d) => {
-      setCategories(d.categories ?? [])
-    })
-    fetch('/api/shop-status').then((r) => r.json()).then((d: ShopStatus) => {
-      setShopStatus(d)
-    }).catch(() => {})
-    fetch('/api/coupons').then((r) => r.json()).then((d) => {
-      setLiveCoupons(d.coupons ?? [])
-    }).catch(() => {})
-  }, [])
+    fetch("/api/menu/products")
+      .then((r) => r.json())
+      .then((d) => {
+        setPopularProducts(
+          (d.products ?? []).filter((p: Product) => p.popular),
+        );
+        setMealDealProducts(
+          (d.products ?? []).filter(
+            (p: Product) => p.category === "pizza-meal",
+          ),
+        );
+      });
+    fetch("/api/menu/categories")
+      .then((r) => r.json())
+      .then((d) => {
+        setCategories(d.categories ?? []);
+      });
+    fetch("/api/shop-status")
+      .then((r) => r.json())
+      .then((d: ShopStatus) => {
+        setShopStatus(d);
+      })
+      .catch(() => {});
+    fetch("/api/coupons")
+      .then((r) => r.json())
+      .then((d) => {
+        setLiveCoupons(d.coupons ?? []);
+      })
+      .catch(() => {});
+  }, []);
 
-  const open       = shopStatus ? shopStatus.isOpen : false
-  const todayHours = shopStatus ? shopStatus.todayHours : ''
+  const open = shopStatus ? shopStatus.isOpen : false;
+  const todayHours = shopStatus ? shopStatus.todayHours : "";
 
   const handleDeliveryCheck = async () => {
-    if (!postcode.trim()) return
+    if (!postcode.trim()) return;
     if (!isValidPostcode(postcode)) {
-      setDeliveryResult({ available: false, message: 'Enter a valid UK postcode (e.g. SW1A 1AA)' })
-      return
+      setDeliveryResult({
+        available: false,
+        message: "Enter a valid UK postcode (e.g. SW1A 1AA)",
+      });
+      return;
     }
-    setCheckingDelivery(true)
-    setDeliveryResult(null)
+    setCheckingDelivery(true);
+    setDeliveryResult(null);
     try {
-      const res  = await fetch('/api/delivery/check', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+      const res = await fetch("/api/delivery/check", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ postcode, subtotal: cartSubtotal }),
-      })
-      const data = await res.json()
-      setDeliveryResult(data)
+      });
+      const data = await res.json();
+      setDeliveryResult(data);
     } catch {
-      setDeliveryResult({ available: false, retryable: true, message: 'Something went wrong — please try again' })
+      setDeliveryResult({
+        available: false,
+        retryable: true,
+        message: "Something went wrong — please try again",
+      });
     } finally {
-      setCheckingDelivery(false)
+      setCheckingDelivery(false);
     }
-  }
+  };
 
   return (
     <>
-      <ProductModal product={selectedProduct} onClose={() => setSelectedProduct(null)} />
+      <ProductModal
+        product={selectedProduct}
+        onClose={() => setSelectedProduct(null)}
+      />
 
       {/* ── HERO BANNERS ─────────────────────────────────── */}
       <HeroBanners />
@@ -172,16 +258,30 @@ export default function HomePage() {
         <motion.div
           initial={{ opacity: 0, y: 24 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.3, duration: 0.5, ease: [0.22,1,0.36,1] }}
+          transition={{ delay: 0.3, duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
           className="bg-white rounded-2xl shadow-2xl shadow-black/10 p-5 sm:p-6 border border-gray-100"
         >
-          <h2 className="font-black text-gray-900 mb-4 text-base">How would you like your order?</h2>
+          <h2 className="font-black text-gray-900 mb-4 text-base">
+            How would you like your order?
+          </h2>
           <div className="grid grid-cols-2 gap-3">
-            {([
-              { value: 'delivery'   as const, label: 'Delivery',   desc: 'To your door',    icon: '🚚', available: shopStatus ? shopStatus.deliveryEnabled   : true },
-              { value: 'collection' as const, label: 'Collection', desc: 'Pick up in-store', icon: '🏪', available: shopStatus ? shopStatus.collectionEnabled : true },
-            ]).map((opt) => {
-              const selected = orderType === opt.value
+            {[
+              {
+                value: "delivery" as const,
+                label: "Delivery",
+                desc: "To your door",
+                icon: "🚚",
+                available: shopStatus ? shopStatus.deliveryEnabled : true,
+              },
+              {
+                value: "collection" as const,
+                label: "Collection",
+                desc: "Pick up in-store",
+                icon: "🏪",
+                available: shopStatus ? shopStatus.collectionEnabled : true,
+              },
+            ].map((opt) => {
+              const selected = orderType === opt.value;
               return (
                 <button
                   key={opt.value}
@@ -189,29 +289,38 @@ export default function HomePage() {
                   disabled={!opt.available}
                   className={`relative p-4 sm:p-5 rounded-2xl border-2 text-left transition-all duration-150 ${
                     !opt.available
-                      ? 'border-gray-100 bg-gray-50 opacity-50 cursor-not-allowed'
+                      ? "border-gray-100 bg-gray-50 opacity-50 cursor-not-allowed"
                       : selected
-                        ? 'border-red-500 bg-red-50'
-                        : 'border-gray-100 hover:border-gray-300 bg-white'
+                        ? "border-red-500 bg-red-50"
+                        : "border-gray-100 hover:border-gray-300 bg-white"
                   }`}
                 >
                   {selected && (
-                    <span className="absolute top-2 right-2 w-5 h-5 rounded-full bg-red-500 flex items-center justify-center text-white text-xs font-black">✓</span>
+                    <span className="absolute top-2 right-2 w-5 h-5 rounded-full bg-red-500 flex items-center justify-center text-white text-xs font-black">
+                      ✓
+                    </span>
                   )}
                   <div className="text-3xl mb-2">{opt.icon}</div>
-                  <div className="font-black text-gray-900 text-sm sm:text-base">{opt.label}</div>
-                  <div className="text-xs text-gray-500 mt-0.5">{opt.available ? opt.desc : 'Currently unavailable'}</div>
+                  <div className="font-black text-gray-900 text-sm sm:text-base">
+                    {opt.label}
+                  </div>
+                  <div className="text-xs text-gray-500 mt-0.5">
+                    {opt.available ? opt.desc : "Currently unavailable"}
+                  </div>
                 </button>
-              )
+              );
             })}
           </div>
           {orderType && (
             <motion.p
               initial={{ opacity: 0, height: 0 }}
-              animate={{ opacity: 1, height: 'auto' }}
+              animate={{ opacity: 1, height: "auto" }}
               className="text-xs text-green-600 font-bold mt-3"
             >
-              ✅ {orderType === 'delivery' ? 'Delivery selected — enter your postcode below' : 'Collection selected — we\'ll have your order ready in 15–20 min'}
+              ✅{" "}
+              {orderType === "delivery"
+                ? "Delivery selected — enter your postcode below"
+                : "Collection selected — we'll have your order ready in 15–20 min"}
             </motion.p>
           )}
         </motion.div>
@@ -222,18 +331,19 @@ export default function HomePage() {
         <motion.div
           initial={{ opacity: 0, y: 24 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.35, duration: 0.5, ease: [0.22,1,0.36,1] }}
+          transition={{ delay: 0.35, duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
           className="bg-white rounded-2xl shadow-2xl shadow-black/10 p-5 sm:p-6 border border-gray-100"
         >
           <h2 className="font-black text-gray-900 mb-3 flex items-center gap-2 text-base">
-            <MapPin size={17} className="text-[#E53935]" /> Check if we deliver to you
+            <MapPin size={17} className="text-[#E53935]" /> Check if we deliver
+            to you
           </h2>
           <div className="flex gap-2">
             <input
               type="text"
               value={postcode}
               onChange={(e) => setPostcode(e.target.value.toUpperCase())}
-              onKeyDown={(e) => e.key === 'Enter' && handleDeliveryCheck()}
+              onKeyDown={(e) => e.key === "Enter" && handleDeliveryCheck()}
               placeholder="Enter postcode e.g. TW18 1AB"
               className="flex-1 border-2 border-gray-100 rounded-xl px-4 py-3 text-sm font-semibold focus:outline-none focus:border-[#FFD700] transition-colors"
             />
@@ -242,28 +352,59 @@ export default function HomePage() {
               disabled={checkingDelivery}
               className="btn-brand px-5 py-3 rounded-xl text-sm shrink-0 disabled:opacity-60"
             >
-              {checkingDelivery ? 'Checking…' : 'Check'}
+              {checkingDelivery ? "Checking…" : "Check"}
             </button>
           </div>
 
           {/* A postcode we can't check isn't a postcode we don't deliver to —
               don't push the customer to collection over a temporary glitch. */}
-          {deliveryResult && !deliveryResult.available && deliveryResult.retryable && (
-            <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} className="mt-3 p-3 bg-amber-50 text-amber-700 rounded-xl text-sm font-semibold flex items-center gap-2">
-              ⚠️ {deliveryResult.message ?? 'Something went wrong — please try again'}
-            </motion.div>
-          )}
-          {deliveryResult && !deliveryResult.available && !deliveryResult.retryable && (
-            <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} className="mt-3 p-3 bg-red-50 text-red-700 rounded-xl text-sm font-semibold flex items-center gap-2">
-              ❌ {(deliveryResult.message ?? "Sorry, we don't deliver to your area yet").replace(/[.!]+$/, '')}. You can still collect in-store!
-            </motion.div>
-          )}
+          {deliveryResult &&
+            !deliveryResult.available &&
+            deliveryResult.retryable && (
+              <motion.div
+                initial={{ opacity: 0, y: -8 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="mt-3 p-3 bg-amber-50 text-amber-700 rounded-xl text-sm font-semibold flex items-center gap-2"
+              >
+                ⚠️{" "}
+                {deliveryResult.message ??
+                  "Something went wrong — please try again"}
+              </motion.div>
+            )}
+          {deliveryResult &&
+            !deliveryResult.available &&
+            !deliveryResult.retryable && (
+              <motion.div
+                initial={{ opacity: 0, y: -8 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="mt-3 p-3 bg-red-50 text-red-700 rounded-xl text-sm font-semibold flex items-center gap-2"
+              >
+                ❌{" "}
+                {(
+                  deliveryResult.message ??
+                  "Sorry, we don't deliver to your area yet"
+                ).replace(/[.!]+$/, "")}
+                . You can still collect in-store!
+              </motion.div>
+            )}
           {deliveryResult?.available && (
-            <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} className="mt-3 p-3 bg-green-50 text-green-700 rounded-xl text-sm font-semibold flex items-center gap-2">
-              {deliveryResult.freeDeliveryApplied
-                ? <>🎉 We deliver to you — and your order qualifies for free delivery!</>
-                : <>✅ We deliver to you! Fee: {formatPrice(deliveryResult.deliveryFee ?? 0)} · Min order: {formatPrice(deliveryResult.minOrder ?? 0)}</>
-              }
+            <motion.div
+              initial={{ opacity: 0, y: -8 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="mt-3 p-3 bg-green-50 text-green-700 rounded-xl text-sm font-semibold flex items-center gap-2"
+            >
+              {deliveryResult.freeDeliveryApplied ? (
+                <>
+                  🎉 We deliver to you — and your order qualifies for free
+                  delivery!
+                </>
+              ) : (
+                <>
+                  ✅ We deliver to you! Fee:{" "}
+                  {formatPrice(deliveryResult.deliveryFee ?? 0)} · Min order:{" "}
+                  {formatPrice(deliveryResult.minOrder ?? 0)}
+                </>
+              )}
             </motion.div>
           )}
         </motion.div>
@@ -272,10 +413,14 @@ export default function HomePage() {
       {/* ── OPEN STATUS ──────────────────────────────────── */}
       <section className="max-w-7xl mx-auto px-4 sm:px-6 mt-4">
         {shopStatus && (
-          <div className={`inline-flex items-center gap-2.5 px-4 py-2 rounded-full text-sm font-bold ${
-            open ? 'bg-green-50 text-green-700' : 'bg-gray-100 text-gray-600'
-          }`}>
-            <span className={`w-2 h-2 rounded-full ${open ? 'bg-green-500 pulse-dot' : 'bg-gray-400'}`} />
+          <div
+            className={`inline-flex items-center gap-2.5 px-4 py-2 rounded-full text-sm font-bold ${
+              open ? "bg-green-50 text-green-700" : "bg-gray-100 text-gray-600"
+            }`}
+          >
+            <span
+              className={`w-2 h-2 rounded-full ${open ? "bg-green-500 pulse-dot" : "bg-gray-400"}`}
+            />
             {open ? `We're Open · ${shopStatus.message}` : shopStatus.message}
           </div>
         )}
@@ -285,10 +430,17 @@ export default function HomePage() {
       <section className="max-w-7xl mx-auto px-4 sm:px-6 mt-14">
         <div className="flex items-center justify-between mb-6">
           <div>
-            <h2 className="text-2xl sm:text-3xl font-black text-gray-900">Browse Menu</h2>
-            <p className="text-gray-500 text-sm mt-1">Find what you&apos;re craving</p>
+            <h2 className="text-2xl sm:text-3xl font-black text-gray-900">
+              Browse Menu
+            </h2>
+            <p className="text-gray-500 text-sm mt-1">
+              Find what you&apos;re craving
+            </p>
           </div>
-          <Link href="/menu" className="text-[#E53935] font-bold text-sm hover:underline flex items-center gap-1">
+          <Link
+            href="/menu"
+            className="text-[#E53935] font-bold text-sm hover:underline flex items-center gap-1"
+          >
             View All <ChevronRight size={14} />
           </Link>
         </div>
@@ -297,27 +449,32 @@ export default function HomePage() {
           variants={stagger}
           initial="hidden"
           whileInView="show"
-          viewport={{ once: true, margin: '-60px' }}
+          viewport={{ once: true, margin: "-60px" }}
           className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-6 gap-3"
         >
-          {categories.filter((c) => c.visible).slice(0, 6).map((cat) => (
-            <motion.div key={cat.id} variants={fadeUp}>
-              <Link
-                href={`/menu?category=${cat.slug}`}
-                className="flex flex-col items-center gap-2 p-4 bg-white rounded-2xl border-2 border-gray-100 hover:border-[#FFD700] hover:shadow-lg hover:shadow-yellow-100 transition-all duration-200 group card-hover"
-              >
-                <CategoryIcon
-                  slug={cat.slug}
-                  icon={cat.icon}
-                  image={cat.image}
-                  size={48}
-                  className="w-12 h-12 rounded-xl group-hover:scale-110 transition-transform duration-200"
-                  emojiClassName="text-3xl group-hover:scale-110 transition-transform duration-200"
-                />
-                <span className="text-xs font-bold text-gray-700 text-center leading-tight">{cat.name}</span>
-              </Link>
-            </motion.div>
-          ))}
+          {categories
+            .filter((c) => c.visible)
+            .slice(0, 6)
+            .map((cat) => (
+              <motion.div key={cat.id} variants={fadeUp}>
+                <Link
+                  href={`/menu?category=${cat.slug}`}
+                  className="flex flex-col items-center gap-2 p-4 bg-white rounded-2xl border-2 border-gray-100 hover:border-[#FFD700] hover:shadow-lg hover:shadow-yellow-100 transition-all duration-200 group card-hover"
+                >
+                  <CategoryIcon
+                    slug={cat.slug}
+                    icon={cat.icon}
+                    image={cat.image}
+                    size={48}
+                    className="w-12 h-12 rounded-xl group-hover:scale-110 transition-transform duration-200"
+                    emojiClassName="text-3xl group-hover:scale-110 transition-transform duration-200"
+                  />
+                  <span className="text-xs font-bold text-gray-700 text-center leading-tight">
+                    {cat.name}
+                  </span>
+                </Link>
+              </motion.div>
+            ))}
         </motion.div>
       </section>
 
@@ -325,10 +482,17 @@ export default function HomePage() {
       <section className="max-w-7xl mx-auto px-4 sm:px-6 mt-16">
         <div className="flex items-center justify-between mb-6">
           <div>
-            <h2 className="text-2xl sm:text-3xl font-black text-gray-900">Special Offers</h2>
-            <p className="text-gray-500 text-sm mt-1">Save more with our exclusive deals</p>
+            <h2 className="text-2xl sm:text-3xl font-black text-gray-900">
+              Special Offers
+            </h2>
+            <p className="text-gray-500 text-sm mt-1">
+              Save more with our exclusive deals
+            </p>
           </div>
-          <Link href="/offers" className="text-[#E53935] font-bold text-sm hover:underline flex items-center gap-1">
+          <Link
+            href="/offers"
+            className="text-[#E53935] font-bold text-sm hover:underline flex items-center gap-1"
+          >
             All Offers <ChevronRight size={14} />
           </Link>
         </div>
@@ -337,7 +501,7 @@ export default function HomePage() {
           variants={stagger}
           initial="hidden"
           whileInView="show"
-          viewport={{ once: true, margin: '-60px' }}
+          viewport={{ once: true, margin: "-60px" }}
           className="grid grid-cols-1 sm:grid-cols-3 gap-4"
         >
           {liveCoupons.map((coupon) => (
@@ -351,14 +515,18 @@ export default function HomePage() {
               <div className="absolute right-8 bottom-0 w-20 h-20 bg-[#FFD700]/5 rounded-full -mb-10" />
               <div className="relative">
                 <div className="text-3xl font-black text-[#FFD700] mb-2">
-                  {coupon.type === 'percentage' && `${coupon.value}% OFF`}
-                  {coupon.type === 'fixed'       && `£${coupon.value} OFF`}
-                  {coupon.type === 'freeDelivery' && 'FREE DELIVERY'}
+                  {coupon.type === "percentage" && `${coupon.value}% OFF`}
+                  {coupon.type === "fixed" && `£${coupon.value} OFF`}
+                  {coupon.type === "freeDelivery" && "FREE DELIVERY"}
                 </div>
-                <p className="text-gray-400 text-sm mb-4">{coupon.description}</p>
+                <p className="text-gray-400 text-sm mb-4">
+                  {coupon.description}
+                </p>
                 <div className="inline-flex items-center gap-2 bg-[#FFD700]/15 border border-[#FFD700]/30 rounded-lg px-3 py-1.5">
                   <span className="text-xs text-gray-400">Code:</span>
-                  <span className="font-black text-[#FFD700] tracking-wider">{coupon.code}</span>
+                  <span className="font-black text-[#FFD700] tracking-wider">
+                    {coupon.code}
+                  </span>
                 </div>
               </div>
             </motion.div>
@@ -370,10 +538,17 @@ export default function HomePage() {
       <section className="max-w-7xl mx-auto px-4 sm:px-6 mt-16">
         <div className="flex items-center justify-between mb-6">
           <div>
-            <h2 className="text-2xl sm:text-3xl font-black text-gray-900">Meal Deals</h2>
-            <p className="text-gray-500 text-sm mt-1">Great value combos for one or the whole family</p>
+            <h2 className="text-2xl sm:text-3xl font-black text-gray-900">
+              Meal Deals
+            </h2>
+            <p className="text-gray-500 text-sm mt-1">
+              Great value combos for one or the whole family
+            </p>
           </div>
-          <Link href="/menu?category=pizza-meal" className="text-[#E53935] font-bold text-sm hover:underline flex items-center gap-1">
+          <Link
+            href="/menu?category=pizza-meal"
+            className="text-[#E53935] font-bold text-sm hover:underline flex items-center gap-1"
+          >
             See All <ChevronRight size={14} />
           </Link>
         </div>
@@ -382,11 +557,16 @@ export default function HomePage() {
           variants={stagger}
           initial="hidden"
           whileInView="show"
-          viewport={{ once: true, margin: '-60px' }}
+          viewport={{ once: true, margin: "-60px" }}
           className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4"
         >
           {mealDealProducts.slice(0, 8).map((product) => (
-            <HomeProductCard key={product.id} product={product} badge="Meal Deal" onSelect={setSelectedProduct} />
+            <HomeProductCard
+              key={product.id}
+              product={product}
+              badge="Meal Deal"
+              onSelect={setSelectedProduct}
+            />
           ))}
         </motion.div>
       </section>
@@ -395,10 +575,17 @@ export default function HomePage() {
       <section className="max-w-7xl mx-auto px-4 sm:px-6 mt-16">
         <div className="flex items-center justify-between mb-6">
           <div>
-            <h2 className="text-2xl sm:text-3xl font-black text-gray-900">Most Popular</h2>
-            <p className="text-gray-500 text-sm mt-1">Our customers can&apos;t get enough of these</p>
+            <h2 className="text-2xl sm:text-3xl font-black text-gray-900">
+              Most Popular
+            </h2>
+            <p className="text-gray-500 text-sm mt-1">
+              Our customers can&apos;t get enough of these
+            </p>
           </div>
-          <Link href="/menu" className="text-[#E53935] font-bold text-sm hover:underline flex items-center gap-1">
+          <Link
+            href="/menu"
+            className="text-[#E53935] font-bold text-sm hover:underline flex items-center gap-1"
+          >
             See All <ChevronRight size={14} />
           </Link>
         </div>
@@ -407,11 +594,16 @@ export default function HomePage() {
           variants={stagger}
           initial="hidden"
           whileInView="show"
-          viewport={{ once: true, margin: '-60px' }}
+          viewport={{ once: true, margin: "-60px" }}
           className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4"
         >
           {popularProducts.slice(0, 8).map((product) => (
-            <HomeProductCard key={product.id} product={product} badge="Popular" onSelect={setSelectedProduct} />
+            <HomeProductCard
+              key={product.id}
+              product={product}
+              badge="Popular"
+              onSelect={setSelectedProduct}
+            />
           ))}
         </motion.div>
       </section>
@@ -419,30 +611,58 @@ export default function HomePage() {
       {/* ── WHY US ──────────────────────────────────────── */}
       <section className="max-w-7xl mx-auto px-4 sm:px-6 mt-16">
         <div className="text-center mb-8">
-          <h2 className="text-2xl sm:text-3xl font-black text-gray-900">Why Choose Pizza Guys?</h2>
+          <h2 className="text-2xl sm:text-3xl font-black text-gray-900">
+            Why Choose Pizza Guys?
+          </h2>
         </div>
         <motion.div
           variants={stagger}
           initial="hidden"
           whileInView="show"
-          viewport={{ once: true, margin: '-60px' }}
+          viewport={{ once: true, margin: "-60px" }}
           className="grid grid-cols-2 lg:grid-cols-4 gap-4"
         >
           {[
-            { icon: <Zap size={26} className="text-[#FFD700]" />, bg: 'bg-yellow-50',  title: 'Lightning Fast',    desc: '30–45 min average delivery' },
-            { icon: <Star size={26} className="text-[#E53935]" fill="#E53935" />, bg: 'bg-red-50',    title: 'Top Rated',        desc: '4.8★ from 2,000+ reviews'  },
-            { icon: <Heart size={26} className="text-pink-500" />,                bg: 'bg-pink-50',   title: 'Fresh Every Day',  desc: 'Made fresh to order'        },
-            { icon: <Award size={26} className="text-[#27AE60]" />,               bg: 'bg-green-50',  title: 'Since 2009',       desc: 'Trusted by local families'  },
+            {
+              icon: <Zap size={26} className="text-[#FFD700]" />,
+              bg: "bg-yellow-50",
+              title: "Lightning Fast",
+              desc: "30–45 min average delivery",
+            },
+            {
+              icon: (
+                <Star size={26} className="text-[#E53935]" fill="#E53935" />
+              ),
+              bg: "bg-red-50",
+              title: "Top Rated",
+              desc: "4.8★ from 2,000+ reviews",
+            },
+            {
+              icon: <Heart size={26} className="text-pink-500" />,
+              bg: "bg-pink-50",
+              title: "Fresh Every Day",
+              desc: "Made fresh to order",
+            },
+            {
+              icon: <Award size={26} className="text-[#27AE60]" />,
+              bg: "bg-green-50",
+              title: "Since 2009",
+              desc: "Trusted by local families",
+            },
           ].map((item) => (
             <motion.div
               key={item.title}
               variants={fadeUp}
               className="bg-white rounded-2xl p-5 sm:p-6 text-center border-2 border-gray-100 hover:border-[#FFD700] hover:shadow-lg hover:shadow-yellow-100 transition-all duration-200"
             >
-              <div className={`${item.bg} w-12 h-12 rounded-xl flex items-center justify-center mx-auto mb-3`}>
+              <div
+                className={`${item.bg} w-12 h-12 rounded-xl flex items-center justify-center mx-auto mb-3`}
+              >
                 {item.icon}
               </div>
-              <h3 className="font-black text-gray-900 mb-1 text-sm sm:text-base">{item.title}</h3>
+              <h3 className="font-black text-gray-900 mb-1 text-sm sm:text-base">
+                {item.title}
+              </h3>
               <p className="text-gray-500 text-xs sm:text-sm">{item.desc}</p>
             </motion.div>
           ))}
@@ -463,18 +683,29 @@ export default function HomePage() {
 
           <div className="flex flex-col sm:flex-row gap-8 items-start">
             <div className="flex-1">
-              <h2 className="text-2xl sm:text-3xl font-black mb-2">Opening Hours</h2>
-              <p className="text-gray-400 text-sm mb-4">Order online any time — we&apos;ll confirm when we&apos;re open</p>
-              <div className={`inline-flex items-center gap-2 px-4 py-2 rounded-full text-sm font-bold ${
-                open
-                  ? 'bg-green-500/15 text-green-400 border border-green-500/20'
-                  : 'bg-red-500/15 text-red-400 border border-red-500/20'
-              }`}>
-                <span className={`w-2 h-2 rounded-full ${open ? 'bg-green-400 pulse-dot' : 'bg-red-400'}`} />
-                {open ? 'Open Now' : 'Currently Closed'}
+              <h2 className="text-2xl sm:text-3xl font-black mb-2">
+                Opening Hours
+              </h2>
+              <p className="text-gray-400 text-sm mb-4">
+                Order online any time — we&apos;ll confirm when we&apos;re open
+              </p>
+              <div
+                className={`inline-flex items-center gap-2 px-4 py-2 rounded-full text-sm font-bold ${
+                  open
+                    ? "bg-green-500/15 text-green-400 border border-green-500/20"
+                    : "bg-red-500/15 text-red-400 border border-red-500/20"
+                }`}
+              >
+                <span
+                  className={`w-2 h-2 rounded-full ${open ? "bg-green-400 pulse-dot" : "bg-red-400"}`}
+                />
+                {open ? "Open Now" : "Currently Closed"}
               </div>
               <div className="mt-6">
-                <Link href="/menu" className="btn-brand inline-flex items-center gap-2 px-6 py-3 rounded-xl text-sm">
+                <Link
+                  href="/menu"
+                  className="btn-brand inline-flex items-center gap-2 px-6 py-3 rounded-xl text-sm"
+                >
                   Order Now <ChevronRight size={15} />
                 </Link>
               </div>
@@ -482,11 +713,14 @@ export default function HomePage() {
             <div className="grid grid-cols-2 gap-x-8 gap-y-2 text-sm w-full sm:w-auto">
               {openingHours.map((h) => (
                 <div key={h.day} className="flex gap-4 items-center">
-                  <span className="text-gray-500 w-10 shrink-0 text-xs">{h.day.slice(0, 3)}</span>
+                  <span className="text-gray-500 w-10 shrink-0 text-xs">
+                    {h.day.slice(0, 3)}
+                  </span>
                   <span className="font-bold text-gray-200 text-xs">
-                    {(cfg[`hours_${h.day.slice(0,3).toLowerCase()}_closed`] === 'true')
-                      ? 'Closed'
-                      : `${cfg[`hours_${h.day.slice(0,3).toLowerCase()}_open`] || h.open}–${cfg[`hours_${h.day.slice(0,3).toLowerCase()}_close`] || h.close}`}
+                    {cfg[`hours_${h.day.slice(0, 3).toLowerCase()}_closed`] ===
+                    "true"
+                      ? "Closed"
+                      : `${cfg[`hours_${h.day.slice(0, 3).toLowerCase()}_open`] || h.open}–${cfg[`hours_${h.day.slice(0, 3).toLowerCase()}_close`] || h.close}`}
                   </span>
                 </div>
               ))}
@@ -495,5 +729,5 @@ export default function HomePage() {
         </motion.div>
       </section>
     </>
-  )
+  );
 }
