@@ -115,9 +115,19 @@ export async function POST(req: NextRequest) {
     if (!delivery.available) {
       // Never blame the customer's address for our own outage — that turns a
       // transient lookup failure into a lost order and a confused customer.
+      // A distance with no matching fee band is the same kind of our-fault
+      // gap (e.g. bands only configured from 1 mile up, so the shop's own
+      // 0-mile address falls through) — it is never the customer's postcode
+      // at fault, so it must never be told to "check your postcode".
       if (delivery.reason === 'lookup_failed' || delivery.reason === 'misconfigured') {
         return NextResponse.json(
           { error: "We couldn't verify your delivery address just now — please try again in a moment" },
+          { status: 503 }
+        )
+      }
+      if (delivery.reason === 'no_band') {
+        return NextResponse.json(
+          { error: "We're having trouble calculating delivery pricing for your area — please try again shortly, or call us to place your order" },
           { status: 503 }
         )
       }

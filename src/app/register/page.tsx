@@ -1,7 +1,7 @@
 'use client'
 import { useState } from 'react'
 import Link from 'next/link'
-import { Eye, EyeOff, Mail } from 'lucide-react'
+import { Eye, EyeOff, Mail, Check } from 'lucide-react'
 import toast from 'react-hot-toast'
 
 function getMailLink(email: string) {
@@ -21,13 +21,23 @@ export default function RegisterPage() {
   const [done, setDone]       = useState(false)
   const [sentEmail, setSentEmail] = useState('')
 
+  // Mirrors the server's validatePasswordStrength (src/lib/api-guard.ts) exactly,
+  // so a password that looks good here is never rejected after submit.
+  const pwChecks = [
+    { label: 'At least 8 characters', met: form.password.length >= 8 },
+    { label: 'One uppercase letter', met: /[A-Z]/.test(form.password) },
+    { label: 'One lowercase letter', met: /[a-z]/.test(form.password) },
+    { label: 'One number', met: /[0-9]/.test(form.password) },
+    { label: 'One special character', met: /[^A-Za-z0-9]/.test(form.password) },
+  ]
+  const pwValid = pwChecks.every((c) => c.met)
+  const confirmValid = form.confirm.length > 0 && form.confirm === form.password
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!form.name || !form.email || !form.phone || !form.password) { toast.error('Please fill in all fields'); return }
+    if (!pwValid) { toast.error('Your password does not meet all requirements'); return }
     if (form.password !== form.confirm) { toast.error('Passwords do not match'); return }
-    if (form.password.length < 8) { toast.error('Password must be at least 8 characters'); return }
-    if (!/[A-Z]/.test(form.password)) { toast.error('Password must contain at least one uppercase letter'); return }
-    if (!/[0-9]/.test(form.password)) { toast.error('Password must contain at least one number'); return }
     setLoading(true)
     try {
       const res  = await fetch('/api/auth/register', {
@@ -119,7 +129,7 @@ export default function RegisterPage() {
                   type={showPw ? 'text' : 'password'}
                   value={form.password}
                   onChange={(e) => setForm((p) => ({ ...p, password: e.target.value }))}
-                  placeholder="Min 8 chars, 1 uppercase, 1 number"
+                  placeholder="Create a password"
                   autoComplete="new-password"
                   className="w-full border border-gray-200 rounded-xl px-4 py-3 pr-10 text-sm focus:outline-none focus:border-red-400"
                 />
@@ -127,19 +137,14 @@ export default function RegisterPage() {
                   {showPw ? <EyeOff size={16} /> : <Eye size={16} />}
                 </button>
               </div>
-              {form.password && (
-                <ul className="mt-1.5 space-y-0.5 text-xs">
-                  <li className={form.password.length >= 8 ? 'text-green-600' : 'text-gray-400'}>
-                    {form.password.length >= 8 ? '✓' : '○'} At least 8 characters
+              <ul className="mt-2 grid grid-cols-2 gap-x-3 gap-y-0.5">
+                {pwChecks.map((c) => (
+                  <li key={c.label} className={`text-xs flex items-center gap-1.5 ${c.met ? 'text-green-600' : 'text-gray-400'}`}>
+                    <Check size={12} className={c.met ? 'opacity-100' : 'opacity-30'} />
+                    {c.label}
                   </li>
-                  <li className={/[A-Z]/.test(form.password) ? 'text-green-600' : 'text-gray-400'}>
-                    {/[A-Z]/.test(form.password) ? '✓' : '○'} One uppercase letter
-                  </li>
-                  <li className={/[0-9]/.test(form.password) ? 'text-green-600' : 'text-gray-400'}>
-                    {/[0-9]/.test(form.password) ? '✓' : '○'} One number
-                  </li>
-                </ul>
-              )}
+                ))}
+              </ul>
             </div>
             <div>
               <label className="block text-xs font-semibold text-gray-700 mb-1.5">Confirm Password</label>
@@ -151,11 +156,17 @@ export default function RegisterPage() {
                 autoComplete="new-password"
                 className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-red-400"
               />
+              {form.confirm && (
+                <p className={`mt-1.5 text-xs flex items-center gap-1.5 ${confirmValid ? 'text-green-600' : 'text-red-500'}`}>
+                  <Check size={12} className={confirmValid ? 'opacity-100' : 'opacity-30'} />
+                  {confirmValid ? 'Passwords match' : 'Passwords do not match'}
+                </p>
+              )}
             </div>
             <button
               type="submit"
-              disabled={loading}
-              className={`w-full py-3 rounded-xl font-bold text-white transition-colors ${loading ? 'bg-gray-400' : 'bg-red-600 hover:bg-red-700'}`}
+              disabled={loading || !pwValid || !confirmValid}
+              className={`w-full py-3 rounded-xl font-bold text-white transition-colors ${loading || !pwValid || !confirmValid ? 'bg-gray-400 cursor-not-allowed' : 'bg-red-600 hover:bg-red-700'}`}
             >
               {loading ? 'Creating account...' : 'Create Account'}
             </button>

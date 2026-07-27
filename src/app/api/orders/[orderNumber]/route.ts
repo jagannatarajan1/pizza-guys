@@ -27,7 +27,7 @@ export async function GET(
 
   const order = await prisma.order.findUnique({
     where: { orderNumber },
-    include: { items: { select: { productId: true, productName: true, quantity: true, itemTotal: true } } },
+    include: { items: { select: { productId: true, productName: true, quantity: true, unitPrice: true, itemTotal: true, modifiers: true, specialInstructions: true } } },
   })
 
   if (!order) return NextResponse.json({ error: 'Order not found' }, { status: 404 })
@@ -50,18 +50,34 @@ export async function GET(
     ? order.customerName
     : order.customerName.split(' ')[0] + ' ' + (order.customerName.split(' ').slice(1).map(() => '•').join(' ') || '')
 
+  // Full financial breakdown, address, and payment method are only for the
+  // order's own owner or staff — anyone else with just the order number
+  // (e.g. a shared tracking link) gets status/items but not the account's
+  // private billing/address details.
+  const canSeePrivateDetails = isOwner || isStaff
+
   return NextResponse.json({
     orderNumber:  order.orderNumber,
     status:       order.status,
     stage:        STATUS_STAGE[order.status] ?? 0,
     orderType:    order.orderType,
     customerName: visibleName,
+    subtotal:        canSeePrivateDetails ? order.subtotal / 100 : undefined,
+    deliveryFee:     canSeePrivateDetails ? order.deliveryFee / 100 : undefined,
+    discount:        canSeePrivateDetails ? order.discount / 100 : undefined,
+    deliveryAddress: canSeePrivateDetails && order.deliveryAddress ? JSON.parse(order.deliveryAddress) : null,
+    paymentMethod:   canSeePrivateDetails ? order.paymentMethod : undefined,
+    scheduledTime:   order.scheduledTime,
     total:        order.total / 100,
     createdAt:    order.createdAt,
     items: order.items.map((i) => ({
+      productId: i.productId,
       name:      i.productName,
       quantity:  i.quantity,
+      unitPrice: i.unitPrice / 100,
       itemTotal: i.itemTotal / 100,
+      modifiers: (() => { try { return JSON.parse(i.modifiers || '[]') } catch { return [] } })(),
+      specialInstructions: i.specialInstructions,
       image:     imageMap[i.productId] ?? '',
     })),
   })

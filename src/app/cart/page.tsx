@@ -4,11 +4,11 @@ import Link from 'next/link'
 import Image from 'next/image'
 import { Trash2, Plus, Minus, Tag, ShoppingBag, ArrowLeft, SlidersHorizontal, Check } from 'lucide-react'
 import { useCartStore } from '@/lib/cart-store'
+import type { CartItem } from '@/lib/cart-store'
 import { useOrderType } from '@/context/OrderTypeContext'
 import { useSiteConfig } from '@/context/SiteConfigContext'
 import { formatPrice } from '@/lib/utils'
 import ProductModal from '@/components/ProductModal'
-import type { Product } from '@/lib/types'
 import toast from 'react-hot-toast'
 
 type AvailableCoupon = {
@@ -34,7 +34,7 @@ export default function CartPage() {
   const [couponInput, setCouponInput]     = useState('')
   const [couponError, setCouponError]     = useState('')
   const [couponLoading, setCouponLoading] = useState(false)
-  const [editingProduct, setEditingProduct] = useState<Product | null>(null)
+  const [editingItem, setEditingItem] = useState<CartItem | null>(null)
   const [availableCoupons, setAvailableCoupons] = useState<AvailableCoupon[]>([])
 
   const subtotal = getSubtotal()
@@ -136,7 +136,13 @@ export default function CartPage() {
 
   return (
     <>
-      {editingProduct && <ProductModal product={editingProduct} onClose={() => setEditingProduct(null)} />}
+      {editingItem && (
+        <ProductModal
+          product={editingItem.product}
+          editingItem={editingItem}
+          onClose={() => setEditingItem(null)}
+        />
+      )}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 py-8">
         <div className="flex items-center gap-3 mb-6">
           <Link href="/menu" className="flex items-center gap-2 text-gray-600 hover:text-red-600 transition-colors text-sm font-medium">
@@ -201,7 +207,7 @@ export default function CartPage() {
                       <div className="flex items-center gap-2">
                         <span className="font-bold text-gray-900 text-sm">{formatPrice(item.itemTotal)}</span>
                         <button
-                          onClick={() => setEditingProduct(item.product)}
+                          onClick={() => setEditingItem(item)}
                           className="flex items-center gap-1 text-xs font-bold text-blue-600 hover:text-blue-700 border border-blue-100 hover:bg-blue-50 rounded-lg px-2.5 py-1.5 transition-colors"
                         >
                           <SlidersHorizontal size={12} /> Customize Item

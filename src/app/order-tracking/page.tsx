@@ -6,6 +6,8 @@ import { CheckCircle, Clock, Package, ChefHat, Bike, Home, Loader2, AlertCircle,
 import { formatPrice } from '@/lib/utils'
 import { useAuth } from '@/lib/auth-context'
 import { useSiteConfig } from '@/context/SiteConfigContext'
+import { useCartStore } from '@/lib/cart-store'
+import { reorderItems } from '@/lib/reorder'
 
 const STATUS_PILL: Record<string, string> = {
   pending_payment:    'bg-amber-100 text-amber-700',
@@ -169,18 +171,29 @@ type OrderData = {
   customerName: string
   total: number
   createdAt: string
-  items: { name: string; quantity: number; itemTotal: number; image: string }[]
+  items: {
+    productId: string; name: string; quantity: number; itemTotal: number; image: string
+    modifiers: { groupId: string; groupName: string; options: { id: string; name: string; price: number }[] }[]
+    specialInstructions: string
+  }[]
 }
 
 const EST_MINUTES_BY_STAGE = [40, 30, 20, 10, 0]
 
 function TrackingContent() {
   const searchParams   = useSearchParams()
+  const router         = useRouter()
   const { biz_name, biz_phone } = useSiteConfig()
+  const addItem        = useCartStore((s) => s.addItem)
   const orderNo        = searchParams.get('order') || ''
   const [order, setOrder]   = useState<OrderData | null>(null)
   const [loading, setLoading] = useState(!!orderNo)
   const [error, setError]   = useState(false)
+
+  const handleReorder = () => {
+    if (!order) return
+    reorderItems(order.items, { addItem, goToCart: () => router.push('/cart') })
+  }
 
   useEffect(() => {
     if (!orderNo) return
@@ -335,9 +348,9 @@ function TrackingContent() {
         <Link href="/order-tracking" className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold py-3 rounded-xl text-center transition-colors text-sm">
           Order History
         </Link>
-        <Link href="/menu" className="flex-1 bg-red-600 hover:bg-red-700 text-white font-bold py-3 rounded-xl text-center transition-colors text-sm">
+        <button onClick={handleReorder} className="flex-1 bg-red-600 hover:bg-red-700 text-white font-bold py-3 rounded-xl text-center transition-colors text-sm">
           Order Again
-        </Link>
+        </button>
       </div>
     </div>
   )

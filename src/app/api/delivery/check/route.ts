@@ -18,10 +18,19 @@ export async function POST(req: NextRequest) {
   if (!result.available) {
     // A lookup outage is our fault, not a bad address — say so honestly and
     // answer 503 so the UI can invite a retry instead of telling someone with
-    // a perfectly good postcode that we don't deliver to them.
+    // a perfectly good postcode that we don't deliver to them. A distance with
+    // no matching fee band is the same kind of our-fault gap (e.g. bands only
+    // configured from 1 mile up, so the shop's own 0-mile address falls
+    // through) — never let a band-table gap look like "you're too far away".
     if (result.reason === 'lookup_failed' || result.reason === 'misconfigured') {
       return NextResponse.json(
         { available: false, retryable: true, message: "We couldn't check your postcode just now — please try again in a moment" },
+        { status: 503 }
+      )
+    }
+    if (result.reason === 'no_band') {
+      return NextResponse.json(
+        { available: false, retryable: true, message: "We're having trouble calculating delivery pricing for your area — please try again shortly, or call us to place your order" },
         { status: 503 }
       )
     }

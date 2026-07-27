@@ -1,10 +1,13 @@
 'use client'
 import { useState, useEffect, Suspense } from 'react'
 import Link from 'next/link'
-import { User, MapPin, Package, CreditCard, Lock, Pencil, Trash2, Plus, Check, X, Loader2 } from 'lucide-react'
+import { User, MapPin, Package, CreditCard, Lock, Pencil, Trash2, Plus, Check, X, Loader2, ChevronDown, Printer, RotateCcw } from 'lucide-react'
 import { useAuth } from '@/lib/auth-context'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { formatPrice, isValidPostcode } from '@/lib/utils'
+import { useSiteConfig } from '@/context/SiteConfigContext'
+import { useCartStore } from '@/lib/cart-store'
+import { reorderItems } from '@/lib/reorder'
 import toast from 'react-hot-toast'
 
 const TABS = [
@@ -32,22 +35,40 @@ const STATUS_LABEL: Record<string, string> = {
   confirmed:       'Order Received',
 }
 
+type OrderItemModifier = { groupId: string; groupName: string; options: { id: string; name: string; price: number }[] }
+
+type CustomerOrderItem = {
+  productId: string; name: string; quantity: number; unitPrice: number; itemTotal: number
+  modifiers: OrderItemModifier[]; specialInstructions: string; image: string
+}
+
 type CustomerOrder = {
   orderNumber: string
   status: string
+  orderType: string
+  customerName: string
+  customerPhone: string
+  deliveryAddress: { label?: string; line1: string; line2: string; city: string; postcode: string } | null
+  subtotal: number
+  deliveryFee: number
+  discount: number
   total: number
   paymentMethod: string
+  scheduledTime: string | null
   createdAt: string
-  items: { name: string; quantity: number; image: string }[]
+  items: CustomerOrderItem[]
 }
 
 function DashboardContent() {
   const router       = useRouter()
   const searchParams = useSearchParams()
+  const cfg = useSiteConfig()
+  const addItem = useCartStore((s) => s.addItem)
   const { user, isLoading: authLoading, updateProfile, addAddress, updateAddress, deleteAddress, logout, setUser } = useAuth()
   const validTabs = ['profile', 'addresses', 'orders', 'payment', 'password']
   const tabParam  = searchParams.get('tab') ?? ''
   const [activeTab, setActiveTab] = useState(validTabs.includes(tabParam) ? tabParam : 'profile')
+  const [expandedOrder, setExpandedOrder] = useState<string | null>(null)
 
   useEffect(() => {
     if (searchParams.get('verified') === '1') {
@@ -58,6 +79,8 @@ function DashboardContent() {
   const [profileForm, setProfileForm]       = useState({ name: user?.name || '', email: user?.email || '', phone: user?.phone || '' })
   const [showAddAddress, setShowAddAddress] = useState(false)
   const [newAddr, setNewAddr]               = useState({ label: 'Home', line1: '', line2: '', city: '', postcode: '', notes: '', isDefault: false })
+  const [editingAddrId, setEditingAddrId]   = useState<string | null>(null)
+  const [editAddr, setEditAddr]             = useState({ label: '', line1: '', line2: '', city: '', postcode: '', notes: '', isDefault: false })
   const [orders, setOrders]                 = useState<CustomerOrder[]>([])
   const [ordersLoading, setOrdersLoading]   = useState(false)
 
@@ -201,6 +224,120 @@ function DashboardContent() {
     setNewAddr({ label: 'Home', line1: '', line2: '', city: '', postcode: '', notes: '', isDefault: false })
     toast.success('Address saved!')
   }
+
+  const startEditAddress = (addr: typeof user.addresses[number]) => {
+    setShowAddAddress(false)
+    setEditingAddrId(addr.id)
+    setEditAddr({
+      label: addr.label, line1: addr.line1, line2: addr.line2,
+      city: addr.city, postcode: addr.postcode, notes: addr.notes, isDefault: addr.isDefault,
+    })
+  }
+
+  const saveEditAddress = () => {
+    if (!editingAddrId) return
+    if (!editAddr.postcode || !editAddr.line1 || !editAddr.city) { toast.error('Please fill required fields'); return }
+    if (!isValidPostcode(editAddr.postcode)) { toast.error('Enter a valid UK postcode (e.g. SW1A 1AA)'); return }
+    updateAddress(editingAddrId, editAddr)
+    setEditingAddrId(null)
+    toast.success('Address updated!')
+  }
+
+  const printInvoice = (order: CustomerOrder) => {
+    const bizName  = cfg.biz_name    || 'Pizza Guys'
+    const bizAddr  = cfg.biz_address || ''
+    const bizPhone = cfg.biz_phone   || ''
+    const primary  = cfg.theme_primary || '#E53935'
+    const date     = new Date(order.createdAt)
+    const dateStr  = date.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
+    const timeStr  = date.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })
+    const addr     = order.deliveryAddress
+
+    const itemRows = order.items.map((item) => {
+      const modLines = item.modifiers.map((m) =>
+        `${m.groupName}: ${m.options.map((o) => o.name).join(', ')}`
+      ).join('<br/>')
+      return `
+      <tr>
+        <td style="padding:5px 0;vertical-align:top">${item.quantity}×</td>
+        <td style="padding:5px 8px;vertical-align:top">
+          ${item.name}
+          ${modLines ? `<br/><span style="font-size:10px;color:#888">${modLines}</span>` : ''}
+          ${item.specialInstructions ? `<br/><span style="font-size:10px;color:#888">Note: ${item.specialInstructions}</span>` : ''}
+        </td>
+        <td style="padding:5px 0;text-align:right;vertical-align:top;white-space:nowrap">${formatPrice(item.itemTotal)}</td>
+      </tr>`
+    }).join('')
+
+    const html = `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Invoice #${order.orderNumber}</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Courier New', Courier, monospace; font-size: 13px; color: #111; background: #fff; width: 80mm; margin: 0 auto; padding: 16px 12px; }
+    .center { text-align: center; }
+    .bold { font-weight: 700; }
+    .divider { border: none; border-top: 1px dashed #999; margin: 10px 0; }
+    .divider-solid { border: none; border-top: 2px solid #111; margin: 10px 0; }
+    table { width: 100%; border-collapse: collapse; }
+    td { font-size: 12px; }
+    .total-row td { font-size: 14px; font-weight: 900; padding-top: 6px; }
+    .badge { display:inline-block; background:${primary}; color:#fff; font-size:10px; font-weight:700; padding:2px 8px; border-radius:4px; letter-spacing:1px; }
+    @media print { body { margin: 0; padding: 8px; } @page { margin: 0; size: 80mm auto; } }
+  </style>
+</head>
+<body>
+  <div class="center" style="margin-bottom:12px">
+    <div style="font-size:20px;font-weight:900;letter-spacing:1px">${bizName.toUpperCase()}</div>
+    ${bizAddr ? `<div style="font-size:11px;color:#555;margin-top:3px">${bizAddr}</div>` : ''}
+    ${bizPhone ? `<div style="font-size:11px;color:#555">Tel: ${bizPhone}</div>` : ''}
+  </div>
+  <hr class="divider-solid">
+  <div style="margin-bottom:8px">
+    <div class="center"><span class="badge">${order.orderType === 'delivery' ? '🚚 DELIVERY' : '🏪 COLLECTION'}</span></div>
+    <table style="margin-top:8px">
+      <tr><td class="bold">Order #</td><td style="text-align:right">${order.orderNumber}</td></tr>
+      <tr><td class="bold">Date</td><td style="text-align:right">${dateStr}</td></tr>
+      <tr><td class="bold">Time</td><td style="text-align:right">${timeStr}</td></tr>
+      <tr><td class="bold">Customer</td><td style="text-align:right">${order.customerName}</td></tr>
+      ${order.customerPhone ? `<tr><td class="bold">Phone</td><td style="text-align:right">${order.customerPhone}</td></tr>` : ''}
+      ${addr ? `<tr><td class="bold" style="vertical-align:top">Address</td><td style="text-align:right">${[addr.line1, addr.line2, addr.city, addr.postcode].filter(Boolean).join(', ')}</td></tr>` : ''}
+      ${order.scheduledTime ? `<tr><td class="bold">Scheduled</td><td style="text-align:right">${new Date(order.scheduledTime).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</td></tr>` : ''}
+    </table>
+  </div>
+  <hr class="divider">
+  <table>
+    <thead><tr><th style="text-align:left;padding-bottom:4px;font-size:11px;color:#555" colspan="2">ITEM</th><th style="text-align:right;padding-bottom:4px;font-size:11px;color:#555">PRICE</th></tr></thead>
+    <tbody>${itemRows}</tbody>
+  </table>
+  <hr class="divider">
+  <table>
+    <tr><td>Subtotal</td><td style="text-align:right">${formatPrice(order.subtotal)}</td></tr>
+    ${order.deliveryFee > 0 ? `<tr><td>Delivery</td><td style="text-align:right">${formatPrice(order.deliveryFee)}</td></tr>` : ''}
+    ${order.discount > 0 ? `<tr><td>Discount</td><td style="text-align:right">−${formatPrice(order.discount)}</td></tr>` : ''}
+    <tr class="total-row"><td>TOTAL</td><td style="text-align:right">${formatPrice(order.total)}</td></tr>
+    <tr><td style="font-size:11px;color:#666">Payment</td><td style="text-align:right;font-size:11px;color:#666;text-transform:capitalize">${order.paymentMethod}</td></tr>
+    <tr><td style="font-size:11px;color:#666">Status</td><td style="text-align:right;font-size:11px;color:#666">${STATUS_LABEL[order.status] ?? order.status}</td></tr>
+  </table>
+  <hr class="divider-solid">
+  <div class="center" style="font-size:11px;color:#888;margin-top:8px">
+    <div style="font-weight:700;font-size:13px;margin-bottom:4px">Thank you for your order!</div>
+    <div>Please come again 🍕</div>
+  </div>
+</body>
+</html>`
+
+    const win = window.open('', '_blank', 'width=400,height=700')
+    if (!win) { toast.error('Please allow pop-ups to view the invoice'); return }
+    win.document.documentElement.innerHTML = html
+    win.onload = () => { win.focus(); win.print() }
+    setTimeout(() => { win.focus(); win.print() }, 500)
+  }
+
+  const reorder = (order: CustomerOrder) =>
+    reorderItems(order.items, { addItem, goToCart: () => router.push('/cart') })
 
   const changePassword = async () => {
     if (!pwForm.current || !pwForm.newPw || !pwForm.confirm) { toast.error('Fill all fields'); return }
@@ -380,7 +517,7 @@ function DashboardContent() {
             <div>
               <div className="flex items-center justify-between mb-5">
                 <h2 className="font-bold text-gray-900">Saved Addresses</h2>
-                <button onClick={() => setShowAddAddress((v) => !v)} className="flex items-center gap-1.5 text-sm text-red-600 font-semibold hover:underline">
+                <button onClick={() => { setShowAddAddress((v) => !v); setEditingAddrId(null) }} className="flex items-center gap-1.5 text-sm text-red-600 font-semibold hover:underline">
                   <Plus size={13} /> Add Address
                 </button>
               </div>
@@ -421,27 +558,60 @@ function DashboardContent() {
               ) : (
                 <div className="space-y-3">
                   {user.addresses.map((addr) => (
-                    <div key={addr.id} className="border border-gray-100 rounded-xl p-4 flex items-start justify-between">
-                      <div>
-                        <div className="flex items-center gap-2 mb-1">
-                          <span className="font-bold text-gray-900 text-sm">{addr.label || 'Address'}</span>
-                          {addr.isDefault && <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full font-medium">Default</span>}
+                    editingAddrId === addr.id ? (
+                      <div key={addr.id} className="border border-red-200 bg-red-50 rounded-xl p-4">
+                        <h3 className="font-bold text-gray-900 text-sm mb-3">Edit Address</h3>
+                        <div className="grid grid-cols-2 gap-3 mb-3">
+                          <div>
+                            <label className="block text-xs font-semibold text-gray-700 mb-1">Label</label>
+                            <input value={editAddr.label} onChange={(e) => setEditAddr((p) => ({ ...p, label: e.target.value }))} placeholder="Home / Work" className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-red-400 bg-white" />
+                          </div>
+                          <div>
+                            <label className="block text-xs font-semibold text-gray-700 mb-1">Postcode *</label>
+                            <input value={editAddr.postcode} onChange={(e) => setEditAddr((p) => ({ ...p, postcode: e.target.value.toUpperCase() }))} placeholder="TW18 1AB" className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-red-400 bg-white" />
+                          </div>
                         </div>
-                        <div className="text-sm text-gray-600">{addr.line1}{addr.line2 ? `, ${addr.line2}` : ''}</div>
-                        <div className="text-sm text-gray-600">{addr.city}, {addr.postcode}</div>
-                        {addr.notes && <div className="text-xs text-gray-400 mt-1">📝 {addr.notes}</div>}
+                        <div className="space-y-2 mb-3">
+                          <input value={editAddr.line1} onChange={(e) => setEditAddr((p) => ({ ...p, line1: e.target.value }))} placeholder="Address Line 1 *" className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-red-400 bg-white" />
+                          <input value={editAddr.line2} onChange={(e) => setEditAddr((p) => ({ ...p, line2: e.target.value }))} placeholder="Address Line 2 (optional)" className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-red-400 bg-white" />
+                          <input value={editAddr.city} onChange={(e) => setEditAddr((p) => ({ ...p, city: e.target.value }))} placeholder="City *" className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-red-400 bg-white" />
+                          <input value={editAddr.notes} onChange={(e) => setEditAddr((p) => ({ ...p, notes: e.target.value }))} placeholder="Delivery notes (optional)" className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-red-400 bg-white" />
+                        </div>
+                        <label className="flex items-center gap-2 mb-3 cursor-pointer">
+                          <input type="checkbox" checked={editAddr.isDefault} onChange={(e) => setEditAddr((p) => ({ ...p, isDefault: e.target.checked }))} />
+                          <span className="text-sm text-gray-600">Set as default address</span>
+                        </label>
+                        <div className="flex gap-2">
+                          <button onClick={saveEditAddress} className="bg-red-600 text-white font-bold px-4 py-2 rounded-xl text-sm hover:bg-red-700 transition-colors">Save</button>
+                          <button onClick={() => setEditingAddrId(null)} className="bg-gray-100 text-gray-700 font-bold px-4 py-2 rounded-xl text-sm hover:bg-gray-200 transition-colors">Cancel</button>
+                        </div>
                       </div>
-                      <div className="flex gap-1.5">
-                        {!addr.isDefault && (
-                          <button onClick={() => { updateAddress(addr.id, { isDefault: true }); toast.success('Default address updated') }} className="p-1.5 text-gray-400 hover:text-green-600 transition-colors" title="Set as default">
-                            <Check size={15} />
+                    ) : (
+                      <div key={addr.id} className="border border-gray-100 rounded-xl p-4 flex items-start justify-between">
+                        <div>
+                          <div className="flex items-center gap-2 mb-1">
+                            <span className="font-bold text-gray-900 text-sm">{addr.label || 'Address'}</span>
+                            {addr.isDefault && <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full font-medium">Default</span>}
+                          </div>
+                          <div className="text-sm text-gray-600">{addr.line1}{addr.line2 ? `, ${addr.line2}` : ''}</div>
+                          <div className="text-sm text-gray-600">{addr.city}, {addr.postcode}</div>
+                          {addr.notes && <div className="text-xs text-gray-400 mt-1">📝 {addr.notes}</div>}
+                        </div>
+                        <div className="flex gap-1.5">
+                          {!addr.isDefault && (
+                            <button onClick={() => { updateAddress(addr.id, { isDefault: true }); toast.success('Default address updated') }} className="p-1.5 text-gray-400 hover:text-green-600 transition-colors" title="Set as default">
+                              <Check size={15} />
+                            </button>
+                          )}
+                          <button onClick={() => startEditAddress(addr)} className="p-1.5 text-gray-400 hover:text-blue-600 transition-colors" title="Edit address">
+                            <Pencil size={15} />
                           </button>
-                        )}
-                        <button onClick={() => { deleteAddress(addr.id); toast.success('Address removed') }} className="p-1.5 text-gray-400 hover:text-red-600 transition-colors">
-                          <Trash2 size={15} />
-                        </button>
+                          <button onClick={() => { deleteAddress(addr.id); toast.success('Address removed') }} className="p-1.5 text-gray-400 hover:text-red-600 transition-colors" title="Delete address">
+                            <Trash2 size={15} />
+                          </button>
+                        </div>
                       </div>
-                    </div>
+                    )
                   ))}
                 </div>
               )}
@@ -509,15 +679,80 @@ function DashboardContent() {
                         {order.items.slice(0, 3).map((i) => `${i.quantity}× ${i.name}`).join(' · ')}
                         {order.items.length > 3 && ` +${order.items.length - 3} more`}
                       </div>
-                      <div className="flex items-center justify-between">
+                      <div className="flex items-center justify-between flex-wrap gap-2">
                         <span className="font-bold text-gray-900">{formatPrice(order.total)}</span>
-                        <Link
-                          href={`/order-tracking?order=${order.orderNumber}`}
-                          className="text-red-600 text-sm font-semibold hover:underline"
-                        >
-                          Track
-                        </Link>
+                        <div className="flex items-center gap-3">
+                          <button
+                            onClick={() => setExpandedOrder((v) => (v === order.orderNumber ? null : order.orderNumber))}
+                            className="flex items-center gap-1 text-gray-500 text-xs font-semibold hover:text-gray-700"
+                          >
+                            {expandedOrder === order.orderNumber ? 'Hide Details' : 'View Details'}
+                            <ChevronDown size={13} className={`transition-transform ${expandedOrder === order.orderNumber ? 'rotate-180' : ''}`} />
+                          </button>
+                          <button
+                            onClick={() => printInvoice(order)}
+                            className="flex items-center gap-1 text-gray-500 text-xs font-semibold hover:text-gray-700"
+                          >
+                            <Printer size={13} /> Invoice
+                          </button>
+                          <button
+                            onClick={() => reorder(order)}
+                            className="flex items-center gap-1 text-blue-600 text-xs font-semibold hover:text-blue-700"
+                          >
+                            <RotateCcw size={13} /> Order Again
+                          </button>
+                          <Link
+                            href={`/order-tracking?order=${order.orderNumber}`}
+                            className="text-red-600 text-sm font-semibold hover:underline"
+                          >
+                            Track
+                          </Link>
+                        </div>
                       </div>
+
+                      {expandedOrder === order.orderNumber && (
+                        <div className="mt-4 pt-4 border-t border-gray-100 text-sm">
+                          <div className="flex justify-between text-xs text-gray-500 mb-3">
+                            <span className="font-semibold text-gray-700">
+                              {order.orderType === 'delivery' ? '🚚 Delivery' : '🏪 Collection'}
+                            </span>
+                            {order.scheduledTime && (
+                              <span>Scheduled: {new Date(order.scheduledTime).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</span>
+                            )}
+                          </div>
+                          {order.orderType === 'delivery' && order.deliveryAddress && (
+                            <div className="text-xs text-gray-500 mb-3">
+                              {order.deliveryAddress.line1}{order.deliveryAddress.line2 ? `, ${order.deliveryAddress.line2}` : ''}, {order.deliveryAddress.city}, {order.deliveryAddress.postcode}
+                            </div>
+                          )}
+                          <div className="space-y-3 mb-3">
+                            {order.items.map((item, idx) => (
+                              <div key={idx} className="border-b border-gray-50 last:border-b-0 pb-3 last:pb-0">
+                                <div className="flex justify-between font-semibold text-gray-800">
+                                  <span>{item.quantity}× {item.name}</span>
+                                  <span>{formatPrice(item.itemTotal)}</span>
+                                </div>
+                                {item.modifiers.map((mod) => (
+                                  <div key={mod.groupId} className="text-xs text-gray-500 mt-0.5">
+                                    <span className="font-medium text-gray-600">{mod.groupName}:</span>{' '}
+                                    {mod.options.map((o) => o.name).join(', ')}
+                                  </div>
+                                ))}
+                                {item.specialInstructions && (
+                                  <div className="text-xs text-gray-500 mt-0.5">📝 {item.specialInstructions}</div>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                          <div className="space-y-1 text-xs text-gray-600 border-t border-gray-100 pt-2">
+                            <div className="flex justify-between"><span>Subtotal</span><span>{formatPrice(order.subtotal)}</span></div>
+                            {order.deliveryFee > 0 && <div className="flex justify-between"><span>Delivery Fee</span><span>{formatPrice(order.deliveryFee)}</span></div>}
+                            {order.discount > 0 && <div className="flex justify-between text-green-600"><span>Discount</span><span>-{formatPrice(order.discount)}</span></div>}
+                            <div className="flex justify-between font-bold text-gray-900 text-sm pt-1 border-t border-gray-100"><span>Total</span><span>{formatPrice(order.total)}</span></div>
+                            <div className="flex justify-between pt-1"><span>Payment Method</span><span className="capitalize">{order.paymentMethod}</span></div>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   ))}
                 </div>

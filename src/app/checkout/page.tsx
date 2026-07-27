@@ -471,11 +471,41 @@ export default function CheckoutPage() {
             {/* Order summary */}
             <div className="bg-gray-50 rounded-xl p-4 mb-5">
               <h3 className="font-bold text-gray-900 mb-3">Order Summary</h3>
-              <div className="space-y-1 text-sm mb-3 max-h-40 overflow-y-auto">
+
+              <div className="text-sm text-gray-600 mb-3 pb-3 border-b border-gray-200">
+                <div className="flex justify-between">
+                  <span className="font-semibold text-gray-800">{orderType === 'delivery' ? '🚚 Delivery' : '🏪 Collection'}</span>
+                  {timing === 'scheduled' && scheduledTime && (
+                    <span>{new Date(scheduledTime).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</span>
+                  )}
+                </div>
+                {orderType === 'delivery' && resolvedAddress && (
+                  <div className="mt-1 text-xs text-gray-500">
+                    {resolvedAddress.line1}{resolvedAddress.line2 ? `, ${resolvedAddress.line2}` : ''}, {resolvedAddress.city}, {resolvedAddress.postcode}
+                  </div>
+                )}
+              </div>
+
+              <div className="space-y-3 mb-3 max-h-80 overflow-y-auto">
                 {items.map((item) => (
-                  <div key={item.cartId} className="flex justify-between text-gray-600">
-                    <span>{item.quantity}× {item.product.name}</span>
-                    <span>{formatPrice(item.itemTotal)}</span>
+                  <div key={item.cartId} className="text-sm border-b border-gray-200 last:border-b-0 pb-3 last:pb-0">
+                    <div className="flex justify-between font-semibold text-gray-800">
+                      <span>{item.quantity}× {item.product.name}</span>
+                      <span>{formatPrice(item.itemTotal)}</span>
+                    </div>
+                    <div className="text-xs text-gray-500">Unit price: {formatPrice(item.itemTotal / item.quantity)}</div>
+                    {item.modifiers.map((mod) => (
+                      <div key={mod.groupId} className="text-xs text-gray-500 mt-0.5">
+                        <span className="font-medium text-gray-600">{mod.groupName}:</span>{' '}
+                        {mod.options.map((o) => o.name + (o.price > 0 ? ` (+${formatPrice(o.price)})` : '')).join(', ')}
+                      </div>
+                    ))}
+                    {item.product.allergens && item.product.allergens.length > 0 && (
+                      <div className="text-xs text-amber-600 mt-0.5">⚠️ Contains: {item.product.allergens.join(', ')}</div>
+                    )}
+                    {item.specialInstructions && (
+                      <div className="text-xs text-gray-500 mt-0.5">📝 {item.specialInstructions}</div>
+                    )}
                   </div>
                 ))}
               </div>

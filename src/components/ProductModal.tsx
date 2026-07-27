@@ -3,7 +3,7 @@ import { useState, useEffect, useRef } from 'react'
 import Image from 'next/image'
 import { X, Plus, Minus, ChevronDown } from 'lucide-react'
 import type { Product, ModifierGroup, ModifierOption } from '@/lib/types'
-import type { CartItemModifier } from '@/lib/cart-store'
+import type { CartItem, CartItemModifier } from '@/lib/cart-store'
 import { useCartStore } from '@/lib/cart-store'
 import { formatPrice } from '@/lib/utils'
 import toast from 'react-hot-toast'
@@ -11,10 +11,15 @@ import toast from 'react-hot-toast'
 type Props = {
   product: Product | null
   onClose: () => void
+  // When set, the modal edits this existing cart line in place (pre-filling
+  // its quantity/modifiers/instructions and saving via updateItem) instead of
+  // always adding a brand-new line via addItem.
+  editingItem?: CartItem | null
 }
 
-export default function ProductModal({ product, onClose }: Props) {
+export default function ProductModal({ product, onClose, editingItem = null }: Props) {
   const addItem = useCartStore((s) => s.addItem)
+  const updateItem = useCartStore((s) => s.updateItem)
   const [quantity, setQuantity] = useState(1)
   const [selectedModifiers, setSelectedModifiers] = useState<Record<string, string[]>>({})
   const [instructions, setInstructions] = useState('')
@@ -23,9 +28,24 @@ export default function ProductModal({ product, onClose }: Props) {
 
   useEffect(() => {
     if (!product) return
+    setHighlightGroup(null)
+
+    if (editingItem) {
+      // Pre-fill from the existing cart line so editing never loses what was
+      // already chosen — start from "nothing selected" per group, then
+      // overlay whichever options that line actually has (a group with zero
+      // selected options isn't stored in CartItemModifier at all).
+      setQuantity(editingItem.quantity)
+      setInstructions(editingItem.specialInstructions)
+      const fromItem: Record<string, string[]> = {}
+      product.modifiers?.forEach((group) => { fromItem[group.id] = [] })
+      editingItem.modifiers.forEach((m) => { fromItem[m.groupId] = m.options.map((o) => o.id) })
+      setSelectedModifiers(fromItem)
+      return
+    }
+
     setQuantity(1)
     setInstructions('')
-    setHighlightGroup(null)
     // Required groups start unselected — the customer must actively choose an
     // option rather than have one silently defaulted for them.
     const defaults: Record<string, string[]> = {}
@@ -33,7 +53,7 @@ export default function ProductModal({ product, onClose }: Props) {
       defaults[group.id] = []
     })
     setSelectedModifiers(defaults)
-  }, [product])
+  }, [product, editingItem])
 
   if (!product) return null
 
@@ -97,8 +117,13 @@ export default function ProductModal({ product, onClose }: Props) {
 
     const itemTotal = computeTotal()
 
-    addItem({ product, quantity, modifiers, specialInstructions: instructions, itemTotal })
-    toast.success(`${product.name} added to cart`)
+    if (editingItem) {
+      updateItem(editingItem.cartId, { product, quantity, modifiers, specialInstructions: instructions, itemTotal })
+      toast.success(`${product.name} updated`)
+    } else {
+      addItem({ product, quantity, modifiers, specialInstructions: instructions, itemTotal })
+      toast.success(`${product.name} added to cart`)
+    }
     onClose()
   }
 
@@ -217,7 +242,7 @@ export default function ProductModal({ product, onClose }: Props) {
               canAdd() ? 'bg-red-600 hover:bg-red-700' : 'bg-gray-300 hover:bg-gray-400'
             }`}
           >
-            <span>Add to Cart</span>
+            <span>{editingItem ? 'Update Cart' : 'Add to Cart'}</span>
             <span>{formatPrice(computeTotal())}</span>
           </button>
         </div>
