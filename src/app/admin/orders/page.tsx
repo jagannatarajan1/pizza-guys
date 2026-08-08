@@ -1,9 +1,11 @@
 'use client'
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { Search, Check, X, ChevronDown, RefreshCw, Loader2, Printer } from 'lucide-react'
+import { Search, Check, X, ChevronDown, RefreshCw, Loader2, Printer, Timer, FastForward } from 'lucide-react'
 import { formatPrice } from '@/lib/utils'
 import toast from 'react-hot-toast'
 import { useSiteConfig } from '@/context/SiteConfigContext'
+import { autoSteps, autoStepIndex, legacyNextStatus, formatMMSS } from '@/lib/prep-timer'
+import { usePrepCountdown } from '@/lib/use-prep-countdown'
 
 const STATUSES = ['All', 'confirmed', 'New', 'Accepted', 'Preparing', 'Ready', 'Out for Delivery', 'Completed', 'Cancelled']
 
@@ -24,13 +26,144 @@ const STATUS_LABEL: Record<string, string> = {
   confirmed:       'New (Online)',
 }
 
-const NEXT_STATUS: Record<string, string> = {
-  confirmed:          'Accepted',
-  New:                'Accepted',
-  Accepted:           'Preparing',
-  Preparing:          'Ready',
-  Ready:              'Out for Delivery',
-  'Out for Delivery': 'Completed',
+type Preset = { id: string; minutes: number }
+
+// Accepting an order and setting its preparation clock are one action —
+// there's no way to accept without choosing a time, so an accepted order
+// always has the timing the auto-progress needs.
+function AcceptOrderPicker({ order, presets, disabled, onAccept }: {
+  order: Order
+  presets: Preset[]
+  disabled: boolean
+  onAccept: (minutes: number) => void
+}) {
+  const [open, setOpen]     = useState(false)
+  const [custom, setCustom] = useState('')
+
+  if (!open) {
+    return (
+      <button
+        onClick={() => setOpen(true)}
+        disabled={disabled}
+        className="flex items-center gap-1.5 bg-green-600 hover:bg-green-700 disabled:opacity-50 text-white text-xs font-bold px-3 py-2 rounded-xl transition-colors"
+      >
+        <Check size={13} /> Accept Order
+      </button>
+    )
+  }
+
+  const submitCustom = () => {
+    const mins = parseInt(custom, 10)
+    if (!Number.isInteger(mins) || mins < 1 || mins > 360) {
+      toast.error('Enter a whole number of minutes between 1 and 360')
+      return
+    }
+    onAccept(mins)
+  }
+
+  return (
+    <div className="w-full bg-green-50 border border-green-200 rounded-xl p-3">
+      <div className="flex items-center justify-between mb-2">
+        <span className="text-xs font-bold text-green-800">How long will #{order.orderNumber} take?</span>
+        <button onClick={() => setOpen(false)} className="text-green-700 hover:text-green-900"><X size={14} /></button>
+      </div>
+      <div className="flex flex-wrap gap-2 mb-2">
+        {presets.map((p) => (
+          <button
+            key={p.id}
+            onClick={() => onAccept(p.minutes)}
+            disabled={disabled}
+            className="bg-white border border-green-300 hover:bg-green-600 hover:text-white hover:border-green-600 disabled:opacity-50 text-green-800 text-xs font-bold px-3 py-2 rounded-lg transition-colors"
+          >
+            {p.minutes} min
+          </button>
+        ))}
+        {presets.length === 0 && (
+          <span className="text-xs text-green-700">No preset times configured — enter one below.</span>
+        )}
+      </div>
+      <div className="flex items-center gap-2">
+        <input
+          type="number" min="1" max="360" step="1"
+          value={custom}
+          onChange={(e) => setCustom(e.target.value)}
+          onKeyDown={(e) => e.key === 'Enter' && submitCustom()}
+          placeholder="Custom minutes"
+          className="w-36 border border-green-300 rounded-lg px-2.5 py-1.5 text-xs bg-white focus:outline-none focus:border-green-500"
+        />
+        <button
+          onClick={submitCustom}
+          disabled={disabled || !custom}
+          className="bg-green-600 hover:bg-green-700 disabled:opacity-50 text-white text-xs font-bold px-3 py-1.5 rounded-lg transition-colors"
+        >
+          Accept
+        </button>
+      </div>
+    </div>
+  )
+}
+
+// Shown while an order is walking itself through the preparation steps. The
+// "done early" button just moves it on ahead of schedule — the timer only
+// ever advances an order, so it won't fight a manual jump.
+function PrepCountdown({ order, disabled, onSkip }: {
+  order: Order
+  disabled: boolean
+  onSkip: (nextStatus: string) => void
+}) {
+  const timing = usePrepCountdown(
+    order.acceptedAt && order.prepMinutes
+      ? { orderType: order.orderType, acceptedAt: order.acceptedAt, prepMinutes: order.prepMinutes }
+      : null
+  )
+  if (!timing) return null
+
+  const steps    = autoSteps(order.orderType)
+  const nextStep = steps[timing.currentStepIndex + 1]
+  const overdue  = timing.totalRemainingMs === 0
+
+  return (
+    <div className="w-full bg-orange-50 border border-orange-200 rounded-xl p-3">
+      <div className="flex flex-wrap items-center gap-x-5 gap-y-1.5">
+        <div>
+          <div className="text-[10px] font-semibold text-orange-500 uppercase tracking-wide">Prep Time</div>
+          <div className="text-xs font-bold text-orange-900">{order.prepMinutes} min</div>
+        </div>
+        <div>
+          <div className="text-[10px] font-semibold text-orange-500 uppercase tracking-wide">Remaining</div>
+          <div className={`text-xs font-bold tabular-nums ${overdue ? 'text-red-600' : 'text-orange-900'}`}>
+            {overdue ? 'Overdue' : formatMMSS(timing.totalRemainingMs)}
+          </div>
+        </div>
+        <div>
+          <div className="text-[10px] font-semibold text-orange-500 uppercase tracking-wide">Current Step</div>
+          <div className="text-xs font-bold text-orange-900">{timing.currentAutoStatus}</div>
+        </div>
+        {nextStep && !overdue && (
+          <div>
+            <div className="text-[10px] font-semibold text-orange-500 uppercase tracking-wide">Next</div>
+            <div className="text-xs font-bold text-orange-900 tabular-nums">
+              {nextStep} in {formatMMSS(timing.remainingMs)}
+            </div>
+          </div>
+        )}
+        <div>
+          <div className="text-[10px] font-semibold text-orange-500 uppercase tracking-wide">Ready By</div>
+          <div className="text-xs font-bold text-orange-900">
+            {timing.completionAt.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}
+          </div>
+        </div>
+        <button
+          onClick={() => onSkip(nextStep ?? 'Completed')}
+          disabled={disabled}
+          className="ml-auto flex items-center gap-1.5 bg-orange-600 hover:bg-orange-700 disabled:opacity-50 text-white text-xs font-bold px-3 py-2 rounded-lg transition-colors"
+          title="Move to the next step now, ahead of the timer"
+        >
+          <FastForward size={12} /> {nextStep ? `${nextStep} now` : 'Complete now'}
+        </button>
+      </div>
+    </div>
+  )
 }
 
 type OrderItem = {
@@ -51,6 +184,8 @@ type Order = {
   discount: number
   total: number
   paymentMethod: string
+  acceptedAt: string | null
+  prepMinutes: number | null
   createdAt: string
   items: OrderItem[]
 }
@@ -64,6 +199,14 @@ export default function AdminOrdersPage() {
   const [expanded, setExpanded]         = useState<string | null>(null)
   const [updatingId, setUpdatingId]     = useState<string | null>(null)
   const [total, setTotal]               = useState(0)
+  const [presets, setPresets]           = useState<Preset[]>([])
+
+  useEffect(() => {
+    fetch('/api/admin/prep-time-presets')
+      .then((r) => r.json())
+      .then((d) => setPresets(d.presets ?? []))
+      .catch(() => {})
+  }, [])
 
   const printReceipt = (order: Order) => {
     const bizName    = cfg.biz_name    || 'Pizza Guys'
@@ -224,16 +367,19 @@ export default function AdminOrdersPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  const updateStatus = async (order: Order, newStatus: string) => {
+  const updateStatus = async (order: Order, newStatus: string, prepMinutes?: number) => {
     setUpdatingId(order.id)
     try {
       const res = await fetch(`/api/admin/orders/${order.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: newStatus }),
+        body: JSON.stringify(prepMinutes ? { status: newStatus, prepMinutes } : { status: newStatus }),
       })
-      if (!res.ok) throw new Error()
-      setOrders((prev) => prev.map((o) => o.id === order.id ? { ...o, status: newStatus } : o))
+      const data = await res.json().catch(() => null)
+      if (!res.ok) { toast.error(data?.error ?? 'Failed to update order'); return }
+      setOrders((prev) => prev.map((o) => o.id === order.id
+        ? { ...o, status: newStatus, acceptedAt: data?.acceptedAt ?? o.acceptedAt, prepMinutes: data?.prepMinutes ?? o.prepMinutes }
+        : o))
       toast.success(`#${order.orderNumber} → ${newStatus}`)
     } catch {
       toast.error('Failed to update order')
@@ -388,19 +534,52 @@ export default function AdminOrdersPage() {
                   </div>
 
                   <div className="flex flex-wrap gap-2">
-                    {NEXT_STATUS[order.status] && (
-                      <button
-                        onClick={() => updateStatus(order, NEXT_STATUS[order.status])}
-                        disabled={!!updatingId}
-                        className="flex items-center gap-1.5 bg-green-600 hover:bg-green-700 disabled:opacity-50 text-white text-xs font-bold px-3 py-2 rounded-xl transition-colors"
-                      >
-                        {updatingId === order.id
-                          ? <Loader2 size={13} className="animate-spin" />
-                          : <Check size={13} />
-                        }
-                        {NEXT_STATUS[order.status]}
-                      </button>
-                    )}
+                    {(() => {
+                      const stepIdx  = autoStepIndex(order.orderType, order.status)
+                      const steps    = autoSteps(order.orderType)
+                      const hasTimer = !!order.acceptedAt && !!order.prepMinutes
+                      const isNew    = order.status === 'New' || order.status === 'confirmed'
+                      // Mid-preparation with a running clock: 'Accepted' (not
+                      // yet a step) or any step before the last one.
+                      const autoRunning = hasTimer && (order.status === 'Accepted' || (stepIdx !== -1 && stepIdx < steps.length - 1))
+                      const nextStatus = legacyNextStatus(order.orderType, order.status)
+
+                      if (isNew) {
+                        return (
+                          <AcceptOrderPicker
+                            order={order}
+                            presets={presets}
+                            disabled={!!updatingId}
+                            onAccept={(minutes) => updateStatus(order, 'Accepted', minutes)}
+                          />
+                        )
+                      }
+                      if (autoRunning) {
+                        return (
+                          <PrepCountdown
+                            order={order}
+                            disabled={!!updatingId}
+                            onSkip={(next) => updateStatus(order, next)}
+                          />
+                        )
+                      }
+                      // Final step, or an order from before prep timing
+                      // existed — a plain manual advance either way.
+                      if (!nextStatus) return null
+                      return (
+                        <button
+                          onClick={() => updateStatus(order, nextStatus)}
+                          disabled={!!updatingId}
+                          className="flex items-center gap-1.5 bg-green-600 hover:bg-green-700 disabled:opacity-50 text-white text-xs font-bold px-3 py-2 rounded-xl transition-colors"
+                        >
+                          {updatingId === order.id
+                            ? <Loader2 size={13} className="animate-spin" />
+                            : <Check size={13} />
+                          }
+                          {nextStatus}
+                        </button>
+                      )
+                    })()}
                     {order.status !== 'Cancelled' && order.status !== 'Completed' && (
                       <button
                         onClick={() => updateStatus(order, 'Cancelled')}

@@ -18,6 +18,7 @@ export const NAV_PERMISSIONS: Record<string, Role[]> = {
   '/admin/offers':     ['admin', 'staff'],
   '/admin/customers':  ['admin', 'staff', 'viewer'],
   '/admin/delivery':   ['admin'],
+  '/admin/prep-times': ['admin'],
   '/admin/hours':      ['admin'],
   '/admin/settings':   ['admin'],
   '/admin/reports':    ['admin', 'viewer'],

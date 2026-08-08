@@ -1,7 +1,7 @@
 'use client'
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
-import { Check, MapPin, User, Clock, CreditCard, ShoppingBag, ArrowLeft, ChevronRight, Loader2 } from 'lucide-react'
+import { Check, MapPin, User, CreditCard, ShoppingBag, ArrowLeft, ChevronRight, Loader2 } from 'lucide-react'
 import { useCartStore } from '@/lib/cart-store'
 import { useAuth } from '@/lib/auth-context'
 import { formatPrice, isValidPostcode } from '@/lib/utils'
@@ -13,8 +13,7 @@ const STEPS = [
   { id: 1, label: 'Order Type', icon: ShoppingBag },
   { id: 2, label: 'Address', icon: MapPin },
   { id: 3, label: 'Details', icon: User },
-  { id: 4, label: 'Timing', icon: Clock },
-  { id: 5, label: 'Payment', icon: CreditCard },
+  { id: 4, label: 'Payment', icon: CreditCard },
 ]
 
 // ─── Stripe Checkout redirect ───────────────────────────────────────────────
@@ -119,8 +118,6 @@ export default function CheckoutPage() {
       setCustomerDetails({ name: user.name || '', phone: user.phone || '', email: user.email || '' })
     }
   }
-  const [timing, setTiming] = useState<'asap' | 'scheduled'>('asap')
-  const [scheduledTime, setScheduledTime] = useState('')
   const [zoneError, setZoneError] = useState('')
   const [advancingStep, setAdvancingStep] = useState(false)
 
@@ -197,7 +194,7 @@ export default function CheckoutPage() {
         return
       } finally { setAdvancingStep(false) }
     }
-    setStep((s) => Math.min(5, s + 1))
+    setStep((s) => Math.min(4, s + 1))
   }
 
   const prevStep = () => setStep((s) => Math.max(1, s - 1))
@@ -210,7 +207,6 @@ export default function CheckoutPage() {
     deliveryAddress: orderType === 'delivery' ? resolvedAddress : null,
     items,
     couponCodes: appliedCoupons.map((c) => c.code),
-    scheduledTime: timing === 'scheduled' ? scheduledTime : null,
   }
 
   if (items.length === 0) {
@@ -428,43 +424,8 @@ export default function CheckoutPage() {
           </div>
         )}
 
-        {/* Step 4: Timing */}
+        {/* Step 4: Payment */}
         {step === 4 && (
-          <div>
-            <h2 className="text-lg font-bold text-gray-900 mb-4">When would you like your order?</h2>
-            <div className="grid grid-cols-2 gap-3 mb-4">
-              {([
-                { value: 'asap', label: 'ASAP', desc: 'Est. 30-45 min', icon: '⚡' },
-                { value: 'scheduled', label: 'Schedule', desc: 'Choose a time', icon: '📅' },
-              ] as const).map((opt) => (
-                <button
-                  key={opt.value}
-                  onClick={() => setTiming(opt.value)}
-                  className={`p-4 rounded-xl border-2 text-left transition-all ${timing === opt.value ? 'border-red-500 bg-red-50' : 'border-gray-100 hover:border-gray-300'}`}
-                >
-                  <div className="text-2xl mb-2">{opt.icon}</div>
-                  <div className="font-bold text-gray-900 text-sm">{opt.label}</div>
-                  <div className="text-xs text-gray-500">{opt.desc}</div>
-                </button>
-              ))}
-            </div>
-            {timing === 'scheduled' && (
-              <div>
-                <label className="block text-xs font-semibold text-gray-700 mb-1">Select Time</label>
-                <input
-                  type="datetime-local"
-                  value={scheduledTime}
-                  onChange={(e) => setScheduledTime(e.target.value)}
-                  min={new Date().toISOString().slice(0, 16)}
-                  className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-red-400"
-                />
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* Step 5: Payment */}
-        {step === 5 && (
           <div>
             <h2 className="text-lg font-bold text-gray-900 mb-4">Payment</h2>
 
@@ -475,9 +436,6 @@ export default function CheckoutPage() {
               <div className="text-sm text-gray-600 mb-3 pb-3 border-b border-gray-200">
                 <div className="flex justify-between">
                   <span className="font-semibold text-gray-800">{orderType === 'delivery' ? '🚚 Delivery' : '🏪 Collection'}</span>
-                  {timing === 'scheduled' && scheduledTime && (
-                    <span>{new Date(scheduledTime).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</span>
-                  )}
                 </div>
                 {orderType === 'delivery' && resolvedAddress && (
                   <div className="mt-1 text-xs text-gray-500">
@@ -537,8 +495,8 @@ export default function CheckoutPage() {
         )}
       </div>
 
-      {/* Navigation (steps 1-4 only) */}
-      {step < 5 && (
+      {/* Navigation (steps 1-3 only) */}
+      {step < 4 && (
         <div className="flex gap-3">
           {step > 1 && (
             <button
@@ -557,7 +515,7 @@ export default function CheckoutPage() {
           </button>
         </div>
       )}
-      {step === 5 && (
+      {step === 4 && (
         <button
           onClick={prevStep}
           className="w-full py-3 rounded-xl border-2 border-gray-200 text-gray-700 font-bold hover:border-gray-300 transition-colors"

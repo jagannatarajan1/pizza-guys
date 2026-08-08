@@ -68,6 +68,10 @@ export async function GET(
     deliveryAddress: canSeePrivateDetails && order.deliveryAddress ? JSON.parse(order.deliveryAddress) : null,
     paymentMethod:   canSeePrivateDetails ? order.paymentMethod : undefined,
     scheduledTime:   order.scheduledTime,
+    // Timing is safe to share with anyone holding the order number — it's
+    // what drives the customer's live countdown.
+    acceptedAt:      order.acceptedAt,
+    prepMinutes:     order.prepMinutes,
     total:        order.total / 100,
     createdAt:    order.createdAt,
     items: order.items.map((i) => ({

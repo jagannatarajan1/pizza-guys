@@ -120,10 +120,18 @@ model Order {
   paymentIntentId String?     @map("payment_intent_id")
   paymentMethod   String      @default("card") @map("payment_method")
   scheduledTime   DateTime?   @map("scheduled_time")
+  // Set when staff accept the order and choose a preparation time. Together
+  // these are the only inputs the auto-progress timer needs — every tick
+  // re-derives the correct status from them, so a server restart can never
+  // strand an order mid-preparation. Null on orders placed before this
+  // feature shipped, which the timer skips and the UI falls back to manual.
+  acceptedAt      DateTime?   @map("accepted_at")
+  prepMinutes     Int?        @map("prep_minutes")
   createdAt       DateTime    @default(now()) @map("created_at")
   items           OrderItem[]
   user            User?       @relation(fields: [userId], references: [id])
 
+  @@index([status])
   @@map("orders")
 }
 
@@ -186,6 +194,18 @@ model DeliveryBand {
   sortOrder   Int    @default(0) @map("sort_order")
 
   @@map("delivery_bands")
+}
+
+// Admin-configurable preparation-time buttons shown when staff accept an
+// order. Seeded with sensible defaults on first read so the picker is never
+// empty on a fresh install.
+model PrepTimePreset {
+  id        String   @id @default(uuid())
+  minutes   Int
+  sortOrder Int      @default(0) @map("sort_order")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@map("prep_time_presets")
 }
 
 // Caches postcode -> lat/lng lookups from postcodes.io so repeat customers

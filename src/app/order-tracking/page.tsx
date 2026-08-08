@@ -8,6 +8,8 @@ import { useAuth } from '@/lib/auth-context'
 import { useSiteConfig } from '@/context/SiteConfigContext'
 import { useCartStore } from '@/lib/cart-store'
 import { reorderItems } from '@/lib/reorder'
+import { autoSteps, formatMMSS } from '@/lib/prep-timer'
+import { usePrepCountdown } from '@/lib/use-prep-countdown'
 
 const STATUS_PILL: Record<string, string> = {
   pending_payment:    'bg-amber-100 text-amber-700',
@@ -170,6 +172,8 @@ type OrderData = {
   orderType: string
   customerName: string
   total: number
+  acceptedAt: string | null
+  prepMinutes: number | null
   createdAt: string
   items: {
     productId: string; name: string; quantity: number; itemTotal: number; image: string
@@ -177,8 +181,6 @@ type OrderData = {
     specialInstructions: string
   }[]
 }
-
-const EST_MINUTES_BY_STAGE = [40, 30, 20, 10, 0]
 
 function TrackingContent() {
   const searchParams   = useSearchParams()
@@ -227,6 +229,15 @@ function TrackingContent() {
     }
   }, [orderNo])
 
+  // Called before the early returns below so the hook order stays stable
+  // across the loading/error/loaded renders. Null until the order arrives
+  // (or if it has no preparation time set), which the hook handles.
+  const timing = usePrepCountdown(
+    order?.acceptedAt && order?.prepMinutes
+      ? { orderType: order.orderType, acceptedAt: order.acceptedAt, prepMinutes: order.prepMinutes }
+      : null
+  )
+
   if (!orderNo) {
     return <OrderLookup />
   }
@@ -257,7 +268,7 @@ function TrackingContent() {
   const stage            = Math.max(0, order.stage)
   const isCancelled      = order.status === 'Cancelled'
   const isPendingPayment = order.status === 'pending_payment'
-  const estMinutes       = EST_MINUTES_BY_STAGE[Math.min(stage, 4)]
+  const nextStep         = timing ? autoSteps(order.orderType)[timing.currentStepIndex + 1] : undefined
 
   return (
     <div className="max-w-lg mx-auto px-4 py-10">
@@ -272,9 +283,19 @@ function TrackingContent() {
         {isPendingPayment && (
           <p className="text-amber-600 text-sm mt-2">Your payment is being processed. This page will update automatically.</p>
         )}
-        {!isCancelled && !isPendingPayment && stage < 4 && (
-          <div className="inline-flex items-center gap-2 mt-3 bg-orange-50 text-orange-600 px-4 py-2 rounded-xl font-semibold text-sm">
-            <Clock size={16} /> Est. {estMinutes} min remaining
+        {!isCancelled && !isPendingPayment && stage < 4 && timing && timing.totalRemainingMs > 0 && (
+          <div className="mt-3 inline-block bg-orange-50 text-orange-700 px-5 py-3 rounded-xl text-left">
+            <div className="flex items-center gap-2 font-bold text-base">
+              <Clock size={16} /> <span className="tabular-nums">{formatMMSS(timing.totalRemainingMs)}</span> remaining
+            </div>
+            <div className="text-xs mt-1 text-orange-600">
+              {nextStep
+                ? <>Next: {nextStep} in <span className="tabular-nums font-semibold">{formatMMSS(timing.remainingMs)}</span></>
+                : <>Almost ready!</>}
+            </div>
+            <div className="text-xs text-orange-500 mt-0.5">
+              Estimated ready by {timing.completionAt.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}
+            </div>
           </div>
         )}
       </div>

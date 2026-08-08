@@ -30,7 +30,7 @@ export async function POST(req: NextRequest) {
 
   const {
     orderType, customerName, customerEmail, customerPhone,
-    deliveryAddress, items, couponCodes, scheduledTime,
+    deliveryAddress, items, couponCodes,
   } = body
 
   // ── Basic input validation ──────────────────────────────────────────────────
@@ -46,20 +46,19 @@ export async function POST(req: NextRequest) {
   if (!Array.isArray(items) || items.length === 0 || items.length > MAX_ITEMS)
     return NextResponse.json({ error: 'Invalid items' }, { status: 400 })
 
-  // Orders placed for right now must respect the shop's current open/closed
-  // status — a scheduled order for later is exempt from this "right now" check.
-  if (!scheduledTime) {
-    const siteConfig = await fetchSiteConfig()
-    const status = computeShopStatus(siteConfig)
-    if (!status.isOpen) {
-      return NextResponse.json({ error: `We're currently closed — ${status.message}` }, { status: 403 })
-    }
-    if (orderType === 'delivery' && !status.deliveryEnabled) {
-      return NextResponse.json({ error: 'Delivery is currently unavailable' }, { status: 403 })
-    }
-    if (orderType === 'collection' && !status.collectionEnabled) {
-      return NextResponse.json({ error: 'Collection is currently unavailable' }, { status: 403 })
-    }
+  // Every order is for right now, so the shop's open/closed status always
+  // applies. This is deliberately unconditional — there's no scheduling, and
+  // no request field may skip it.
+  const siteConfig = await fetchSiteConfig()
+  const status = computeShopStatus(siteConfig)
+  if (!status.isOpen) {
+    return NextResponse.json({ error: `We're currently closed — ${status.message}` }, { status: 403 })
+  }
+  if (orderType === 'delivery' && !status.deliveryEnabled) {
+    return NextResponse.json({ error: 'Delivery is currently unavailable' }, { status: 403 })
+  }
+  if (orderType === 'collection' && !status.collectionEnabled) {
+    return NextResponse.json({ error: 'Collection is currently unavailable' }, { status: 403 })
   }
 
   // ── Server-side price recalculation ────────────────────────────────────────
@@ -179,7 +178,6 @@ export async function POST(req: NextRequest) {
       discount:        serverDiscountPence,
       total:           serverTotalPence,
       paymentMethod:   'card',
-      scheduledTime:   scheduledTime ? new Date(scheduledTime) : null,
       items:           { create: validatedItems },
     },
   })

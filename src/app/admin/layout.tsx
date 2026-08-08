@@ -5,7 +5,7 @@ import { usePathname, useRouter } from 'next/navigation'
 import {
   LayoutDashboard, ShoppingBag, Package, Grid3X3, Settings,
   Tag, Users, Truck, Clock, BarChart2, ChevronLeft, Menu, X,
-  SlidersHorizontal, UserCog, ShieldCheck, Bell,
+  SlidersHorizontal, UserCog, ShieldCheck, Bell, Timer,
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { canAccess, ROLE_LABELS } from '@/lib/roles'
@@ -20,6 +20,7 @@ const NAV = [
   { href: '/admin/offers',     label: 'Offers',         icon: Tag },
   { href: '/admin/customers',  label: 'Customers',      icon: Users },
   { href: '/admin/delivery',   label: 'Delivery',       icon: Truck },
+  { href: '/admin/prep-times', label: 'Prep Times',     icon: Timer },
   { href: '/admin/hours',      label: 'Opening Hours',  icon: Clock },
   { href: '/admin/settings',   label: 'Site Settings',  icon: SlidersHorizontal },
   { href: '/admin/reports',    label: 'Reports',        icon: BarChart2 },

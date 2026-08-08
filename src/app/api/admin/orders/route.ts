@@ -51,6 +51,8 @@ export async function GET(req: NextRequest) {
       total: o.total / 100,
       paymentMethod: o.paymentMethod,
       scheduledTime: o.scheduledTime,
+      acceptedAt: o.acceptedAt,
+      prepMinutes: o.prepMinutes,
       createdAt: o.createdAt,
       items: o.items.map((i) => ({
         id: i.id,
