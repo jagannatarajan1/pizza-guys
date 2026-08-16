@@ -334,7 +334,7 @@ export default function Footer() {
           </div>
           <div className="rounded-xl overflow-hidden border border-white/8 h-36 sm:h-44">
             <iframe
-              src={mapEmbedSrc(cfg.biz_map_lat, cfg.biz_map_lng, cfg.google_maps_api_key)}
+              src={mapEmbedSrc(cfg.biz_map_lat, cfg.biz_map_lng, cfg.google_maps_api_key, cfg.biz_map_embed_url)}
               width="100%"
               height="100%"
               style={{ border: 0 }}

@@ -8,7 +8,10 @@ const CSP = [
   "img-src 'self' data: blob: *",
   "font-src 'self'",
   "connect-src 'self' https://api.stripe.com https://checkout.stripe.com",
-  "frame-src https://js.stripe.com https://hooks.stripe.com https://checkout.stripe.com https://www.openstreetmap.org",
+  // www.google.com is needed for the Google Maps "share → embed" iframe on the
+  // contact/about pages and in the footer; without it the browser blocks the
+  // map and the panel just renders blank.
+  "frame-src https://js.stripe.com https://hooks.stripe.com https://checkout.stripe.com https://www.openstreetmap.org https://www.google.com",
   "object-src 'none'",
   "base-uri 'self'",
   "form-action 'self'",

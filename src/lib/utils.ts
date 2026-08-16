@@ -14,13 +14,23 @@ export function isValidPostcode(postcode: string): boolean {
   return /^[A-Z]{1,2}\d[A-Z\d]?\s*\d[A-Z]{2}$/i.test(postcode.trim())
 }
 
-// Real Google Maps if an API key is set in Site Settings (Google retired the
-// old key-free "q=...&output=embed" trick — it now 404s for any address).
-// Falls back to a free OpenStreetMap embed when no key is configured, so the
-// map still works out of the box before the owner adds one.
-export function mapEmbedSrc(lat: string, lng: string, googleApiKey?: string): string {
+// Only these can ever end up as an iframe src. Site Settings is admin-only,
+// but the value lands in a frame, so it's checked rather than trusted — and
+// it keeps the allowed hosts in step with next.config.ts's frame-src.
+const ALLOWED_MAP_EMBED_HOSTS = ['https://www.google.com/maps/embed', 'https://www.openstreetmap.org/export/embed']
+
+// Preference order: the embed URL pasted from Google Maps' "Share → Embed a
+// map" (no API key needed, points at the real business listing), then the
+// Maps Embed API if a key is configured, then a free OpenStreetMap embed so
+// there's always a working map out of the box.
+export function mapEmbedSrc(lat: string, lng: string, googleApiKey?: string, embedUrl?: string): string {
   const latN = parseFloat(lat)
   const lngN = parseFloat(lng)
+
+  const trimmedEmbed = embedUrl?.trim()
+  if (trimmedEmbed && ALLOWED_MAP_EMBED_HOSTS.some((prefix) => trimmedEmbed.startsWith(prefix))) {
+    return trimmedEmbed
+  }
 
   if (googleApiKey) {
     return `https://www.google.com/maps/embed/v1/place?key=${encodeURIComponent(googleApiKey)}&q=${latN},${lngN}`

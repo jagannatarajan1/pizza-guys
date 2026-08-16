@@ -229,7 +229,7 @@ export default function AboutPage() {
         >
           <div className="h-56">
             <iframe
-              src={mapEmbedSrc(cfg.biz_map_lat, cfg.biz_map_lng, cfg.google_maps_api_key)}
+              src={mapEmbedSrc(cfg.biz_map_lat, cfg.biz_map_lng, cfg.google_maps_api_key, cfg.biz_map_embed_url)}
               width="100%"
               height="100%"
               style={{ border: 0 }}

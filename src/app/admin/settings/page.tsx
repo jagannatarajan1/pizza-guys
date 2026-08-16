@@ -188,8 +188,22 @@ function BusinessTab({ cfg, set, save, reset, saving }: { cfg: Config; set: (k: 
             <Input value={cfg.biz_map_link ?? ''} onChange={(v) => set('biz_map_link', v)} placeholder="https://maps.app.goo.gl/..." type="url" />
           </Field>
         </div>
+        <div className="mt-5">
+          <Field label="Map Embed" note="The map shown on your website. In Google Maps open your shop, tap Share → Embed a map → Copy HTML, and paste it here — the address inside is picked out for you.">
+            <Input
+              value={cfg.biz_map_embed_url ?? ''}
+              onChange={(v) => {
+                // Accept either the raw URL or the whole <iframe …> snippet
+                // Google hands you, so there's nothing to hand-edit.
+                const fromIframe = v.match(/src=["']([^"']+)["']/)
+                set('biz_map_embed_url', (fromIframe ? fromIframe[1] : v).trim())
+              }}
+              placeholder="https://www.google.com/maps/embed?pb=..."
+            />
+          </Field>
+        </div>
         <div className="mt-5 grid sm:grid-cols-2 gap-5">
-          <Field label="Map Latitude" note="Only needed if the shop moves — right-click your location on Google Maps and copy the first number">
+          <Field label="Map Latitude" note="Used to work out delivery distances — right-click your location on Google Maps and copy the first number">
             <Input value={cfg.biz_map_lat ?? ''} onChange={(v) => set('biz_map_lat', v)} placeholder="51.4003305" />
           </Field>
           <Field label="Map Longitude" note="The second number from the same Google Maps right-click">
@@ -201,7 +215,7 @@ function BusinessTab({ cfg, set, save, reset, saving }: { cfg: Config; set: (k: 
             <Input value={cfg.google_maps_api_key ?? ''} onChange={(v) => set('google_maps_api_key', v)} placeholder="AIzaSy..." />
           </Field>
         </div>
-        <SaveBar onSave={save} onReset={reset} saving={saving} keys={['biz_phone', 'biz_phone2', 'biz_email', 'biz_address', 'biz_map_link', 'biz_map_lat', 'biz_map_lng', 'google_maps_api_key']} />
+        <SaveBar onSave={save} onReset={reset} saving={saving} keys={['biz_phone', 'biz_phone2', 'biz_email', 'biz_address', 'biz_map_link', 'biz_map_embed_url', 'biz_map_lat', 'biz_map_lng', 'google_maps_api_key']} />
       </SectionCard>
     </div>
   )

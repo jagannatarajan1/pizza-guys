@@ -201,7 +201,7 @@ export default function ContactPage() {
             <motion.div variants={fadeUp} className="rounded-2xl border-2 border-gray-100 overflow-hidden">
               <div className="h-36">
                 <iframe
-                  src={mapEmbedSrc(cfg.biz_map_lat, cfg.biz_map_lng, cfg.google_maps_api_key)}
+                  src={mapEmbedSrc(cfg.biz_map_lat, cfg.biz_map_lng, cfg.google_maps_api_key, cfg.biz_map_embed_url)}
                   width="100%"
                   height="100%"
                   style={{ border: 0 }}

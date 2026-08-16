@@ -25,6 +25,10 @@ export const DEFAULTS: SiteConfig = {
   biz_map_lat:        '51.4003305',
   biz_map_lng:        '-0.4590982',
   biz_map_link:       'https://maps.app.goo.gl/7bKEz5rrXfhDsTY4A',
+  // The map shown on the site, taken from Google Maps' own "Share → Embed a
+  // map" iframe. Preferred over the lat/lng fallbacks because it needs no API
+  // key and points at the business listing itself.
+  biz_map_embed_url:  'https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d151.11539838523973!2d-0.45938428491355787!3d51.400295654448165!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x4876750063a52ce1%3A0x4dc27756a7fef18a!2sPizza%20guys!5e1!3m2!1sen!2sjp!4v1786840894249!5m2!1sen!2sjp',
   google_maps_api_key: '',
   delivery_max_radius_miles: '3',
   // Delivery fee is automatically waived once the cart subtotal reaches this
