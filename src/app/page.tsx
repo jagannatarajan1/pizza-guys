@@ -25,7 +25,8 @@ type LiveCoupon = {
   value: number;
   description: string;
 };
-import { formatPrice, isValidPostcode } from "@/lib/utils";
+import { formatPrice } from "@/lib/utils";
+import { useDeliveryCheck } from "@/lib/use-delivery-check";
 import ProductModal from "@/components/ProductModal";
 import type { Product, Category } from "@/lib/types";
 import { useSiteConfig } from "@/context/SiteConfigContext";
@@ -167,16 +168,13 @@ export default function HomePage() {
   const [categories, setCategories] = useState<Category[]>([]);
   const [shopStatus, setShopStatus] = useState<ShopStatus | null>(null);
   const [liveCoupons, setLiveCoupons] = useState<LiveCoupon[]>([]);
-  const [postcode, setPostcode] = useState("");
-  const [checkingDelivery, setCheckingDelivery] = useState(false);
-  const [deliveryResult, setDeliveryResult] = useState<{
-    available: boolean;
-    message?: string;
-    minOrder?: number;
-    deliveryFee?: number;
-    freeDeliveryApplied?: boolean;
-    retryable?: boolean;
-  } | null>(null);
+  const {
+    postcode,
+    setPostcode,
+    checking: checkingDelivery,
+    result: deliveryResult,
+    check: handleDeliveryCheck,
+  } = useDeliveryCheck(cartSubtotal);
 
   useEffect(() => {
     fetch("/api/menu/products")
@@ -213,35 +211,6 @@ export default function HomePage() {
   const open = shopStatus ? shopStatus.isOpen : false;
   const todayHours = shopStatus ? shopStatus.todayHours : "";
 
-  const handleDeliveryCheck = async () => {
-    if (!postcode.trim()) return;
-    if (!isValidPostcode(postcode)) {
-      setDeliveryResult({
-        available: false,
-        message: "Enter a valid UK postcode (e.g. SW1A 1AA)",
-      });
-      return;
-    }
-    setCheckingDelivery(true);
-    setDeliveryResult(null);
-    try {
-      const res = await fetch("/api/delivery/check", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ postcode, subtotal: cartSubtotal }),
-      });
-      const data = await res.json();
-      setDeliveryResult(data);
-    } catch {
-      setDeliveryResult({
-        available: false,
-        retryable: true,
-        message: "Something went wrong — please try again",
-      });
-    } finally {
-      setCheckingDelivery(false);
-    }
-  };
 
   return (
     <>

@@ -2,12 +2,14 @@
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import Image from 'next/image'
-import { Trash2, Plus, Minus, Tag, ShoppingBag, ArrowLeft, SlidersHorizontal, Check } from 'lucide-react'
+import { Trash2, Plus, Minus, Tag, ShoppingBag, ArrowLeft, SlidersHorizontal, Check, MapPin, Lock } from 'lucide-react'
 import { useCartStore } from '@/lib/cart-store'
 import type { CartItem } from '@/lib/cart-store'
 import { useOrderType } from '@/context/OrderTypeContext'
 import { useSiteConfig } from '@/context/SiteConfigContext'
 import { formatPrice } from '@/lib/utils'
+import { useDeliveryCheck } from '@/lib/use-delivery-check'
+import type { ShopStatus } from '@/lib/shop-status'
 import ProductModal from '@/components/ProductModal'
 import toast from 'react-hot-toast'
 
@@ -36,6 +38,7 @@ export default function CartPage() {
   const [couponLoading, setCouponLoading] = useState(false)
   const [editingItem, setEditingItem] = useState<CartItem | null>(null)
   const [availableCoupons, setAvailableCoupons] = useState<AvailableCoupon[]>([])
+  const [shopStatus, setShopStatus] = useState<ShopStatus | null>(null)
 
   const subtotal = getSubtotal()
   const effectiveDiscount = getEffectiveDiscount(orderType)
@@ -53,7 +56,35 @@ export default function CartPage() {
 
   useEffect(() => {
     fetch('/api/coupons').then((r) => r.json()).then((d) => setAvailableCoupons(d.coupons ?? [])).catch(() => {})
+    fetch('/api/shop-status').then((r) => r.json()).then((d: ShopStatus) => setShopStatus(d)).catch(() => {})
   }, [])
+
+  // Same postcode check the homepage runs, so a customer who already checked
+  // there isn't asked anything different here.
+  const { postcode, setPostcode, checking: checkingDelivery, result: deliveryResult, check: handleDeliveryCheck } =
+    useDeliveryCheck(subtotal)
+
+  // Checkout opens only once we know we can actually take the order: the shop
+  // is open, this way of ordering is switched on, and — for delivery — we've
+  // confirmed we reach that postcode. Collection needs no postcode, so asking
+  // for one would just block a perfectly valid order. Unknown shop status
+  // counts as closed, matching what the homepage already does.
+  const shopOpen      = shopStatus?.isOpen ?? false
+  const modeEnabled   = orderType === 'delivery' ? (shopStatus?.deliveryEnabled ?? false) : (shopStatus?.collectionEnabled ?? false)
+  const postcodeOk    = orderType === 'collection' || deliveryResult?.available === true
+  const canCheckout   = shopOpen && modeEnabled && postcodeOk
+
+  const blockedReason = !shopStatus
+    ? 'Checking whether we’re open…'
+    : !shopOpen
+      ? `The shop is currently closed${shopStatus.message ? ` — ${shopStatus.message}` : ''}. Checkout is unavailable.`
+      : !modeEnabled
+        ? `${orderType === 'delivery' ? 'Delivery' : 'Collection'} is currently unavailable.`
+        : !postcodeOk
+          ? (deliveryResult && !deliveryResult.available
+              ? (deliveryResult.message ?? 'We can’t deliver to that postcode.')
+              : 'Check your postcode above to continue to checkout.')
+          : ''
 
   // If the cart total drops below whatever an applied coupon requires (items
   // removed/quantities reduced), the coupon no longer qualifies — take it off
@@ -302,6 +333,53 @@ export default function CartPage() {
               </div>
             </div>
 
+            {/* Delivery postcode check — required before checkout for
+                delivery orders. Uses the same check as the homepage. */}
+            {orderType === 'delivery' && (
+              <div className="bg-white rounded-2xl p-4 border border-gray-100">
+                <h3 className="font-bold text-gray-900 mb-3 flex items-center gap-2">
+                  <MapPin size={16} className="text-red-600" /> Check we deliver to you
+                </h3>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={postcode}
+                    onChange={(e) => setPostcode(e.target.value.toUpperCase())}
+                    onKeyDown={(e) => e.key === 'Enter' && handleDeliveryCheck()}
+                    placeholder="Enter postcode e.g. TW18 1AB"
+                    className="flex-1 min-w-0 border-2 border-gray-100 rounded-xl px-3 py-2.5 text-sm font-semibold focus:outline-none focus:border-[#FFD700] transition-colors"
+                  />
+                  <button
+                    onClick={handleDeliveryCheck}
+                    disabled={checkingDelivery}
+                    className="btn-brand px-4 py-2.5 rounded-xl text-sm shrink-0 disabled:opacity-60"
+                  >
+                    {checkingDelivery ? 'Checking…' : 'Check'}
+                  </button>
+                </div>
+
+                {/* A postcode we couldn't check isn't a postcode we don't
+                    deliver to — keep those two apart, as elsewhere. */}
+                {deliveryResult && !deliveryResult.available && deliveryResult.retryable && (
+                  <div className="mt-3 p-3 bg-amber-50 text-amber-700 rounded-xl text-sm font-semibold">
+                    ⚠️ {deliveryResult.message ?? 'Something went wrong — please try again'}
+                  </div>
+                )}
+                {deliveryResult && !deliveryResult.available && !deliveryResult.retryable && (
+                  <div className="mt-3 p-3 bg-red-50 text-red-700 rounded-xl text-sm font-semibold">
+                    ❌ {(deliveryResult.message ?? 'Sorry, we don’t deliver to your area yet').replace(/[.!]+$/, '')}. You can still collect in-store!
+                  </div>
+                )}
+                {deliveryResult?.available && (
+                  <div className="mt-3 p-3 bg-green-50 text-green-700 rounded-xl text-sm font-semibold">
+                    {deliveryResult.freeDeliveryApplied
+                      ? <>🎉 We deliver to you — and your order qualifies for free delivery!</>
+                      : <>✅ We deliver to you! Fee: {formatPrice(deliveryResult.deliveryFee ?? 0)} · Min order: {formatPrice(deliveryResult.minOrder ?? 0)}</>}
+                  </div>
+                )}
+              </div>
+            )}
+
             {/* Order summary */}
             <div className="bg-white rounded-2xl p-4 border border-gray-100">
               <h3 className="font-bold text-gray-900 mb-4">Order Summary</h3>
@@ -325,12 +403,27 @@ export default function CartPage() {
                   <span>{formatPrice(total)}</span>
                 </div>
               </div>
-              <Link
-                href="/checkout"
-                className="mt-4 w-full bg-red-600 hover:bg-red-700 text-white font-bold py-4 rounded-xl transition-colors flex items-center justify-center gap-2 text-sm"
-              >
-                Proceed to Checkout
-              </Link>
+              {/* Rendered as a real disabled button (not a styled link) when
+                  blocked, so it can't be clicked or followed by keyboard. */}
+              {canCheckout ? (
+                <Link
+                  href="/checkout"
+                  className="mt-4 w-full bg-red-600 hover:bg-red-700 text-white font-bold py-4 rounded-xl transition-colors flex items-center justify-center gap-2 text-sm"
+                >
+                  Proceed to Checkout
+                </Link>
+              ) : (
+                <button
+                  disabled
+                  aria-disabled="true"
+                  className="mt-4 w-full bg-gray-200 text-gray-500 font-bold py-4 rounded-xl flex items-center justify-center gap-2 text-sm cursor-not-allowed"
+                >
+                  <Lock size={14} /> Proceed to Checkout
+                </button>
+              )}
+              {!canCheckout && blockedReason && (
+                <p className="text-center text-xs text-gray-600 mt-2">{blockedReason}</p>
+              )}
               <p className="text-center text-xs text-gray-400 mt-2">Secure checkout · SSL encrypted</p>
             </div>
           </div>
