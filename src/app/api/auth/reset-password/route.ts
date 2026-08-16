@@ -68,6 +68,6 @@ export async function POST(req: NextRequest) {
   // Auto-login after reset
   const sessionToken = signToken({ userId: user.id, role: user.role, email: user.email, tokenVersion: updated.tokenVersion })
   const res = NextResponse.json({ ok: true })
-  setAuthCookie(res, sessionToken)
+  setAuthCookie(res, sessionToken, req)
   return res
 }

@@ -140,6 +140,40 @@ export async function sendEmailChangeOtp(to: string, name: string, otp: string, 
   })
 }
 
+// One-time sign-in code ("log in with an email code" instead of a password).
+// Deliberately contains no link and no account details — only the code — so
+// forwarding or intercepting the mail leaks as little as possible, and there is
+// no clickable target for a phishing-style redirect.
+export async function sendLoginOtpEmail(
+  to: string,
+  name: string,
+  otp: string,
+  expiryMinutes: number,
+  isStaffLogin = false
+) {
+  const cfg      = await fetchSiteConfig()
+  const dark     = cfg.theme_dark || '#111111'
+  const bizName  = cfg.biz_name || 'Pizza Guys'
+  const fromAddr = process.env.EMAIL_FROM ?? `${bizName} <${process.env.SMTP_USER}>`
+  const greeting = name ? `Hi <strong>${name}</strong>,` : 'Hi,'
+
+  const body = `
+    <h1 style="font-size:22px;font-weight:900;color:#111;margin:0 0 8px">${isStaffLogin ? 'Your staff sign-in code' : 'Your sign-in code'}</h1>
+    <p style="color:#555;font-size:15px;line-height:1.6;margin:0 0 8px">${greeting}</p>
+    <p style="color:#555;font-size:15px;line-height:1.6;margin:0 0 8px">Enter this code to sign in to ${isStaffLogin ? `the ${bizName} admin panel` : `your ${bizName} account`}:</p>
+    ${codeBlock(otp, dark)}
+    <p style="color:#555;font-size:14px;line-height:1.6;margin:0 0 8px">Never share this code with anyone. ${bizName} staff will never ask you for it.</p>
+    <p style="color:#bbb;font-size:12px;margin:24px 0 0;padding-top:16px;border-top:1px solid #eee">This code expires in ${expiryMinutes} minutes and can only be used once. If you didn't try to sign in, you can safely ignore this email — nobody can access your account with this message alone.</p>
+  `
+
+  return getTransport().sendMail({
+    from:    fromAddr,
+    to,
+    subject: `Your ${bizName} sign-in code`,
+    html:    emailShell(cfg, body),
+  })
+}
+
 // Sent to the OLD address once the change is complete — the one place someone
 // who didn't request this would actually see it happen.
 export async function sendEmailChangedOldAddressNotice(to: string, name: string, newEmail: string, baseUrl?: string) {

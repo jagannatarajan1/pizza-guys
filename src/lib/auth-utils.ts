@@ -28,6 +28,15 @@ export function verifyToken(token: string): JWTPayload | null {
   }
 }
 
+// Half-finished login for a staff account that has an authenticator app set
+// up: proves the first factor was passed without granting a session, and dies
+// after 5 minutes. Redeemed by /api/auth/2fa/login once the 6-digit
+// authenticator code is supplied. Shared by the password login and the emailed
+// -code login so both first factors land on the same second factor.
+export function signTwoFactorTempToken(userId: string): string {
+  return jwt.sign({ userId, phase: '2fa' }, SECRET, { expiresIn: '5m' })
+}
+
 // Full session check: verifies the JWT itself, then confirms its embedded
 // tokenVersion still matches the database. A password change bumps the
 // database value, which makes every token issued before that moment fail
@@ -47,18 +56,44 @@ export async function getSessionPayload(req: NextRequest): Promise<JWTPayload | 
   return payload
 }
 
-export function setAuthCookie(response: NextResponse, token: string) {
+// Whether to mark the session cookie "HTTPS only".
+//
+// Previously this was `COOKIE_SECURE === 'true'` alone — a variable that isn't
+// actually set anywhere, so the live site was handing out session cookies a
+// browser would happily replay over plain HTTP. Deciding it from the request
+// instead is both safer and impossible to get wrong on deployment: if the
+// visitor arrived over HTTPS the cookie is locked to HTTPS, and if the site is
+// genuinely served over plain HTTP (or on localhost during development) the
+// flag stays off so login still works. COOKIE_SECURE=true can still force it.
+function cookieSecure(req?: NextRequest): boolean {
+  if (process.env.COOKIE_SECURE === 'true') return true
+  if (!req) return process.env.NODE_ENV === 'production'
+  const proto = req.headers.get('x-forwarded-proto')?.split(',')[0].trim()
+  if (proto) return proto === 'https'
+  return req.nextUrl.protocol === 'https:'
+}
+
+export function setAuthCookie(response: NextResponse, token: string, req?: NextRequest) {
   response.cookies.set(COOKIE, token, {
     httpOnly: true,
-    secure: process.env.COOKIE_SECURE === 'true',
+    secure: cookieSecure(req),
     sameSite: 'lax',
     maxAge: 60 * 60 * 24 * 7,
     path: '/',
   })
 }
 
-export function clearAuthCookie(response: NextResponse) {
-  response.cookies.set(COOKIE, '', { maxAge: 0, path: '/' })
+export function clearAuthCookie(response: NextResponse, req?: NextRequest) {
+  // Same flags as when it was set — a browser only replaces a cookie when the
+  // name/path/domain/secure attributes line up, so a mismatched clear can
+  // leave the original cookie in place.
+  response.cookies.set(COOKIE, '', {
+    httpOnly: true,
+    secure: cookieSecure(req),
+    sameSite: 'lax',
+    maxAge: 0,
+    path: '/',
+  })
 }
 
 export { COOKIE as AUTH_COOKIE }

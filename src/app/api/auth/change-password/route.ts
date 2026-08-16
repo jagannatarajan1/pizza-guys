@@ -80,6 +80,6 @@ export async function POST(req: NextRequest) {
   // this request stays logged in — only every *other* session is kicked out.
   const sessionToken = signToken({ userId: user.id, email: user.email, role: user.role, tokenVersion: updated.tokenVersion })
   const res = NextResponse.json({ ok: true })
-  setAuthCookie(res, sessionToken)
+  setAuthCookie(res, sessionToken, req)
   return res
 }

@@ -86,7 +86,7 @@ export async function POST(req: NextRequest) {
       user: { id: user.id, name: user.name, email: user.email, phone: user.phone, role: user.role, addresses: user.addresses },
       mustSetup2FA: true,
     })
-    setAuthCookie(res, token)
+    setAuthCookie(res, token, req)
     return res
   }
 
@@ -95,6 +95,6 @@ export async function POST(req: NextRequest) {
   const res   = NextResponse.json({
     user: { id: user.id, name: user.name, email: user.email, phone: user.phone, role: user.role, addresses: user.addresses },
   })
-  setAuthCookie(res, token)
+  setAuthCookie(res, token, req)
   return res
 }

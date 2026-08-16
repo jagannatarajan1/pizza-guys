@@ -34,11 +34,25 @@ model User {
   pendingEmailOtpHash     String?   @map("pending_email_otp_hash")
   pendingEmailOtpExpires  DateTime? @map("pending_email_otp_expires")
   pendingEmailAttempts    Int       @default(0) @map("pending_email_attempts")
+  // Passwordless "email me a code" sign-in. Same shape as the email-change OTP
+  // above: only an HMAC of the code is ever stored, it expires quickly, and a
+  // per-code attempt counter burns it after too many wrong guesses. Issuing a
+  // new code overwrites the hash, which is what invalidates the previous one.
+  // loginOtpScope records which door the code was issued for ("user" or
+  // "admin") so a code obtained from the customer form can never be redeemed
+  // at the staff form, and vice versa.
+  loginOtpHash            String?   @map("login_otp_hash")
+  loginOtpExpires         DateTime? @map("login_otp_expires")
+  loginOtpAttempts        Int       @default(0) @map("login_otp_attempts")
+  loginOtpScope           String?   @map("login_otp_scope")
   addresses            Address[]
   orders               Order[]
   passwordHistory      PasswordHistory[]
   auditLogs            AuditLog[]
 
+  // Supports the periodic sweep that wipes codes which have already expired,
+  // so stale hashes don't linger on rows indefinitely.
+  @@index([loginOtpExpires])
   @@map("users")
 }
 

@@ -6,6 +6,9 @@ export type AuditAction =
   | 'email_change_requested'
   | 'email_change_verified'
   | 'email_change_failed'
+  | 'login_otp_requested'
+  | 'login_otp_success'
+  | 'login_otp_failed'
 
 // Best-effort — a logging failure must never take down the request that
 // triggered it, so this never throws.

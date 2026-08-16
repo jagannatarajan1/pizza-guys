@@ -43,6 +43,6 @@ export async function GET(req: NextRequest) {
   // Auto-login
   const sessionToken = signToken({ userId: user.id, email: user.email, role: user.role, tokenVersion: user.tokenVersion })
   const res = NextResponse.json({ ok: true, redirectTo: '/dashboard?verified=1' })
-  setAuthCookie(res, sessionToken)
+  setAuthCookie(res, sessionToken, req)
   return res
 }

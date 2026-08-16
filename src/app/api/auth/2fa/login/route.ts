@@ -67,6 +67,6 @@ export async function POST(req: NextRequest) {
   const res = NextResponse.json({
     user: { id: user.id, name: user.name, email: user.email, phone: user.phone, role: user.role, addresses: user.addresses },
   })
-  setAuthCookie(res, sessionToken)
+  setAuthCookie(res, sessionToken, req)
   return res
 }
