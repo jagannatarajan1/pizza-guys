@@ -154,12 +154,15 @@ const REQUIRED_CATEGORIES = ['Pizzas','Kebabs','Wraps','Burgers','Smash Burgers'
   sauce?.options?.length === 6 && sauce.max === 6 && sauce.maxPerOption === 2 && !sauce.required
     ? ok('kebab sauce: 6 options, up to 6, each twice, optional') : bad('kebab sauce rules wrong')
 
-  console.log('\n=== Extras present in the shop but not on the source menu ===')
+  console.log('\n=== Products in these categories that are not on the source menu ===')
   const expectedNames = new Set(Object.values(EXPECTED).flatMap((o) => Object.keys(o)).map((n) => n.toLowerCase()))
   const auditedCats = new Set(['pizza','kebab-pizza','kebab','wraps','burgers','smash-burgers','sides','drinks','desserts','dips'])
   const extras = products.filter((p) => auditedCats.has(p.category) && !expectedNames.has(p.name.toLowerCase()))
-  extras.length ? extras.forEach((p) => console.log(`  note  kept: ${p.name} (${p.category}) £${(p.price/100).toFixed(2)}`))
-                : console.log('  none')
+  const visibleExtras = extras.filter((p) => p.available)
+  const hiddenExtras = extras.filter((p) => !p.available)
+  if (extras.length === 0) console.log('  none')
+  visibleExtras.forEach((p) => console.log(`  note   still offered to customers: ${p.name} (${p.category}) £${(p.price/100).toFixed(2)} — not on the source menu, kept as a deliberate extra`))
+  if (hiddenExtras.length) console.log(`  note   ${hiddenExtras.length} more retired item(s) — hidden from customers, kept in the database only`)
 
   if (problems.length === 0) {
     console.log('\nAUDIT CLEAN — every item on the source menu is present and priced correctly.')

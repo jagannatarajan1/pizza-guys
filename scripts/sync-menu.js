@@ -1,4 +1,12 @@
-// Applies scripts/menu-catalogue.js to the database.
+// Brings a database's menu up to exactly what scripts/menu-catalogue.js
+// specifies — categories, products (name/price/description/allergens), the
+// modifier catalogue, and which steps each product carries.
+//
+// Safe to point at a database holding an unrelated older catalogue: every
+// product this menu needs is created or corrected by NAME, and any existing
+// product in an audited category that isn't part of this menu is turned off
+// (available: false) rather than deleted — nothing is destroyed, and past
+// orders are unaffected since they store their own price/name snapshot.
 //
 //   node scripts/sync-menu.js          # show what would change
 //   node scripts/sync-menu.js --apply  # write it
@@ -12,6 +20,7 @@ const catalogue = require('./menu-catalogue.js')
 const prisma = new PrismaClient()
 const APPLY = process.argv.includes('--apply')
 const pence = (pounds) => Math.round(pounds * 100)
+const AUDITED_CATEGORIES = new Set(catalogue.PRODUCTS.map((p) => p.category))
 
 // The exact JSON shape the storefront reads out of Product.modifiers.
 function groupToJson(group) {
@@ -41,7 +50,25 @@ async function main() {
   const changes = []
   const note = (msg) => { changes.push(msg); console.log(msg) }
 
-  // ── 1. Modifier tables (what the admin screen edits) ──────────────────────
+  // ── 1. Categories — make sure every one this menu needs actually exists ───
+  console.log('\n--- Categories ---')
+  for (const cat of catalogue.CATEGORIES) {
+    const existing = await prisma.category.findUnique({ where: { id: cat.id } })
+    if (!existing) {
+      note(`Adding missing category: ${cat.name}`)
+      if (APPLY) {
+        await prisma.category.create({
+          data: { id: cat.id, name: cat.name, slug: cat.slug, icon: cat.icon, order: cat.order, visible: true },
+        })
+      }
+    } else if (existing.name !== cat.name || !existing.visible) {
+      note(`Fixing category: "${existing.name}"${!existing.visible ? ' (was hidden)' : ''} → "${cat.name}"`)
+      if (APPLY) await prisma.category.update({ where: { id: cat.id }, data: { name: cat.name, visible: true } })
+    }
+  }
+
+  // ── 2. Modifier tables (what the admin screen edits) ───────────────────────
+  console.log('\n--- Modifier catalogue ---')
   const catalogueIds = new Set(catalogue.ALL_GROUPS.map((g) => g.id))
   const existingGroups = await prisma.modifierGroup.findMany({ select: { id: true, name: true } })
   const stale = existingGroups.filter((g) => !catalogueIds.has(g.id))
@@ -85,37 +112,71 @@ async function main() {
   }
   note(`Modifier catalogue: ${catalogue.ALL_GROUPS.length} groups, ${catalogue.ALL_GROUPS.reduce((n, g) => n + g.options.length, 0)} options`)
 
-  // ── 2. Products the menu requires but the database is missing ─────────────
-  for (const p of catalogue.MISSING_PRODUCTS) {
-    const found = await prisma.product.findFirst({ where: { name: p.name, category: p.category } })
-    if (found) continue
-    note(`Adding missing product: ${p.name} (${p.category}) £${p.price.toFixed(2)}`)
-    if (APPLY) {
-      await prisma.product.create({
-        data: {
-          name: p.name,
-          description: p.description || '',
-          price: pence(p.price),
-          image: '',
-          category: p.category,
-          popular: false,
-          available: true,
-          modifiers: '[]',
-          allergens: JSON.stringify(p.allergens || []),
-        },
-      })
+  // ── 3. Every product the menu requires — create or correct by name ────────
+  console.log('\n--- Products ---')
+  const keepNames = new Set()
+  for (const target of catalogue.PRODUCTS) {
+    keepNames.add(target.name.toLowerCase())
+    const found = await prisma.product.findFirst({ where: { name: target.name } })
+    const targetPricePence = pence(target.price)
+
+    if (!found) {
+      note(`Adding missing product: ${target.name} (${target.category}) £${target.price.toFixed(2)}`)
+      if (APPLY) {
+        await prisma.product.create({
+          data: {
+            name: target.name,
+            description: target.description || '',
+            price: targetPricePence,
+            image: '',   // no image invented — upload one via /admin/products
+            category: target.category,
+            popular: !!target.popular,
+            available: true,
+            modifiers: '[]',   // step 4 below attaches the right steps
+            allergens: JSON.stringify(target.allergens || []),
+          },
+        })
+      }
+      continue
+    }
+
+    const fixes = {}
+    if (found.category !== target.category) fixes.category = target.category
+    if (found.price !== targetPricePence) fixes.price = targetPricePence
+    if (!found.available) fixes.available = true
+    // Description/allergens are only filled in where the existing row is
+    // blank — an admin's own wording on a correctly-named, correctly-priced
+    // product is never silently overwritten.
+    if (!found.description && target.description) fixes.description = target.description
+    if ((!found.allergens || found.allergens === '[]') && target.allergens?.length) {
+      fixes.allergens = JSON.stringify(target.allergens)
+    }
+
+    if (Object.keys(fixes).length > 0) {
+      const bits = Object.entries(fixes).map(([k, v]) => `${k}: ${found[k]} → ${v}`)
+      note(`Correcting ${target.name}: ${bits.join(', ')}`)
+      if (APPLY) await prisma.product.update({ where: { id: found.id }, data: fixes })
     }
   }
 
-  // ── 3. Description wording ────────────────────────────────────────────────
-  for (const [name, description] of Object.entries(catalogue.DESCRIPTION_FIXES)) {
-    const found = await prisma.product.findFirst({ where: { name } })
-    if (!found || found.description === description) continue
-    note(`Fixing description: ${name}`)
-    if (APPLY) await prisma.product.update({ where: { id: found.id }, data: { description } })
+  // ── 4. Legacy products in the same categories that aren't part of this menu
+  //       are switched off, never deleted — past orders keep their own
+  //       name/price snapshot regardless, so this can't affect order history.
+  console.log('\n--- Legacy items in audited categories ---')
+  const allInAuditedCats = await prisma.product.findMany({ where: { category: { in: [...AUDITED_CATEGORIES] } } })
+  const orphans = allInAuditedCats.filter((p) => !keepNames.has(p.name.toLowerCase()) && p.available)
+  if (orphans.length === 0) {
+    console.log('  none')
+  } else {
+    for (const p of orphans) {
+      note(`Turning off legacy item not on this menu: "${p.name}" (${p.category}) £${(p.price / 100).toFixed(2)} — still in the database, just hidden from customers`)
+      if (APPLY) await prisma.product.update({ where: { id: p.id }, data: { available: false } })
+    }
+    console.log(`  (${orphans.length} item(s) — review in /admin/products and delete any you don't want to keep)`)
   }
 
-  // ── 4. Attach the right steps to every product ────────────────────────────
+  // ── 5. Attach the right steps to every product ─────────────────────────────
+  console.log('\n--- Ordering steps ---')
   const products = await prisma.product.findMany({ orderBy: [{ category: 'asc' }, { name: 'asc' }] })
   let attached = 0
   let untouched = 0
