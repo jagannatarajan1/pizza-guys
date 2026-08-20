@@ -208,9 +208,20 @@ export default function CartPage() {
                     {item.modifiers.length > 0 && (
                       <div className="flex flex-wrap gap-1 mt-1.5">
                         {item.modifiers.flatMap((mod) =>
-                          mod.options.map((o) => (
-                            <span key={`${mod.groupId}-${o.id}`} className="text-[11px] font-semibold text-gray-600 bg-gray-100 rounded-full px-2 py-0.5">
-                              {o.name}{o.price > 0 && <span className="text-gray-400"> +{formatPrice(o.price)}</span>}
+                          // The same option can legitimately appear twice (two
+                          // scoops of the same salad), so identical picks are
+                          // collapsed into one "×2" chip rather than repeated.
+                          Object.values(
+                            mod.options.reduce<Record<string, { name: string; price: number; count: number }>>((acc, o) => {
+                              acc[o.id] = acc[o.id]
+                                ? { ...acc[o.id], count: acc[o.id].count + 1, price: acc[o.id].price + o.price }
+                                : { name: o.name, price: o.price, count: 1 }
+                              return acc
+                            }, {})
+                          ).map((o, i) => (
+                            <span key={`${mod.groupId}-${o.name}-${i}`} className="text-[11px] font-semibold text-gray-600 bg-gray-100 rounded-full px-2 py-0.5">
+                              {o.name}{o.count > 1 && ` ×${o.count}`}
+                              {o.price > 0 && <span className="text-gray-400"> +{formatPrice(o.price)}</span>}
                             </span>
                           ))
                         )}

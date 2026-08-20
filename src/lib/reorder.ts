@@ -1,5 +1,6 @@
 import type { Product, ModifierOption } from './types'
 import type { CartItemModifier } from './cart-store'
+import { activeGroups, optionUnitPrice, type Selections } from './modifier-pricing'
 import toast from 'react-hot-toast'
 
 export type ReorderItem = {
@@ -39,18 +40,38 @@ export async function reorderItems(items: ReorderItem[], { addItem, goToCart }: 
       }
 
       let droppedAnyOption = false
-      const modifiers: CartItemModifier[] = item.modifiers
-        .map((mod) => {
-          const currentGroup = product.modifiers?.find((g) => g.id === mod.groupId)
-          if (!currentGroup) { droppedAnyOption = true; return null }
-          const options = mod.options
-            .map((o) => currentGroup.options.find((co) => co.id === o.id))
-            .filter((o): o is ModifierOption => {
-              if (!o) droppedAnyOption = true
-              return !!o
-            })
+
+      // Rebuild the choices as ids first: an option's price can depend on
+      // another step's answer (a cheesy crust costs more on a bigger pizza),
+      // so nothing can be priced until the whole set is known.
+      const selections: Selections = {}
+      item.modifiers.forEach((mod) => {
+        const currentGroup = product.modifiers?.find((g) => g.id === mod.groupId)
+        if (!currentGroup) { droppedAnyOption = true; return }
+        const ids = mod.options
+          .map((o) => currentGroup.options.find((co) => co.id === o.id)?.id)
+          .filter((id): id is string => {
+            if (!id) droppedAnyOption = true
+            return !!id
+          })
+        if (ids.length > 0) selections[currentGroup.id] = ids
+      })
+
+      // Steps whose trigger is gone are dropped rather than silently charged.
+      const liveGroups = activeGroups(product, selections)
+      const liveGroupIds = new Set(liveGroups.map((g) => g.id))
+      Object.keys(selections).forEach((groupId) => {
+        if (!liveGroupIds.has(groupId)) { droppedAnyOption = true; delete selections[groupId] }
+      })
+
+      const modifiers: CartItemModifier[] = liveGroups
+        .map((group) => {
+          const options = (selections[group.id] ?? [])
+            .map((id) => group.options.find((o) => o.id === id))
+            .filter((o): o is ModifierOption => !!o)
+            .map((o) => ({ ...o, price: optionUnitPrice(group, o, selections) }))
           if (options.length === 0) return null
-          return { groupId: currentGroup.id, groupName: currentGroup.name, options }
+          return { groupId: group.id, groupName: group.name, options }
         })
         .filter((m): m is CartItemModifier => !!m)
 

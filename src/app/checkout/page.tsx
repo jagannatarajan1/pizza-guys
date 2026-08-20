@@ -455,7 +455,16 @@ export default function CheckoutPage() {
                     {item.modifiers.map((mod) => (
                       <div key={mod.groupId} className="text-xs text-gray-500 mt-0.5">
                         <span className="font-medium text-gray-600">{mod.groupName}:</span>{' '}
-                        {mod.options.map((o) => o.name + (o.price > 0 ? ` (+${formatPrice(o.price)})` : '')).join(', ')}
+                        {Object.values(
+                          mod.options.reduce<Record<string, { name: string; price: number; count: number }>>((acc, o) => {
+                            acc[o.id] = acc[o.id]
+                              ? { ...acc[o.id], count: acc[o.id].count + 1, price: acc[o.id].price + o.price }
+                              : { name: o.name, price: o.price, count: 1 }
+                            return acc
+                          }, {})
+                        )
+                          .map((o) => `${o.name}${o.count > 1 ? ` ×${o.count}` : ''}${o.price > 0 ? ` (+${formatPrice(o.price)})` : ''}`)
+                          .join(', ')}
                       </div>
                     ))}
                     {item.product.allergens && item.product.allergens.length > 0 && (

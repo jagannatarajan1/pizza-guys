@@ -15,11 +15,15 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
   if (deny) return deny
 
   const { optId } = await params
-  const { name, price } = await req.json()
+  const { name, price, tag } = await req.json()
 
   const option = await prisma.modifierOption.update({
     where: { id: optId },
-    data: { name, price: Math.round((price ?? 0) * 100) },
+    data: {
+      name,
+      price: Math.round((price ?? 0) * 100),
+      ...(typeof tag === 'string' ? { tag } : {}),
+    },
   })
 
   return NextResponse.json({ option: { ...option, price: option.price / 100 } })

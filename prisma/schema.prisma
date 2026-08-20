@@ -262,11 +262,21 @@ model Coupon {
 model ModifierGroup {
   id          String           @id @default(uuid())
   name        String
+  // Sub-heading shown under the step title in the picker.
+  description String           @default("")
   required    Boolean          @default(false)
   multiSelect Boolean          @default(false) @map("multi_select")
   min         Int              @default(0)
   max         Int              @default(1)
+  // How many times a single option may be picked (two of the same salad).
+  maxPerOption Int             @default(1) @map("max_per_option")
   sortOrder   Int              @default(0) @map("sort_order")
+  // Only offer this step when the named group has one of these options chosen
+  // — how "pick your meal drink" stays hidden until a meal is added.
+  dependsOnGroup   String?     @map("depends_on_group")
+  dependsOnOptions String      @default("[]") @map("depends_on_options")
+  // Group whose choice drives this group's per-option price overrides.
+  priceDependsOn   String?     @map("price_depends_on")
   options     ModifierOption[]
 
   @@map("modifier_groups")
@@ -277,10 +287,17 @@ model ModifierOption {
   groupId   String        @map("group_id")
   name      String
   price     Int           @default(0)
+  // Short badge — "Spicy", "Contains Fish" — kept out of the name so it never
+  // ends up baked into the text printed on a kitchen ticket.
+  tag       String        @default("")
+  // JSON map of driving-option id to price in pence, used when the owning
+  // group sets priceDependsOn.
+  priceBy   String        @default("{}") @map("price_by")
   sortOrder Int           @default(0) @map("sort_order")
   group     ModifierGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
 
   @@map("modifier_options")
+  @@index([groupId])
 }
 
 model OrderItem {

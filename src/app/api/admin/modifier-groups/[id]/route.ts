@@ -15,11 +15,19 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
   if (deny) return deny
 
   const { id } = await params
-  const { name, required, multiSelect, min, max } = await req.json()
+  const { name, description, required, multiSelect, min, max, maxPerOption } = await req.json()
 
   const group = await prisma.modifierGroup.update({
     where: { id },
-    data: { name, required: !!required, multiSelect: !!multiSelect, min: min ?? 0, max: max ?? 1 },
+    data: {
+      name, required: !!required, multiSelect: !!multiSelect,
+      min: min ?? 0, max: max ?? 1,
+      // Only written when the caller actually sent them, so editing a group's
+      // name from the admin screen can't blank out the step wording or the
+      // per-option limit it doesn't yet have a field for.
+      ...(typeof description === 'string' ? { description } : {}),
+      ...(maxPerOption !== undefined ? { maxPerOption: Math.max(1, Number(maxPerOption) || 1) } : {}),
+    },
     include: { options: true },
   })
 

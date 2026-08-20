@@ -7,6 +7,7 @@ import { fetchSiteConfig } from '@/lib/site-config'
 import { computeShopStatus } from '@/lib/shop-status'
 import { resolveDelivery } from '@/lib/delivery'
 import { validateCouponSet } from '@/lib/coupons'
+import { priceItem } from '@/lib/order-pricing'
 
 const MAX_ITEMS    = 50
 const MAX_QUANTITY = 99
@@ -14,7 +15,9 @@ const MAX_QUANTITY = 99
 type CartItem = {
   product: { id: string }
   quantity: number
-  modifiers: { id: string; name: string; price: number }[]
+  // Deliberately untyped beyond "something arrived" — the pricing module reads
+  // only the ids out of it and rebuilds names and prices from the database.
+  modifiers: unknown
   specialInstructions: string
 }
 
@@ -68,7 +71,7 @@ export async function POST(req: NextRequest) {
 
   const dbProducts = await prisma.product.findMany({
     where: { id: { in: productIds }, available: true },
-    select: { id: true, name: true, price: true, category: true },
+    select: { id: true, name: true, price: true, category: true, modifiers: true },
   })
   const productMap = Object.fromEntries(dbProducts.map((p) => [p.id, p]))
 
@@ -86,16 +89,21 @@ export async function POST(req: NextRequest) {
     const qty = Math.round(item.quantity)
     if (!qty || qty < 1 || qty > MAX_QUANTITY) return NextResponse.json({ error: 'Invalid quantity' }, { status: 400 })
 
-    const unitPricePence = product.price // DB price is already in pence
-    const itemTotalPence = unitPricePence * qty
+    // Base price AND every chosen option are re-priced from the database, and
+    // the required/maximum/duplicate rules are re-checked here — the browser's
+    // own totals are never read.
+    const priced = priceItem(product, item.modifiers, qty)
+    if (!priced.ok) return NextResponse.json({ error: priced.error }, { status: 400 })
+
+    const itemTotalPence = priced.itemTotalPence
     serverSubtotalPence += itemTotalPence
 
     validatedItems.push({
       productId:           product.id,
       productName:         product.name,
       quantity:            qty,
-      unitPrice:           unitPricePence,
-      modifiers:           JSON.stringify(Array.isArray(item.modifiers) ? item.modifiers : []),
+      unitPrice:           priced.unitPricePence,
+      modifiers:           JSON.stringify(priced.modifiers),
       specialInstructions: sanitizeStr(item.specialInstructions, 300),
       itemTotal:           itemTotalPence,
     })

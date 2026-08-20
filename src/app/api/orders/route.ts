@@ -2,7 +2,12 @@ import { NextRequest, NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
 import { generateOrderNumber } from '@/lib/utils'
 import { getSessionPayload } from '@/lib/auth-utils'
-import { requireAuth } from '@/lib/api-guard'
+import { requireAuth, sanitizeStr, validatePhone, validatePostcode } from '@/lib/api-guard'
+import { priceItem } from '@/lib/order-pricing'
+import { resolveDelivery } from '@/lib/delivery'
+import { validateCouponSet } from '@/lib/coupons'
+import { fetchSiteConfig } from '@/lib/site-config'
+import { computeShopStatus } from '@/lib/shop-status'
 
 export async function GET(req: NextRequest) {
   const payload = await getSessionPayload(req)
@@ -59,61 +64,143 @@ export async function GET(req: NextRequest) {
   })
 }
 
+const MAX_ITEMS    = 50
+const MAX_QUANTITY = 99
+
 export async function POST(req: NextRequest) {
   const guard = await requireAuth(req)
   if (!guard.ok) return guard.res
 
+  const body = await req.json().catch(() => null)
+  if (!body) return NextResponse.json({ error: 'Invalid request' }, { status: 400 })
+
   const {
-    userId,
     orderType,
     customerName,
     customerEmail,
     customerPhone,
     deliveryAddress,
     items,
-    subtotal,
-    deliveryFee,
-    discount,
-    total,
+    couponCodes,
     paymentIntentId,
     paymentMethod,
-    scheduledTime,
-  } = await req.json()
+  } = body
+
+  const nameClean  = sanitizeStr(customerName, 100)
+  const emailClean = sanitizeStr(customerEmail, 254)
+  const phoneClean = sanitizeStr(customerPhone, 30)
+
+  if (!nameClean) return NextResponse.json({ error: 'Name is required' }, { status: 400 })
+  if (!phoneClean || !validatePhone(phoneClean))
+    return NextResponse.json({ error: 'Valid phone number is required' }, { status: 400 })
+  if (!['delivery', 'collection'].includes(orderType))
+    return NextResponse.json({ error: 'Invalid order type' }, { status: 400 })
+  if (!Array.isArray(items) || items.length === 0 || items.length > MAX_ITEMS)
+    return NextResponse.json({ error: 'Invalid items' }, { status: 400 })
+
+  const siteConfig = await fetchSiteConfig()
+  const status = computeShopStatus(siteConfig)
+  if (!status.isOpen) return NextResponse.json({ error: `We're currently closed — ${status.message}` }, { status: 403 })
+  if (orderType === 'delivery' && !status.deliveryEnabled)
+    return NextResponse.json({ error: 'Delivery is currently unavailable' }, { status: 403 })
+  if (orderType === 'collection' && !status.collectionEnabled)
+    return NextResponse.json({ error: 'Collection is currently unavailable' }, { status: 403 })
+
+  type IncomingItem = {
+    product?: { id?: string }
+    quantity?: number
+    modifiers?: unknown
+    specialInstructions?: string
+  }
+
+  const incoming = items as IncomingItem[]
+  const productIds = [...new Set(incoming.map((i) => i.product?.id).filter((id): id is string => !!id))]
+  if (productIds.length === 0) return NextResponse.json({ error: 'No valid products' }, { status: 400 })
+
+  const dbProducts = await prisma.product.findMany({
+    where: { id: { in: productIds }, available: true },
+    select: { id: true, name: true, price: true, category: true, modifiers: true },
+  })
+  const productMap = Object.fromEntries(dbProducts.map((p) => [p.id, p]))
+
+  let subtotalPence = 0
+  const orderItems: {
+    productId: string; productName: string; quantity: number
+    unitPrice: number; modifiers: string; specialInstructions: string; itemTotal: number
+  }[] = []
+  const couponItems: { category: string; itemTotalPence: number }[] = []
+
+  for (const item of incoming) {
+    const product = productMap[item.product?.id ?? '']
+    if (!product) return NextResponse.json({ error: 'Product not found or unavailable' }, { status: 400 })
+
+    const qty = Math.round(Number(item.quantity))
+    if (!qty || qty < 1 || qty > MAX_QUANTITY) return NextResponse.json({ error: 'Invalid quantity' }, { status: 400 })
+
+    // Same rulebook the checkout path uses: prices and option rules come from
+    // the database, never from the request body.
+    const priced = priceItem(product, item.modifiers, qty)
+    if (!priced.ok) return NextResponse.json({ error: priced.error }, { status: 400 })
+
+    subtotalPence += priced.itemTotalPence
+    orderItems.push({
+      productId:           product.id,
+      productName:         product.name,
+      quantity:            qty,
+      unitPrice:           priced.unitPricePence,
+      modifiers:           JSON.stringify(priced.modifiers),
+      specialInstructions: sanitizeStr(item.specialInstructions, 300),
+      itemTotal:           priced.itemTotalPence,
+    })
+    couponItems.push({ category: product.category, itemTotalPence: priced.itemTotalPence })
+  }
+
+  let deliveryFeePence = 0
+  if (orderType === 'delivery') {
+    const postcode = typeof deliveryAddress === 'object' ? sanitizeStr(deliveryAddress?.postcode, 10) : ''
+    const delivery = postcode && validatePostcode(postcode)
+      ? await resolveDelivery(postcode, subtotalPence)
+      : { available: false as const, reason: 'not_found' as const }
+    if (!delivery.available) {
+      return NextResponse.json({ error: "We can't deliver to that address — please check your postcode" }, { status: 400 })
+    }
+    if (subtotalPence < delivery.minOrder) {
+      return NextResponse.json({ error: `Minimum order for your area is £${(delivery.minOrder / 100).toFixed(2)}` }, { status: 400 })
+    }
+    deliveryFeePence = delivery.deliveryFee
+  }
+
+  let discountPence = 0
+  const requestedCodes = Array.isArray(couponCodes)
+    ? couponCodes.filter((c): c is string => typeof c === 'string').map((c) => sanitizeStr(c, 50))
+    : []
+  if (requestedCodes.length > 0) {
+    const result = await validateCouponSet(requestedCodes, couponItems, deliveryFeePence, orderType)
+    if (!result.ok) return NextResponse.json({ error: result.error }, { status: 400 })
+    discountPence = result.discountPence
+  }
+
+  const totalPence = Math.max(0, subtotalPence + deliveryFeePence - discountPence)
 
   const order = await prisma.order.create({
     data: {
       orderNumber: generateOrderNumber(),
-      userId: userId ?? null,
+      // Always the signed-in account — an id in the request body is ignored so
+      // an order can never be filed against somebody else.
+      userId: guard.payload.userId,
       status: 'New',
       orderType,
-      customerName,
-      customerEmail,
-      customerPhone,
+      customerName:    nameClean,
+      customerEmail:   emailClean,
+      customerPhone:   phoneClean,
       deliveryAddress: deliveryAddress ? JSON.stringify(deliveryAddress) : null,
-      subtotal: Math.round(subtotal),
-      deliveryFee: Math.round(deliveryFee),
-      discount: Math.round(discount),
-      total: Math.round(total),
+      subtotal:        subtotalPence,
+      deliveryFee:     deliveryFeePence,
+      discount:        discountPence,
+      total:           totalPence,
       paymentIntentId: paymentIntentId ?? null,
       paymentMethod,
-      scheduledTime: scheduledTime ? new Date(scheduledTime) : null,
-      items: {
-        create: (items as {
-          product: { id: string; name: string; price: number }
-          quantity: number
-          modifiers: Record<string, unknown>[]
-          specialInstructions: string
-          itemTotal: number
-        }[]).map((item) => ({
-          productId: item.product.id,
-          productName: item.product.name,
-          quantity: item.quantity,
-          unitPrice: Math.round(item.product.price * 100),
-          modifiers: JSON.stringify(item.modifiers),
-          specialInstructions: item.specialInstructions,
-          itemTotal: Math.round(item.itemTotal * 100),
-        })),
-      },
+      items: { create: orderItems },
     },
   })
 
