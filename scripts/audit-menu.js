@@ -99,8 +99,25 @@ const REQUIRED_CATEGORIES = ['Pizzas','Kebabs','Wraps','Burgers','Smash Burgers'
   if (problems.length === 0) ok('every product carries exactly the steps its category calls for')
 
   console.log('\n=== Step contents ===')
-  const pizza = byName.get('margarita pizza')
-  const steps = JSON.parse(pizza.modifiers)
+
+  // Spot-check one product per family. If the shop doesn't have that exact
+  // name, say so and move on — a name that doesn't match is a finding to
+  // report, not a reason to abandon the rest of the audit.
+  const sample = (name) => {
+    const found = byName.get(name.toLowerCase())
+    if (!found) bad(`cannot spot-check steps: no product named "${name}" in this database`)
+    return found
+  }
+  const parseSteps = (product) => {
+    if (!product) return []
+    try {
+      const parsed = JSON.parse(product.modifiers || '[]')
+      return Array.isArray(parsed) ? parsed : []
+    } catch { bad(`${product.name}: its saved options are not readable`); return [] }
+  }
+
+  const pizza = sample('Margarita Pizza')
+  const steps = parseSteps(pizza)
   const sizes = steps.find((g) => g.id === 'pizza-size')
   const bases = steps.find((g) => g.id === 'pizza-base')
   const crust = steps.find((g) => g.id === 'pizza-cheesy-crust')
@@ -111,30 +128,30 @@ const REQUIRED_CATEGORIES = ['Pizzas','Kebabs','Wraps','Burgers','Smash Burgers'
   const half  = steps.find((g) => g.id === 'pizza-half-half')
 
   sizes?.options.length === 4 ? ok('4 pizza sizes') : bad('pizza sizes wrong')
-  const sizePrices = Object.fromEntries(sizes.options.map((o) => [o.name, o.price]))
+  const sizePrices = Object.fromEntries((sizes?.options ?? []).map((o) => [o.name, o.price]))
   JSON.stringify(sizePrices) === JSON.stringify({'Medium (9")':0,'Large (12")':4.55,'Extra Large (15")':8.9,'Mega Large (18")':12.25})
     ? ok('size prices 0 / 4.55 / 8.90 / 12.25') : bad(`size prices wrong: ${JSON.stringify(sizePrices)}`)
   bases?.options.length === 3 && bases.required ? ok('3 required bases') : bad('pizza bases wrong')
-  const cp = crust.options[0].priceBy
+  const cp = crust?.options?.[0]?.priceBy
   JSON.stringify(cp) === JSON.stringify({'size-medium':1.49,'size-large':1.99,'size-xl':2.49,'size-mega':2.99})
     ? ok('cheesy crust 1.49 / 1.99 / 2.49 / 2.99 by size') : bad(`crust prices wrong: ${JSON.stringify(cp)}`)
   tops?.options.length === 22 ? ok('22 toppings') : bad(`toppings: ${tops?.options.length} of 22`)
   tops?.options.every((o) => o.price === 1.5) ? ok('every topping £1.50') : bad('a topping is not £1.50')
   tops?.max === 10 ? ok('up to 10 toppings') : bad(`topping max is ${tops?.max}`)
-  const tagged = tops.options.filter((o) => o.tag).length
+  const tagged = (tops?.options ?? []).filter((o) => o.tag).length
   tagged === 8 ? ok(`${tagged} toppings carry a spicy/allergen badge`) : bad(`${tagged} tagged toppings, expected 8`)
-  half?.options[0]?.price === 1.5 ? ok('half and half £1.50') : bad('half and half wrong')
-  drink?.options.length === 12 && drink.options.every((o) => o.price === 1.29) ? ok('12 drinks at £1.29') : bad('pizza drink list wrong')
+  half?.options?.[0]?.price === 1.5 ? ok('half and half £1.50') : bad('half and half wrong')
+  drink?.options?.length === 12 && drink.options.every((o) => o.price === 1.29) ? ok('12 drinks at £1.29') : bad('pizza drink list wrong')
   meal?.options[0]?.price === 2.99 ? ok('meal £2.99') : bad('meal price wrong')
-  mealD?.options.length === 12 && mealD.dependsOn?.groupId === 'pizza-meal' ? ok('12 meal drinks, shown only after a meal is added') : bad('meal drink step wrong')
+  mealD?.options?.length === 12 && mealD.dependsOn?.groupId === 'pizza-meal' ? ok('12 meal drinks, shown only after a meal is added') : bad('meal drink step wrong')
 
-  const kebab = byName.get('chicken kebab (in pitta)')
-  const ks = JSON.parse(kebab.modifiers)
+  const kebab = sample('Chicken Kebab (In Pitta)')
+  const ks = parseSteps(kebab)
   const salad = ks.find((g) => g.id === 'kebab-salad')
   const sauce = ks.find((g) => g.id === 'kebab-sauce')
-  salad?.options.length === 6 && salad.max === 5 && salad.maxPerOption === 2 && salad.required
+  salad?.options?.length === 6 && salad.max === 5 && salad.maxPerOption === 2 && salad.required
     ? ok('kebab salad: 6 options, up to 5, each twice, required') : bad('kebab salad rules wrong')
-  sauce?.options.length === 6 && sauce.max === 6 && sauce.maxPerOption === 2 && !sauce.required
+  sauce?.options?.length === 6 && sauce.max === 6 && sauce.maxPerOption === 2 && !sauce.required
     ? ok('kebab sauce: 6 options, up to 6, each twice, optional') : bad('kebab sauce rules wrong')
 
   console.log('\n=== Extras present in the shop but not on the source menu ===')
@@ -144,7 +161,12 @@ const REQUIRED_CATEGORIES = ['Pizzas','Kebabs','Wraps','Burgers','Smash Burgers'
   extras.length ? extras.forEach((p) => console.log(`  note  kept: ${p.name} (${p.category}) £${(p.price/100).toFixed(2)}`))
                 : console.log('  none')
 
-  console.log(`\n${problems.length === 0 ? 'AUDIT CLEAN — every item on the source menu is present and priced correctly.' : `${problems.length} PROBLEM(S) FOUND`}`)
+  if (problems.length === 0) {
+    console.log('\nAUDIT CLEAN — every item on the source menu is present and priced correctly.')
+  } else {
+    console.log(`\n${problems.length} PROBLEM(S) FOUND`)
+    problems.forEach((m, i) => console.log(`  ${String(i + 1).padStart(3)}. ${m}`))
+  }
   await prisma.$disconnect()
   process.exit(problems.length === 0 ? 0 : 1)
 })().catch(async (e) => { console.error('FAILED:', e.message); await prisma.$disconnect(); process.exit(1) })
