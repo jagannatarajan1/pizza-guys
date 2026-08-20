@@ -2,7 +2,7 @@
 //   node scripts/audit-menu.js
 // Exits non-zero if anything is missing, mispriced, or missing its steps.
 
-require('/tmp/claude-1000/-home-ghost-Downloads-pizza-back-pizza-guys/bad63de7-331e-4ac2-b85f-3d7d47bdf8dc/scratchpad/envload.js')(__dirname + '/..')
+require('./load-env.js')()
 const { PrismaClient } = require('@prisma/client')
 const catalogue = require('./menu-catalogue.js')
 const prisma = new PrismaClient()
