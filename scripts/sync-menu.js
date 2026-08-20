@@ -128,7 +128,11 @@ async function main() {
             name: target.name,
             description: target.description || '',
             price: targetPricePence,
-            image: '',   // no image invented — upload one via /admin/products
+            // The exact image this same product uses in the verified catalogue —
+            // real only once the matching file has been copied onto this server's
+            // disk too (rsync public/uploads/branding across); left blank rather
+            // than invented for anything that had no photo there either.
+            image: target.image || '',
             category: target.category,
             popular: !!target.popular,
             available: true,
@@ -151,6 +155,9 @@ async function main() {
     if ((!found.allergens || found.allergens === '[]') && target.allergens?.length) {
       fixes.allergens = JSON.stringify(target.allergens)
     }
+    // Same rule as description: only fills a genuinely blank photo slot, so an
+    // admin's own upload on a correctly-named product is never replaced.
+    if (!found.image && target.image) fixes.image = target.image
 
     if (Object.keys(fixes).length > 0) {
       const bits = Object.entries(fixes).map(([k, v]) => `${k}: ${found[k]} → ${v}`)
