@@ -53,6 +53,10 @@ model User {
   // Supports the periodic sweep that wipes codes which have already expired,
   // so stale hashes don't linger on rows indefinitely.
   @@index([loginOtpExpires])
+  // Login accepts either email or phone (`OR: [{email},{phone}]`) — email
+  // already has its @unique index, this covers the phone side so every login
+  // attempt isn't a full table scan.
+  @@index([phone])
   @@map("users")
 }
 
@@ -114,6 +118,7 @@ model Address {
   createdAt DateTime @default(now()) @map("created_at")
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
+  @@index([userId])
   @@map("addresses")
 }
 
@@ -146,6 +151,11 @@ model Order {
   user            User?       @relation(fields: [userId], references: [id])
 
   @@index([status])
+  @@index([userId])
+  @@index([createdAt])
+  // Hit twice per Stripe webhook event (updateMany then findFirst) with no
+  // index otherwise available on this column.
+  @@index([paymentIntentId])
   @@map("orders")
 }
 
@@ -207,6 +217,9 @@ model DeliveryBand {
   deliveryFee Int    @map("delivery_fee")
   sortOrder   Int    @default(0) @map("sort_order")
 
+  // Every delivery quote and checkout does a range lookup against these two
+  // columns together.
+  @@index([fromMiles, toMiles])
   @@map("delivery_bands")
 }
 
@@ -312,5 +325,9 @@ model OrderItem {
   itemTotal           Int    @map("item_total")
   order               Order  @relation(fields: [orderId], references: [id], onDelete: Cascade)
 
+  // Foreign key that Postgres does not auto-index. Every `include: { items:
+  // true }` compiles to a WHERE on this column, and it's also what the
+  // cascade delete on Order has to scan.
+  @@index([orderId])
   @@map("order_items")
 }

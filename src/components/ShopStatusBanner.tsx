@@ -1,20 +1,16 @@
 'use client'
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { Clock, CheckCircle2, X } from 'lucide-react'
-import type { ShopStatus } from '@/lib/shop-status'
+import { useShopStatus } from '@/context/ShopStatusContext'
 
 export default function ShopStatusBanner() {
-  const [status, setStatus]       = useState<ShopStatus | null>(null)
+  // Server-computed for the very first paint, refreshed once after mount —
+  // see ShopStatusProvider. Shared with every other consumer of shop status
+  // on the page, so this banner no longer runs its own separate fetch.
+  const status = useShopStatus()
   const [dismissed, setDismissed] = useState(false)
 
-  useEffect(() => {
-    fetch('/api/shop-status')
-      .then((r) => r.json())
-      .then((d: ShopStatus) => setStatus(d))
-      .catch(() => {})
-  }, [])
-
-  if (!status || dismissed) return null
+  if (dismissed) return null
 
   if (status.isOpen) {
     return (

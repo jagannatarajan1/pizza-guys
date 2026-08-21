@@ -9,7 +9,7 @@ import { useOrderType } from '@/context/OrderTypeContext'
 import { useSiteConfig } from '@/context/SiteConfigContext'
 import { formatPrice } from '@/lib/utils'
 import { useDeliveryCheck } from '@/lib/use-delivery-check'
-import type { ShopStatus } from '@/lib/shop-status'
+import { useShopStatus } from '@/context/ShopStatusContext'
 import ProductModal from '@/components/ProductModal'
 import toast from 'react-hot-toast'
 
@@ -38,7 +38,7 @@ export default function CartPage() {
   const [couponLoading, setCouponLoading] = useState(false)
   const [editingItem, setEditingItem] = useState<CartItem | null>(null)
   const [availableCoupons, setAvailableCoupons] = useState<AvailableCoupon[]>([])
-  const [shopStatus, setShopStatus] = useState<ShopStatus | null>(null)
+  const shopStatus = useShopStatus()
 
   const subtotal = getSubtotal()
   const effectiveDiscount = getEffectiveDiscount(orderType)
@@ -56,7 +56,6 @@ export default function CartPage() {
 
   useEffect(() => {
     fetch('/api/coupons').then((r) => r.json()).then((d) => setAvailableCoupons(d.coupons ?? [])).catch(() => {})
-    fetch('/api/shop-status').then((r) => r.json()).then((d: ShopStatus) => setShopStatus(d)).catch(() => {})
   }, [])
 
   // Same postcode check the homepage runs, so a customer who already checked
@@ -69,22 +68,20 @@ export default function CartPage() {
   // confirmed we reach that postcode. Collection needs no postcode, so asking
   // for one would just block a perfectly valid order. Unknown shop status
   // counts as closed, matching what the homepage already does.
-  const shopOpen      = shopStatus?.isOpen ?? false
-  const modeEnabled   = orderType === 'delivery' ? (shopStatus?.deliveryEnabled ?? false) : (shopStatus?.collectionEnabled ?? false)
+  const shopOpen      = shopStatus.isOpen
+  const modeEnabled   = orderType === 'delivery' ? shopStatus.deliveryEnabled : shopStatus.collectionEnabled
   const postcodeOk    = orderType === 'collection' || deliveryResult?.available === true
   const canCheckout   = shopOpen && modeEnabled && postcodeOk
 
-  const blockedReason = !shopStatus
-    ? 'Checking whether we’re open…'
-    : !shopOpen
-      ? `The shop is currently closed${shopStatus.message ? ` — ${shopStatus.message}` : ''}. Checkout is unavailable.`
-      : !modeEnabled
-        ? `${orderType === 'delivery' ? 'Delivery' : 'Collection'} is currently unavailable.`
-        : !postcodeOk
-          ? (deliveryResult && !deliveryResult.available
-              ? (deliveryResult.message ?? 'We can’t deliver to that postcode.')
-              : 'Check your postcode above to continue to checkout.')
-          : ''
+  const blockedReason = !shopOpen
+    ? `The shop is currently closed${shopStatus.message ? ` — ${shopStatus.message}` : ''}. Checkout is unavailable.`
+    : !modeEnabled
+      ? `${orderType === 'delivery' ? 'Delivery' : 'Collection'} is currently unavailable.`
+      : !postcodeOk
+        ? (deliveryResult && !deliveryResult.available
+            ? (deliveryResult.message ?? 'We can’t deliver to that postcode.')
+            : 'Check your postcode above to continue to checkout.')
+        : ''
 
   // If the cart total drops below whatever an applied coupon requires (items
   // removed/quantities reduced), the coupon no longer qualifies — take it off
@@ -201,7 +198,11 @@ export default function CartPage() {
               <div key={item.cartId} className="bg-white rounded-2xl p-4 border border-gray-100">
                 <div className="flex gap-4">
                   <div className="relative w-20 h-20 shrink-0 rounded-xl overflow-hidden bg-gray-100">
-                    <Image src={item.product.image} alt={item.product.name} fill className="object-cover" />
+                    {item.product.image ? (
+                      <Image src={item.product.image} alt={item.product.name} fill sizes="80px" className="object-cover" />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center text-3xl">🍕</div>
+                    )}
                   </div>
                   <div className="flex-1 min-w-0">
                     <h3 className="font-bold text-gray-900 text-sm">{item.product.name}</h3>

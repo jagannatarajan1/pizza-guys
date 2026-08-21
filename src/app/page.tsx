@@ -32,7 +32,7 @@ import type { Product, Category } from "@/lib/types";
 import { useSiteConfig } from "@/context/SiteConfigContext";
 import { useCartStore } from "@/lib/cart-store";
 import { useOrderType } from "@/context/OrderTypeContext";
-import type { ShopStatus } from "@/lib/shop-status";
+import { useShopStatus } from "@/context/ShopStatusContext";
 
 const fadeUp = {
   hidden: { opacity: 0, y: 32 },
@@ -80,13 +80,17 @@ function HomeProductCard({
       className="bg-white rounded-2xl border-2 border-gray-100 overflow-hidden cursor-pointer card-hover group"
     >
       <div className="relative aspect-square overflow-hidden bg-gray-100">
-        <Image
-          src={product.image}
-          alt={product.name}
-          fill
-          className="object-cover group-hover:scale-105 transition-transform duration-400"
-          sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw"
-        />
+        {product.image ? (
+          <Image
+            src={product.image}
+            alt={product.name}
+            fill
+            className="object-cover group-hover:scale-105 transition-transform duration-400"
+            sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw"
+          />
+        ) : (
+          <div className="w-full h-full flex items-center justify-center text-5xl">🍕</div>
+        )}
         <div className="absolute top-2 left-2 bg-[#FFD700] text-[#111] text-[10px] font-black px-2 py-0.5 rounded-full">
           {badge}
         </div>
@@ -166,7 +170,7 @@ export default function HomePage() {
   const [popularProducts, setPopularProducts] = useState<Product[]>([]);
   const [mealDealProducts, setMealDealProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
-  const [shopStatus, setShopStatus] = useState<ShopStatus | null>(null);
+  const shopStatus = useShopStatus();
   const [liveCoupons, setLiveCoupons] = useState<LiveCoupon[]>([]);
   const {
     postcode,
@@ -194,12 +198,6 @@ export default function HomePage() {
       .then((d) => {
         setCategories(d.categories ?? []);
       });
-    fetch("/api/shop-status")
-      .then((r) => r.json())
-      .then((d: ShopStatus) => {
-        setShopStatus(d);
-      })
-      .catch(() => {});
     fetch("/api/coupons")
       .then((r) => r.json())
       .then((d) => {

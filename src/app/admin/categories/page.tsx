@@ -177,7 +177,11 @@ export default function AdminCategoriesPage() {
                         selected ? 'border-[#FFD700]' : 'border-transparent hover:border-gray-200'
                       }`}
                     >
-                      <Image src={p.image} alt={p.name} fill className="object-cover" />
+                      {p.image ? (
+                        <Image src={p.image} alt={p.name} fill className="object-cover" />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center text-2xl bg-gray-100">🍕</div>
+                      )}
                       {selected && (
                         <span className="absolute inset-0 bg-black/30 flex items-center justify-center">
                           <Check size={18} className="text-white" strokeWidth={3} />

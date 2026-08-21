@@ -4,6 +4,7 @@ import './globals.css'
 import { AuthProvider } from '@/lib/auth-context'
 import { SiteConfigProvider } from '@/context/SiteConfigContext'
 import { OrderTypeProvider } from '@/context/OrderTypeContext'
+import { ShopStatusProvider } from '@/context/ShopStatusContext'
 import { Toaster } from 'react-hot-toast'
 import Header from '@/components/Header'
 import Footer from '@/components/Footer'
@@ -11,6 +12,7 @@ import ThemeScript from '@/components/ThemeScript'
 import ShopStatusBanner from '@/components/ShopStatusBanner'
 import StickyCartBar from '@/components/StickyCartBar'
 import { fetchSiteConfig } from '@/lib/site-config'
+import { computeShopStatus } from '@/lib/shop-status'
 
 // Every page reads site_config (logo, colours, hours, hero text, SEO, etc.)
 // through this layout. Without this, Next.js statically freezes the render
@@ -37,6 +39,7 @@ export async function generateMetadata(): Promise<Metadata> {
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
   const config = await fetchSiteConfig()
+  const shopStatus = computeShopStatus(config)
 
   return (
     <html lang="en" className={`h-full ${nunito.variable}`}>
@@ -47,25 +50,27 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         <SiteConfigProvider initial={config}>
           <OrderTypeProvider>
             <AuthProvider>
-              <Toaster
-                position="top-center"
-                toastOptions={{
-                  style: {
-                    background: '#111',
-                    color: '#fff',
-                    borderRadius: '0.75rem',
-                    border: '1px solid var(--brand-accent)',
-                    fontWeight: 700,
-                  },
-                  success: { iconTheme: { primary: '#FFD700', secondary: '#111' } },
-                  error:   { iconTheme: { primary: '#E53935', secondary: '#fff' } },
-                }}
-              />
-              <Header />
-              <ShopStatusBanner />
-              <main className="flex-1">{children}</main>
-              <Footer />
-              <StickyCartBar />
+              <ShopStatusProvider initial={shopStatus}>
+                <Toaster
+                  position="top-center"
+                  toastOptions={{
+                    style: {
+                      background: '#111',
+                      color: '#fff',
+                      borderRadius: '0.75rem',
+                      border: '1px solid var(--brand-accent)',
+                      fontWeight: 700,
+                    },
+                    success: { iconTheme: { primary: '#FFD700', secondary: '#111' } },
+                    error:   { iconTheme: { primary: '#E53935', secondary: '#fff' } },
+                  }}
+                />
+                <Header />
+                <ShopStatusBanner />
+                <main className="flex-1">{children}</main>
+                <Footer />
+                <StickyCartBar />
+              </ShopStatusProvider>
             </AuthProvider>
           </OrderTypeProvider>
         </SiteConfigProvider>

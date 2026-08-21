@@ -124,15 +124,41 @@ export function withDefaults(partial: Partial<SiteConfig>): SiteConfig {
   return merged
 }
 
-/** Server-side fetch — cached per request via React cache() */
-export const fetchSiteConfig = cache(async (): Promise<SiteConfig> => {
+// React's cache() only dedupes reads within a single request — every new
+// request was re-reading the whole site_config table, even though it's read
+// on literally every page (root layout) and every checkout. This module-level
+// TTL cache carries a read across requests too, so the process only actually
+// hits Postgres for it a couple of times a minute at most, however much
+// traffic there is. `invalidateSiteConfigCache` is called by the admin save
+// route below so an edit still reaches customers immediately rather than
+// waiting out the TTL.
+const CONFIG_TTL_MS = 30_000
+let cachedConfig: SiteConfig | null = null
+let cachedAt = 0
+
+export function invalidateSiteConfigCache(): void {
+  cachedConfig = null
+}
+
+async function readSiteConfig(): Promise<SiteConfig> {
+  const now = Date.now()
+  if (cachedConfig && now - cachedAt < CONFIG_TTL_MS) return cachedConfig
+
   try {
     const { default: prisma } = await import('./prisma')
     const rows = await prisma.siteConfig.findMany()
     const config: SiteConfig = {}
     rows.forEach((r: { key: string; value: string }) => { config[r.key] = r.value })
-    return withDefaults(config)
+    cachedConfig = withDefaults(config)
+    cachedAt = now
+    return cachedConfig
   } catch {
+    // Don't cache a failure — the next call should try Postgres again rather
+    // than being stuck serving defaults for the rest of the TTL window.
     return { ...DEFAULTS }
   }
-})
+}
+
+/** Server-side fetch — deduped per request via React cache(), and shared
+ *  across requests for up to CONFIG_TTL_MS via the module-level cache above. */
+export const fetchSiteConfig = cache(readSiteConfig)

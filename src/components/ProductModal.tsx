@@ -220,8 +220,18 @@ export default function ProductModal({ product, onClose, editingItem = null }: P
     >
       <div className="bg-white w-full sm:max-w-lg rounded-t-3xl sm:rounded-2xl overflow-hidden max-h-[95vh] flex flex-col">
         {/* Image */}
-        <div className="relative aspect-video shrink-0">
-          <Image src={product.image} alt={product.name} fill className="object-cover" />
+        <div className="relative aspect-video shrink-0 bg-gray-100">
+          {product.image ? (
+            <Image
+              src={product.image}
+              alt={product.name}
+              fill
+              sizes="(max-width: 640px) 100vw, 512px"
+              className="object-cover"
+            />
+          ) : (
+            <div className="w-full h-full flex items-center justify-center text-6xl">🍕</div>
+          )}
           <button
             onClick={onClose}
             aria-label="Close"

@@ -167,13 +167,17 @@ export default function OffersPage() {
                   className="bg-white rounded-2xl border-2 border-gray-100 overflow-hidden card-hover group"
                 >
                   <div className="relative aspect-4/3 overflow-hidden bg-gray-100">
-                    <Image
-                      src={product.image}
-                      alt={product.name}
-                      fill
-                      className="object-cover group-hover:scale-105 transition-transform duration-300"
-                      sizes="(max-width: 640px) 100vw, 33vw"
-                    />
+                    {product.image ? (
+                      <Image
+                        src={product.image}
+                        alt={product.name}
+                        fill
+                        className="object-cover group-hover:scale-105 transition-transform duration-300"
+                        sizes="(max-width: 640px) 100vw, 33vw"
+                      />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center text-5xl">🍕</div>
+                    )}
                     <div className="absolute top-2 right-2 bg-[#FFD700] text-[#111] text-[10px] font-black px-2.5 py-0.5 rounded-full">
                       DEAL
                     </div>

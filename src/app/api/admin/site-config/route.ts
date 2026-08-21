@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
 import { getSessionPayload } from '@/lib/auth-utils'
-import { withDefaults, sanitizeConfigValue } from '@/lib/site-config'
+import { withDefaults, sanitizeConfigValue, invalidateSiteConfigCache } from '@/lib/site-config'
 
 async function adminOnly(req: NextRequest) {
   const payload = await getSessionPayload(req)
@@ -48,6 +48,11 @@ export async function PUT(req: NextRequest) {
       })
     )
   )
+
+  // Otherwise every customer-facing page keeps serving whatever was cached
+  // until the TTL expires — an admin saving new branding/hours expects it to
+  // take effect immediately, not up to 30s later.
+  invalidateSiteConfigCache()
 
   const rows = await prisma.siteConfig.findMany()
   const config: Record<string, string> = {}

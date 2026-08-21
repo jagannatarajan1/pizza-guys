@@ -26,6 +26,7 @@ export default function BrandLogo({ size = 'md', className = '' }: Props) {
           alt={`${line1} ${line2} logo`}
           width={imgDim}
           height={imgDim}
+          priority
           className="rounded-full object-cover group-hover:scale-110 transition-transform duration-200 shrink-0"
         />
       ) : (
