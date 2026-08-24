@@ -72,7 +72,7 @@ export default function OffersPage() {
   useEffect(() => {
     fetch('/api/menu/products').then((r) => r.json()).then((d) => {
       setDeals((d.products ?? []).filter((p: Product) =>
-        ['pizza-deals', 'pizza-meal', 'lunch-offers'].includes(p.category)
+        ['meal-deals', 'lunch-offers'].includes(p.category)
       ))
     })
     fetch('/api/coupons').then((r) => r.json()).then((d) => {

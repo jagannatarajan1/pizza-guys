@@ -93,15 +93,19 @@ model AuditLog {
 }
 
 model PendingRegistration {
-  id           String   @id @default(uuid())
+  id           String    @id @default(uuid())
   name         String
-  email        String   @unique
+  email        String    @unique
   phone        String
-  passwordHash String   @map("password_hash")
-  token        String   @unique
-  expiresAt    DateTime @map("expires_at")
-  createdAt    DateTime @default(now()) @map("created_at")
+  passwordHash String    @map("password_hash")
+  // Signup email verification uses the same hashed-OTP design as
+  // loginOtp*/pendingEmailOtp* on User — see src/lib/otp.ts.
+  otpHash      String?   @map("otp_hash")
+  otpExpires   DateTime? @map("otp_expires")
+  otpAttempts  Int       @default(0) @map("otp_attempts")
+  createdAt    DateTime  @default(now()) @map("created_at")
 
+  @@index([otpExpires])
   @@map("pending_registrations")
 }
 

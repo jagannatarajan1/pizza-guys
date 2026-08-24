@@ -38,6 +38,17 @@ const MEAL_DRINKS = [
   ['meal-drink-water',           'Water 600ml'],
 ]
 
+// The 1.5 litre bottles, as offered inside the sharing deals. Names match the
+// standalone drinks products exactly so the kitchen ticket reads the same
+// whether a bottle was bought on its own or came with a deal.
+const DRINKS_1_5L = [
+  ['drink-15-coke',      'Coke Bottle 1.5 Ltr'],
+  ['drink-15-pepsi',     'Pepsi 1.5 Ltr'],
+  ['drink-15-pepsi-max', 'Pepsi Max Bottle 1.5 Ltr'],
+  ['drink-15-7up',       '7 UP 1.5 Ltr'],
+  ['drink-15-tango',     'Tango Orange Bottle 1.5 Ltr'],
+]
+
 const TOPPINGS = [
   ['top-ham',              'Ham',                 ''],
   ['top-pepperoni',        'Pepperoni',           ''],
@@ -114,8 +125,8 @@ const pizzaBase = {
 const pizzaCrust = {
   id: 'pizza-cheesy-crust',
   name: 'Cheesy Crust',
-  description: 'Choose up to 1 · Optional',
-  required: false, multiSelect: false, min: 0, max: 1, sortOrder: 3,
+  description: 'Tick to add · Optional',
+  required: false, multiSelect: true, min: 0, max: 1, sortOrder: 3,
   priceDependsOn: 'pizza-size',
   options: [
     opt('crust-cheesy', 'Add a Cheesy Crust', 1.49, {
@@ -126,7 +137,7 @@ const pizzaCrust = {
 
 const pizzaToppings = {
   id: 'pizza-toppings',
-  name: 'Extra Toppings',
+  name: 'Choose Your Toppings',
   description: 'Choose up to 10 · Optional · £1.50 each',
   required: false, multiSelect: true, min: 0, max: 10, sortOrder: 4,
   options: TOPPINGS.map(([id, name, tag]) => opt(id, name, 1.50, tag ? { tag } : {})),
@@ -140,36 +151,63 @@ const pizzaHalfHalf = {
   options: [opt('half-and-half', 'Half and Half', 1.50)],
 }
 
-const pizzaDrink = {
-  id: 'pizza-drink',
-  name: 'Add a Drink',
-  description: 'Choose up to 1 · Optional',
-  required: false, multiSelect: false, min: 0, max: 1, sortOrder: 6,
-  options: DRINKS_300ML.map(([id, name]) => opt(id, name, 1.29)),
+// ── Meal upgrade + drinks (pizzas, kebabs, wraps and burgers alike) ─────────
+// All four families offer the same "Add a Drink" and "MAKE IT A MEAL" steps,
+// so they're generated from one definition rather than written out four times
+// and left to drift apart.
+//
+// Option ids are deliberately NOT prefixed: they only ever have to be unique
+// *within* their own group, and reusing them keeps the pizza steps byte-for-
+// byte identical to what carts already saved in customers' browsers hold.
+const MEAL_PRICE = 2.99
+const MEAL_OPTION = 'meal-chips-drink'
+const DRINK_PRICE = 1.29
+
+function mealSteps(prefix, sortOrder) {
+  const mealGroupId = `${prefix}-meal`
+  return {
+    // Checkboxes: an add-on drink is a straight upsell, so several can be
+    // added and each is charged.
+    drink: {
+      id: `${prefix}-drink`,
+      name: 'Add a Drink',
+      description: `Tick any you'd like · Optional · £${DRINK_PRICE.toFixed(2)} each`,
+      required: false, multiSelect: true, min: 0, max: 4, sortOrder,
+      options: DRINKS_300ML.map(([id, name]) => opt(id, name, DRINK_PRICE)),
+    },
+    meal: {
+      id: mealGroupId,
+      name: 'MAKE IT A MEAL',
+      description: `Adds chips and a drink · Optional · +£${MEAL_PRICE.toFixed(2)}`,
+      required: false, multiSelect: true, min: 0, max: 1, sortOrder: sortOrder + 1,
+      options: [opt(MEAL_OPTION, 'Make it a Meal', MEAL_PRICE)],
+    },
+    // Naming the meal group here is what hides the drinks list until the meal
+    // box is ticked — and what makes the choice required the moment it is.
+    // Untick the meal and the picker drops the drink again, so a meal can
+    // never reach the kitchen without one.
+    mealDrink: {
+      id: `${prefix}-meal-drink`,
+      name: 'Choose Your Drink',
+      description: 'Choose 1 · Required · Included with your meal',
+      required: true, multiSelect: false, min: 1, max: 1, sortOrder: sortOrder + 2,
+      dependsOn: { groupId: mealGroupId, optionIds: [MEAL_OPTION] },
+      options: MEAL_DRINKS.map(([id, name]) => opt(id, name, 0)),
+    },
+  }
 }
 
-const pizzaMeal = {
-  id: 'pizza-meal',
-  name: 'Make it',
-  description: 'Choose up to 1 · Optional',
-  required: false, multiSelect: false, min: 0, max: 1, sortOrder: 7,
-  options: [opt('meal-chips-drink', 'Meal (Chips and Drink)', 2.99)],
-}
+const pizzaMealSteps  = mealSteps('pizza', 6)
+const kebabMealSteps  = mealSteps('kebab', 5)
+const wrapMealSteps   = mealSteps('wrap', 3)
+const burgerMealSteps = mealSteps('burger', 4)
 
-// Only offered once the meal above is actually chosen.
-const pizzaMealDrink = {
-  id: 'pizza-meal-drink',
-  name: 'Choose your meal drink',
-  description: 'Choose 1 · Included with your meal',
-  required: true, multiSelect: false, min: 1, max: 1, sortOrder: 8,
-  dependsOn: { groupId: 'pizza-meal', optionIds: ['meal-chips-drink'] },
-  options: MEAL_DRINKS.map(([id, name]) => opt(id, name, 0)),
-}
+const { drink: pizzaDrink, meal: pizzaMeal, mealDrink: pizzaMealDrink } = pizzaMealSteps
 
 // ── Kebab steps ─────────────────────────────────────────────────────────────
 const kebabSize = {
   id: 'kebab-size',
-  name: 'Size',
+  name: 'Choose Your Size',
   description: 'Choose 1 · Required',
   required: true, multiSelect: false, min: 1, max: 1, sortOrder: 1,
   options: [opt('kebab-medium', 'Medium', 0), opt('kebab-large', 'Large', 1.00)],
@@ -177,15 +215,15 @@ const kebabSize = {
 
 const kebabPitta = {
   id: 'kebab-pitta',
-  name: 'Pitta',
-  description: 'Choose up to 1 · Optional',
-  required: false, multiSelect: false, min: 0, max: 1, sortOrder: 2,
+  name: 'Extra Pitta',
+  description: 'Tick to add · Optional',
+  required: false, multiSelect: true, min: 0, max: 1, sortOrder: 2,
   options: [opt('kebab-extra-pitta', 'Add 1 Pitta', 1.50)],
 }
 
 const kebabSalad = {
   id: 'kebab-salad',
-  name: 'Salad',
+  name: 'Select Salad',
   description: 'Choose up to 5 · each up to 2× · Required',
   required: true, multiSelect: true, min: 1, max: 5, maxPerOption: 2, sortOrder: 3,
   options: KEBAB_SALAD.map(([id, name]) => opt(id, name, 0)),
@@ -193,7 +231,7 @@ const kebabSalad = {
 
 const kebabSauce = {
   id: 'kebab-sauce',
-  name: 'Sauce',
+  name: 'Select Sauce',
   description: 'Choose up to 6 · each up to 2× · Optional',
   required: false, multiSelect: true, min: 0, max: 6, maxPerOption: 2, sortOrder: 4,
   options: KEBAB_SAUCE.map(([id, name, tag]) => opt(id, name, 0, tag ? { tag } : {})),
@@ -202,7 +240,7 @@ const kebabSauce = {
 // ── Wrap steps (same choices, their own step titles) ────────────────────────
 const wrapSalad = {
   id: 'wrap-salad',
-  name: 'Wrap Salad',
+  name: 'Select Salad',
   description: 'Choose up to 5 · each up to 2× · Required',
   required: true, multiSelect: true, min: 1, max: 5, maxPerOption: 2, sortOrder: 1,
   options: KEBAB_SALAD.map(([id, name]) => opt(`wrap-${id}`, name, 0)),
@@ -210,7 +248,7 @@ const wrapSalad = {
 
 const wrapSauce = {
   id: 'wrap-sauce',
-  name: 'Wrap Sauce',
+  name: 'Select Sauce',
   description: 'Choose up to 6 · each up to 2× · Optional',
   required: false, multiSelect: true, min: 0, max: 6, maxPerOption: 2, sortOrder: 2,
   options: KEBAB_SAUCE.map(([id, name, tag]) => opt(`wrap-${id}`, name, 0, tag ? { tag } : {})),
@@ -219,7 +257,7 @@ const wrapSauce = {
 // ── Burger steps ────────────────────────────────────────────────────────────
 const burgerSalad = {
   id: 'burger-salad',
-  name: 'Salad',
+  name: 'Select Salad',
   description: 'Choose up to 2 · Required',
   required: true, multiSelect: true, min: 1, max: 2, sortOrder: 1,
   options: [
@@ -231,7 +269,7 @@ const burgerSalad = {
 
 const burgerSauce = {
   id: 'burger-sauce',
-  name: 'Sauce',
+  name: 'Select Sauce',
   description: 'Choose up to 2 · Optional',
   required: false, multiSelect: true, min: 0, max: 2, sortOrder: 2,
   options: [
@@ -243,7 +281,7 @@ const burgerSauce = {
 // Chicken and vegetarian burgers carry their own salad and sauce lists.
 const chickenBurgerSalad = {
   id: 'chicken-burger-salad',
-  name: 'Salad',
+  name: 'Select Salad',
   description: 'Choose up to 2 · Required',
   required: true, multiSelect: true, min: 1, max: 2, sortOrder: 1,
   options: [
@@ -254,7 +292,7 @@ const chickenBurgerSalad = {
 
 const chickenBurgerSauce = {
   id: 'chicken-burger-sauce',
-  name: 'Sauce',
+  name: 'Select Sauce',
   description: 'Choose up to 4 · Optional',
   required: false, multiSelect: true, min: 0, max: 4, sortOrder: 2,
   options: [
@@ -267,26 +305,32 @@ const chickenBurgerSauce = {
 
 const burgerAdd = {
   id: 'burger-add',
-  name: 'Add',
-  description: 'Choose up to 1 · Optional',
-  required: false, multiSelect: false, min: 0, max: 1, sortOrder: 3,
+  name: 'Add Cheese',
+  description: 'Tick to add · Optional',
+  required: false, multiSelect: true, min: 0, max: 1, sortOrder: 3,
   options: [opt('burger-extra-cheese', 'Extra Cheese', 0.50)],
 }
 
-const GROUPS = {
-  pizzaSize, pizzaBase, pizzaCrust, pizzaToppings, pizzaHalfHalf, pizzaDrink, pizzaMeal, pizzaMealDrink,
-  kebabSize, kebabPitta, kebabSalad, kebabSauce,
-  wrapSalad, wrapSauce,
-  burgerSalad, burgerSauce, chickenBurgerSalad, chickenBurgerSauce, burgerAdd,
+// ── Kids meals ──────────────────────────────────────────────────────────────
+// The chips and the drink are already part of the price; the only thing left
+// to settle is which drink, so that one step is required and costs nothing.
+const kidsDrink = {
+  id: 'kids-drink',
+  name: 'Choose Your Drink',
+  description: 'Choose 1 · Required · Included with the meal',
+  required: true, multiSelect: false, min: 1, max: 1, sortOrder: 1,
+  options: DRINKS_300ML.map(([id, name]) => opt(id, name, 0)),
 }
 
+const KIDS_MEAL_STEPS = [kidsDrink]
+
 const PIZZA_STEPS       = [pizzaSize, pizzaBase, pizzaCrust, pizzaToppings, pizzaHalfHalf, pizzaDrink, pizzaMeal, pizzaMealDrink]
-const KEBAB_PITTA_STEPS = [kebabSize, kebabPitta, kebabSalad, kebabSauce]
-const KEBAB_MEAT_STEPS  = [kebabSize, kebabSauce]
-const WRAP_STEPS        = [wrapSalad, wrapSauce]
-const WRAP_MEAT_STEPS   = [wrapSauce]
-const BEEF_BURGER_STEPS = [burgerSalad, burgerSauce, burgerAdd]
-const CHICKEN_BURGER_STEPS = [chickenBurgerSalad, chickenBurgerSauce, burgerAdd]
+const KEBAB_PITTA_STEPS = [kebabSize, kebabPitta, kebabSalad, kebabSauce, kebabMealSteps.drink, kebabMealSteps.meal, kebabMealSteps.mealDrink]
+const KEBAB_MEAT_STEPS  = [kebabSize, kebabSauce, kebabMealSteps.drink, kebabMealSteps.meal, kebabMealSteps.mealDrink]
+const WRAP_STEPS        = [wrapSalad, wrapSauce, wrapMealSteps.drink, wrapMealSteps.meal, wrapMealSteps.mealDrink]
+const WRAP_MEAT_STEPS   = [wrapSauce, wrapMealSteps.drink, wrapMealSteps.meal, wrapMealSteps.mealDrink]
+const BEEF_BURGER_STEPS = [burgerSalad, burgerSauce, burgerAdd, burgerMealSteps.drink, burgerMealSteps.meal, burgerMealSteps.mealDrink]
+const CHICKEN_BURGER_STEPS = [chickenBurgerSalad, chickenBurgerSauce, burgerAdd, burgerMealSteps.drink, burgerMealSteps.meal, burgerMealSteps.mealDrink]
 
 // The complete list of products this menu requires — name, category, price
 // (pounds), description, allergens, image path and popular flag. Pulled from
@@ -392,7 +436,147 @@ const PRODUCTS = [
   { name: "Burger Sauce", category: "dips", price: 0.5, description: "", allergens: [], image: "", popular: false },
   { name: "BBQ Sauce", category: "dips", price: 0.5, description: "", allergens: ["Gluten"], image: "", popular: false },
   { name: "Spicy Mayo", category: "dips", price: 0.5, description: "(Spicy)", allergens: [], image: "", popular: false },
+
+  // Kids meals — every one £5, each already including chips and a drink, so
+  // the only choice left to the customer is which drink.
+  { name: "Kids Cheese Burger Meal", category: "kids-meal", price: 5, description: "A smaller cheeseburger with kids fries and a drink — perfect for little ones", allergens: ["Dairy"], image: "/images/Kids meal/Cheese burger meal.avif", popular: false },
+  { name: "Kids Chicken Fillet Burger Meal", category: "kids-meal", price: 5, description: "Mini chicken fillet burger with kids fries and a soft drink", allergens: [], image: "/images/Kids meal/Chicken fillet burger meal.avif", popular: false },
+  { name: "Kids Chicken Popcorn Meal", category: "kids-meal", price: 5, description: "Crispy chicken popcorn with kids fries and a soft drink", allergens: [], image: "/images/Kids meal/Chicken popcorn meal.avif", popular: false },
+  { name: "Kids Chicken Nuggets Meal", category: "kids-meal", price: 5, description: "6 chicken nuggets with kids fries and a choice of drink", allergens: [], image: "/images/Kids meal/Chicken nuggets meal.avif", popular: false },
+
+  // Meal deals — the headline price covers the whole bundle, so every step
+  // inside one is a £0 choice. The only exception is Pizza Guys Deal, where
+  // the reference quotes three prices for three sizes and the size step
+  // carries the difference.
+  { name: "Pizza Guys Big Meal Deal", category: "meal-deals", price: 21, description: "Any large 12\" pizza, 10 onion rings and a 1.5 L soft drink.", allergens: [], image: "/images/Pizza Meal/Big meal deal.avif", popular: true },
+  { name: "Pizza Guys Family Deal", category: "meal-deals", price: 28, description: "Any 2 large 15\" pizzas, garlic bread, regular French fries or 10 piece onion rings, and a 1.5 L soft drink.", allergens: [], image: "/images/Pizza Meal/Pizza combo family deal.avif", popular: true },
+  { name: "Pizza Guys Deal", category: "meal-deals", price: 16, description: "Any 2 medium 9\" pizzas £16, any 2 large 12\" pizzas £18, or any 2 X-Large 15\" pizzas £20.", allergens: [], image: "/images/Pizza Crazy deals/Any 2 x 9 inch pizza.avif", popular: false },
+  { name: "Pizza Guys Meal Deal 2", category: "meal-deals", price: 22, description: "Any 2 medium 9\" pizzas, garlic bread, regular French fries or onion rings, and 2 cans of soft drink.", allergens: [], image: "/images/Pizza Meal/Meal deal 2.avif", popular: false },
+  { name: "Pizza Guys Party Pack", category: "meal-deals", price: 28, description: "Any 3 large 12\" pizzas and a 1.5 L drink.", allergens: [], image: "/images/Pizza Meal/Party pack.avif", popular: false },
 ]
+
+// ── Meal deal steps ─────────────────────────────────────────────────────────
+// Which pizzas a deal can be built from is read straight off the product list
+// above rather than listed again per deal, so a pizza added to the menu is
+// immediately choosable inside every deal without anyone editing this section.
+const slugify = (s) => s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '')
+
+const DEAL_PIZZA_OPTIONS = PRODUCTS
+  .filter((p) => p.category === 'pizza' || p.category === 'kebab-pizza')
+  .map((p) => opt(`deal-${slugify(p.name)}`, p.name, 0))
+
+// One group per pizza slot. Slots don't share a group id, so each can carry
+// the size wording the reference gives that particular deal ("1st 15\"
+// pizza") and each is answered separately.
+const dealPizzaStep = (id, name, sortOrder) => ({
+  id, name,
+  description: 'Choose 1 · Required · Included in the deal',
+  required: true, multiSelect: false, min: 1, max: 1, sortOrder,
+  options: DEAL_PIZZA_OPTIONS,
+})
+
+const dealBottleStep = (id, sortOrder) => ({
+  id,
+  name: 'Choose Your 1.5 L Drink',
+  description: 'Choose 1 · Required · Included in the deal',
+  required: true, multiSelect: false, min: 1, max: 1, sortOrder,
+  options: DRINKS_1_5L.map(([oid, name]) => opt(oid, name, 0)),
+})
+
+// "Regular French fries OR onion rings" — one or the other, never both.
+const dealSideStep = (id, sortOrder, onionRingsLabel) => ({
+  id,
+  name: 'Choose Your Side',
+  description: 'Choose 1 · Required · Included in the deal',
+  required: true, multiSelect: false, min: 1, max: 1, sortOrder,
+  options: [
+    opt('deal-side-fries', 'Regular French Fries', 0),
+    opt('deal-side-onion-rings', onionRingsLabel, 0),
+  ],
+})
+
+// The onion rings are part of the deal rather than an either/or, so this step
+// has the one option — the customer confirms it on the way through instead of
+// it silently appearing on the order.
+const bigDealSide = {
+  id: 'deal-big-side',
+  name: 'Additional Side',
+  description: 'Choose 1 · Required · Included in the deal',
+  required: true, multiSelect: false, min: 1, max: 1, sortOrder: 2,
+  options: [opt('deal-side-onion-rings', '10 Onion Rings', 0)],
+}
+
+const BIG_MEAL_DEAL_STEPS = [
+  dealPizzaStep('deal-big-pizza', 'Choose Your 12" Pizza', 1),
+  bigDealSide,
+  dealBottleStep('deal-big-drink', 3),
+]
+
+const FAMILY_DEAL_STEPS = [
+  dealPizzaStep('deal-family-pizza-1', 'Choose Your 1st 15" Pizza', 1),
+  dealPizzaStep('deal-family-pizza-2', 'Choose Your 2nd 15" Pizza', 2),
+  dealSideStep('deal-family-side', 3, 'Onion Rings (10 pieces)'),
+  dealBottleStep('deal-family-drink', 4),
+]
+
+// The reference quotes this deal at three prices for three sizes, so the size
+// step carries the difference on top of the £16 base rather than the menu
+// listing it three times.
+const PIZZA_GUYS_DEAL_STEPS = [
+  {
+    id: 'deal-2pizza-size',
+    name: 'Choose Your Size',
+    description: 'Choose 1 · Required',
+    required: true, multiSelect: false, min: 1, max: 1, sortOrder: 1,
+    options: [
+      opt('deal-size-medium', 'Any 2 Medium 9" Pizzas',  0),
+      opt('deal-size-large',  'Any 2 Large 12" Pizzas',  2),
+      opt('deal-size-xl',     'Any 2 X-Large 15" Pizzas', 4),
+    ],
+  },
+  dealPizzaStep('deal-2pizza-1', 'Choose Your 1st Pizza', 2),
+  dealPizzaStep('deal-2pizza-2', 'Choose Your 2nd Pizza', 3),
+]
+
+const MEAL_DEAL_2_STEPS = [
+  dealPizzaStep('deal-md2-pizza-1', 'Choose Your 1st 9" Pizza', 1),
+  dealPizzaStep('deal-md2-pizza-2', 'Choose Your 2nd 9" Pizza', 2),
+  dealSideStep('deal-md2-side', 3, 'Onion Rings'),
+  {
+    id: 'deal-md2-cans',
+    name: 'Choose Your 2 Cans',
+    description: 'Choose 2 · Required · two of the same is fine',
+    required: true, multiSelect: true, min: 2, max: 2, maxPerOption: 2, sortOrder: 4,
+    options: DRINKS_300ML.map(([id, name]) => opt(id, name, 0)),
+  },
+]
+
+const PARTY_PACK_STEPS = [
+  dealPizzaStep('deal-party-pizza-1', 'Choose Your 1st 12" Pizza', 1),
+  dealPizzaStep('deal-party-pizza-2', 'Choose Your 2nd 12" Pizza', 2),
+  dealPizzaStep('deal-party-pizza-3', 'Choose Your 3rd 12" Pizza', 3),
+  dealBottleStep('deal-party-drink', 4),
+]
+
+// Steps that belong to one named deal rather than to a whole category.
+const DEAL_STEPS_BY_PRODUCT = {
+  'Pizza Guys Big Meal Deal': BIG_MEAL_DEAL_STEPS,
+  'Pizza Guys Family Deal':   FAMILY_DEAL_STEPS,
+  'Pizza Guys Deal':          PIZZA_GUYS_DEAL_STEPS,
+  'Pizza Guys Meal Deal 2':   MEAL_DEAL_2_STEPS,
+  'Pizza Guys Party Pack':    PARTY_PACK_STEPS,
+}
+
+// Every step list there is. ALL_GROUPS is derived from these rather than kept
+// as a second hand-written register, so a step that's been attached to a
+// product can never be missing from the admin-editable modifier tables.
+const ALL_STEP_LISTS = [
+  PIZZA_STEPS, KEBAB_PITTA_STEPS, KEBAB_MEAT_STEPS, WRAP_STEPS, WRAP_MEAT_STEPS,
+  BEEF_BURGER_STEPS, CHICKEN_BURGER_STEPS, KIDS_MEAL_STEPS,
+  ...Object.values(DEAL_STEPS_BY_PRODUCT),
+]
+
+const ALL_GROUPS = [...new Map(ALL_STEP_LISTS.flat().map((g) => [g.id, g])).values()]
 
 // Every category this menu needs, in menu order — used to make sure a
 // database is never missing one outright (a legacy install might not have a
@@ -408,6 +592,8 @@ const CATEGORIES = [
   { id: 'burgers',        name: 'Burgers',                slug: 'burgers',       icon: '🍔', order: 8 },
   { id: 'smash-burgers',  name: 'Smash Burgers',         slug: 'smash-burgers',  icon: '🍔', order: 9 },
   { id: 'dips',           name: 'Dips',                  slug: 'dips',           icon: '🫙', order: 10 },
+  { id: 'meal-deals',     name: 'Meal Deals',            slug: 'meal-deals',     icon: '🎁', order: 2  },
+  { id: 'kids-meal',      name: 'Kids Meals',            slug: 'kids-meal',      icon: '🧒', order: 11 },
 ]
 
 // Which steps each product gets, decided by category and name.
@@ -415,6 +601,11 @@ function stepsForProduct(product) {
   const { category, name } = product
   const meatOnly = /\(Meat Only\)/i.test(name)
 
+  // Deals are configured one by one — each bundles a different number of
+  // pizzas and a different drink size — so they're looked up by name before
+  // any category rule applies.
+  if (DEAL_STEPS_BY_PRODUCT[name]) return DEAL_STEPS_BY_PRODUCT[name]
+  if (category === 'kids-meal') return KIDS_MEAL_STEPS
   if (category === 'pizza' || category === 'kebab-pizza') return PIZZA_STEPS
   if (category === 'kebab')  return meatOnly ? KEBAB_MEAT_STEPS : KEBAB_PITTA_STEPS
   if (category === 'wraps')  return meatOnly ? WRAP_MEAT_STEPS  : WRAP_STEPS
@@ -426,12 +617,17 @@ function stepsForProduct(product) {
   return null   // null = leave this product's modifiers exactly as they are
 }
 
+// Categories whose products this menu has replaced outright. Everything still
+// sitting in one is switched off by sync-menu.js — never deleted — so the
+// storefront can't offer two contradictory prices for the same deal.
+const RETIRED_CATEGORIES = ['pizza-deals', 'pizza-meal']
+
 module.exports = {
   PRODUCTS,
-  GROUPS,
-  ALL_GROUPS: Object.values(GROUPS),
+  ALL_GROUPS,
   PIZZA_STEPS, KEBAB_PITTA_STEPS, KEBAB_MEAT_STEPS, WRAP_STEPS, WRAP_MEAT_STEPS,
-  BEEF_BURGER_STEPS, CHICKEN_BURGER_STEPS,
-  CATEGORIES, stepsForProduct,
-  DRINKS_300ML, MEAL_DRINKS, TOPPINGS,
+  BEEF_BURGER_STEPS, CHICKEN_BURGER_STEPS, KIDS_MEAL_STEPS,
+  DEAL_STEPS_BY_PRODUCT,
+  CATEGORIES, RETIRED_CATEGORIES, stepsForProduct,
+  DRINKS_300ML, DRINKS_1_5L, MEAL_DRINKS, TOPPINGS,
 }

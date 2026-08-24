@@ -85,29 +85,6 @@ function fallbackLink(href: string) {
   return `<p style="font-size:12px;color:#999;margin:8px 0 0">Or copy this link: <span style="color:#555;word-break:break-all">${href}</span></p>`
 }
 
-export async function sendVerificationEmail(to: string, name: string, token: string, baseUrl?: string) {
-  const cfg     = await fetchSiteConfig()
-  const url     = `${resolveBase(baseUrl)}/verify-email?token=${token}`
-  const primary = cfg.theme_primary || '#E53935'
-  const fromAddr = process.env.EMAIL_FROM ?? `${cfg.biz_name || 'Pizza Guys'} <${process.env.SMTP_USER}>`
-
-  const body = `
-    <h1 style="font-size:22px;font-weight:900;color:#111;margin:0 0 8px">Verify your email</h1>
-    <p style="color:#555;font-size:15px;line-height:1.6;margin:0 0 8px">Hi <strong>${name}</strong>, thanks for signing up!</p>
-    <p style="color:#555;font-size:15px;line-height:1.6;margin:0 0 20px">Click the button below to verify your email address and activate your account.</p>
-    ${btn(url, 'Verify my email', primary)}
-    ${fallbackLink(url)}
-    <p style="color:#bbb;font-size:12px;margin:24px 0 0;padding-top:16px;border-top:1px solid #eee">This link expires in 24 hours. If you didn't create an account, you can safely ignore this email.</p>
-  `
-
-  return getTransport().sendMail({
-    from:    fromAddr,
-    to,
-    subject: `Verify your ${cfg.biz_name || 'Pizza Guys'} account`,
-    html:    emailShell(cfg, body),
-  })
-}
-
 // Shows a 6-digit code prominently rather than a link — the new email-change
 // flow is verified in-app (the user is already logged in and switches back
 // to the browser tab to type the code) rather than by clicking through.
@@ -117,6 +94,28 @@ function codeBlock(code: string, accent: string) {
       <span style="font-size:32px;font-weight:900;letter-spacing:8px;color:${accent}">${code}</span>
     </div>
   `
+}
+
+export async function sendSignupOtpEmail(to: string, name: string, otp: string, expiryMinutes: number) {
+  const cfg      = await fetchSiteConfig()
+  const dark     = cfg.theme_dark || '#111111'
+  const bizName  = cfg.biz_name || 'Pizza Guys'
+  const fromAddr = process.env.EMAIL_FROM ?? `${bizName} <${process.env.SMTP_USER}>`
+
+  const body = `
+    <h1 style="font-size:22px;font-weight:900;color:#111;margin:0 0 8px">Verify your email</h1>
+    <p style="color:#555;font-size:15px;line-height:1.6;margin:0 0 8px">Hi <strong>${name}</strong>, thanks for signing up!</p>
+    <p style="color:#555;font-size:15px;line-height:1.6;margin:0 0 8px">Enter this code to verify your email address and activate your ${bizName} account:</p>
+    ${codeBlock(otp, dark)}
+    <p style="color:#bbb;font-size:12px;margin:24px 0 0;padding-top:16px;border-top:1px solid #eee">This code expires in ${expiryMinutes} minutes and can only be used once. If you didn't create an account, you can safely ignore this email.</p>
+  `
+
+  return getTransport().sendMail({
+    from:    fromAddr,
+    to,
+    subject: `Verify your ${bizName} account`,
+    html:    emailShell(cfg, body),
+  })
 }
 
 export async function sendEmailChangeOtp(to: string, name: string, otp: string, expiryMinutes: number) {

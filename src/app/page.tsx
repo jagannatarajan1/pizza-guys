@@ -189,7 +189,7 @@ export default function HomePage() {
         );
         setMealDealProducts(
           (d.products ?? []).filter(
-            (p: Product) => p.category === "pizza-meal",
+            (p: Product) => p.category === "meal-deals",
           ),
         );
       });

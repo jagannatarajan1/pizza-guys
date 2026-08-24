@@ -21,10 +21,32 @@ export type User = {
   addresses: Address[]
 }
 
+// A correct password is no longer enough to sign in on its own — it only
+// unlocks the mandatory emailed one-time code, proven by the returned
+// tempToken. See verifyLoginOtp() for what happens once that code is entered.
 export type LoginResult =
-  | { ok: false; error: string; unverified?: boolean }
+  | { ok: false; error: string }
+  | { ok: true; requiresOtp: true; tempToken: string; maskedEmail: string; cooldownSeconds: number }
+
+export type OtpVerifyResult =
+  | { ok: false; error: string }
   | { ok: true; requires2FA: true; tempToken: string }
   | { ok: true; requires2FA: false; mustSetup2FA: boolean }
+
+export type OtpResendResult =
+  | { ok: false; error: string; retryAfter?: number }
+  | { ok: true; maskedEmail: string; cooldownSeconds: number }
+
+// Signup no longer creates the account (or a session) directly — it only
+// starts a pending registration and sends the activation code. See
+// verifySignupOtp() for what actually creates the User row.
+export type RegisterResult =
+  | { ok: false; error: string; accountExists?: boolean }
+  | { ok: true; email: string; maskedEmail: string; cooldownSeconds: number }
+
+export type SignupVerifyResult =
+  | { ok: false; error: string; accountExists?: boolean }
+  | { ok: true }
 
 type AuthContextType = {
   user: User | null
@@ -32,7 +54,11 @@ type AuthContextType = {
   isLoading: boolean
   setUser: (u: User | null) => void
   login: (email: string, password: string) => Promise<LoginResult>
-  register: (data: { name: string; email: string; phone: string; password: string }) => Promise<boolean>
+  verifyLoginOtp: (tempToken: string, code: string) => Promise<OtpVerifyResult>
+  resendLoginOtp: (tempToken: string) => Promise<OtpResendResult>
+  register: (data: { name: string; email: string; phone: string; password: string }) => Promise<RegisterResult>
+  verifySignupOtp: (email: string, code: string) => Promise<SignupVerifyResult>
+  resendSignupOtp: (email: string) => Promise<OtpResendResult>
   logout: () => Promise<void>
   updateProfile: (data: Partial<User>) => Promise<void>
   addAddress: (address: Omit<Address, 'id'>) => Promise<void>
@@ -64,7 +90,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         body:    JSON.stringify({ email, password }),
       })
       const data = await res.json()
-      if (!res.ok) return { ok: false, error: data.error ?? 'Invalid email or password', unverified: !!data.unverified }
+      if (!res.ok || !data.requiresOtp) return { ok: false, error: data.error ?? 'Invalid email or password' }
+      return { ok: true, requiresOtp: true, tempToken: data.tempToken, maskedEmail: data.maskedEmail, cooldownSeconds: data.cooldownSeconds }
+    } catch {
+      return { ok: false, error: 'Network error' }
+    }
+  }
+
+  // Submits the code from the mandatory post-password OTP screen. On success
+  // this is the point a session actually gets created (or, for a staff
+  // account with an authenticator app configured, the existing TOTP step is
+  // handed the baton next — same as it always was, just one step later now).
+  const verifyLoginOtp = async (tempToken: string, code: string): Promise<OtpVerifyResult> => {
+    try {
+      const res  = await fetch('/api/auth/login-otp/verify', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ tempToken, code }),
+      })
+      const data = await res.json()
+      if (!res.ok) return { ok: false, error: data.error ?? 'Invalid verification code. Please try again.' }
       if (data.requires2FA) return { ok: true, requires2FA: true, tempToken: data.tempToken }
       if (data.user) setUser(data.user)
       return { ok: true, requires2FA: false, mustSetup2FA: !!data.mustSetup2FA }
@@ -73,15 +118,67 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }
 
-  const register = async (formData: { name: string; email: string; phone: string; password: string }) => {
-    const res = await fetch('/api/auth/register', {
-      method:  'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify(formData),
-    })
-    if (!res.ok) return false
-    await fetch('/api/auth/me').then((r) => r.json()).then((d) => setUser(d.user ?? null)).catch(() => null)
-    return true
+  const resendLoginOtp = async (tempToken: string): Promise<OtpResendResult> => {
+    try {
+      const res  = await fetch('/api/auth/login-otp/resend', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ tempToken }),
+      })
+      const data = await res.json()
+      if (!res.ok) return { ok: false, error: data.error ?? 'Could not resend code', retryAfter: data.retryAfter }
+      return { ok: true, maskedEmail: data.maskedEmail, cooldownSeconds: data.cooldownSeconds }
+    } catch {
+      return { ok: false, error: 'Network error' }
+    }
+  }
+
+  const register = async (formData: { name: string; email: string; phone: string; password: string }): Promise<RegisterResult> => {
+    try {
+      const res  = await fetch('/api/auth/register', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify(formData),
+      })
+      const data = await res.json()
+      if (!res.ok || !data.requiresOtp) return { ok: false, error: data.error ?? 'Registration failed', accountExists: !!data.accountExists }
+      return { ok: true, email: data.email, maskedEmail: data.maskedEmail, cooldownSeconds: data.cooldownSeconds }
+    } catch {
+      return { ok: false, error: 'Network error' }
+    }
+  }
+
+  // Submits the signup activation code. Only on success does the User row
+  // (and a session) actually get created — see verify-email/route.ts.
+  const verifySignupOtp = async (email: string, code: string): Promise<SignupVerifyResult> => {
+    try {
+      const res  = await fetch('/api/auth/verify-email', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ email, code }),
+      })
+      const data = await res.json()
+      if (!res.ok) return { ok: false, error: data.error ?? 'Invalid verification code. Please try again.', accountExists: !!data.accountExists }
+      if (data.user) setUser(data.user)
+      return { ok: true }
+    } catch {
+      return { ok: false, error: 'Network error' }
+    }
+  }
+
+  const resendSignupOtp = async (email: string): Promise<OtpResendResult> => {
+    try {
+      const res  = await fetch('/api/auth/resend-verification', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ email }),
+      })
+      const data = await res.json()
+      if (!res.ok) return { ok: false, error: data.error ?? 'Could not resend code', retryAfter: data.retryAfter }
+      return { ok: true, maskedEmail: data.maskedEmail, cooldownSeconds: data.cooldownSeconds }
+    } catch {
+      return { ok: false, error: 'Network error' }
+    }
   }
 
   const logout = async () => {
@@ -139,7 +236,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const isAdmin = user?.role === 'admin'
 
   return (
-    <AuthContext.Provider value={{ user, setUser, isAdmin, isLoading, login, register, logout, updateProfile, addAddress, updateAddress, deleteAddress }}>
+    <AuthContext.Provider value={{ user, setUser, isAdmin, isLoading, login, verifyLoginOtp, resendLoginOtp, register, verifySignupOtp, resendSignupOtp, logout, updateProfile, addAddress, updateAddress, deleteAddress }}>
       {children}
     </AuthContext.Provider>
   )

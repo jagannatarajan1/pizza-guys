@@ -1,10 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
-import jwt from 'jsonwebtoken'
 import prisma from '@/lib/prisma'
-import { verifyPassword, signToken, setAuthCookie } from '@/lib/auth-utils'
-import { rateLimit, getClientIp } from '@/lib/rate-limit'
+import { verifyPassword, signLoginOtpTempToken, maskEmail } from '@/lib/auth-utils'
+import { rateLimit, rateLimitMulti, getClientIp } from '@/lib/rate-limit'
+import { issueLoginOtp, otpCooldown, otpRequestLimits, otpScopeConfig, isStaffRole, type OtpScope } from '@/lib/login-otp'
 
-const ADMIN_ROLES  = ['admin', 'staff', 'viewer']
 const MAX_ATTEMPTS = 5
 const LOCK_MINUTES = 15
 
@@ -29,8 +28,7 @@ export async function POST(req: NextRequest) {
   }
 
   const user = await prisma.user.findFirst({
-    where:   { OR: [{ email: identifier }, { phone: identifier }] },
-    include: { addresses: { orderBy: { isDefault: 'desc' } } },
+    where: { OR: [{ email: identifier }, { phone: identifier }] },
   })
 
   // Account locked?
@@ -69,32 +67,33 @@ export async function POST(req: NextRequest) {
     })
   }
 
-  // Admin with 2FA enabled → issue short-lived temp token, client must submit TOTP next
-  if (ADMIN_ROLES.includes(user.role) && user.twoFactorEnabled) {
-    const tempToken = jwt.sign(
-      { userId: user.id, phase: '2fa' },
-      process.env.AUTH_SECRET!,
-      { expiresIn: '5m' }
-    )
-    return NextResponse.json({ requires2FA: true, tempToken })
+  // Password is correct, but no session is created yet — every login (customer
+  // or staff) must also clear an emailed one-time code before a session
+  // exists. The temp token below proves "password already verified for this
+  // user" to /api/auth/login-otp/verify and /resend without granting access
+  // to anything itself.
+  const scope: OtpScope = isStaffRole(user.role) ? 'admin' : 'user'
+
+  // Cooldown active — a code was already sent moments ago (e.g. a double
+  // submit); don't mint another one, just move the caller on to the OTP
+  // screen for the code already in flight. Checked first and short-circuited
+  // so that repeatedly submitting the login form within the cooldown window
+  // never spends the (much smaller) request-limit budget for an email that
+  // was never actually going to be sent again.
+  const cooldown = otpCooldown(scope, user.email)
+  if (!cooldown.limited) {
+    const requestLimited = rateLimitMulti(otpRequestLimits(scope, user.email, ip))
+    if (requestLimited.limited) {
+      return NextResponse.json({ error: 'Too many attempts. Please try again later.' }, { status: 429 })
+    }
+    await issueLoginOtp({ scope, email: user.email, ip })
   }
 
-  // Admin without 2FA → log in but flag that setup is required
-  if (ADMIN_ROLES.includes(user.role) && !user.twoFactorEnabled) {
-    const token = signToken({ userId: user.id, email: user.email, role: user.role, tokenVersion: user.tokenVersion })
-    const res   = NextResponse.json({
-      user: { id: user.id, name: user.name, email: user.email, phone: user.phone, role: user.role, addresses: user.addresses },
-      mustSetup2FA: true,
-    })
-    setAuthCookie(res, token, req)
-    return res
-  }
-
-  // Regular customer → full login immediately
-  const token = signToken({ userId: user.id, email: user.email, role: user.role, tokenVersion: user.tokenVersion })
-  const res   = NextResponse.json({
-    user: { id: user.id, name: user.name, email: user.email, phone: user.phone, role: user.role, addresses: user.addresses },
+  const tempToken = signLoginOtpTempToken(user.id)
+  return NextResponse.json({
+    requiresOtp:     true,
+    tempToken,
+    maskedEmail:     maskEmail(user.email),
+    cooldownSeconds: otpScopeConfig(scope).cooldownSeconds,
   })
-  setAuthCookie(res, token, req)
-  return res
 }

@@ -5,8 +5,7 @@
 // to rendering their emoji icon — see <CategoryIcon />.
 export const CATEGORY_IMAGES: Record<string, string> = {
   'pizza':        '/images/Pizza/Margherita.avif',
-  'pizza-deals':  '/images/Pizza Crazy deals/Any 2 x 12 inch pizza.avif',
-  'pizza-meal':   '/images/Pizza Meal/Big meal deal.avif',
+  'meal-deals':   '/images/Pizza Meal/Big meal deal.avif',
   'burgers':      '/images/Burgers/Cheeseburger.avif',
   'kebab':        '/images/Kebab/Chicken Kebab.avif',
   'kebab-pizza':  '/images/Kebab Pizza specials/Kebab Pizza Specials.avif',

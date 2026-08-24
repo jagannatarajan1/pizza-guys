@@ -331,7 +331,7 @@ export default function AdminOffersPage() {
                           className="rounded border-gray-300 text-red-600 focus:ring-red-400"
                         />
                         <span className="font-mono font-bold">{c.code}</span>
-                        {!c.combinable && <span className="text-[11px] text-amber-600">(also needs "{c.code}" set to Yes to actually combine)</span>}
+                        {!c.combinable && <span className="text-[11px] text-amber-600">(also needs &quot;{c.code}&quot; set to Yes to actually combine)</span>}
                       </label>
                     ))}
                   </div>

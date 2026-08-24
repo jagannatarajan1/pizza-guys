@@ -149,7 +149,7 @@ export default function AdminDeliveryPage() {
           <h2 className="font-bold text-gray-900 text-sm">Free Delivery Threshold</h2>
         </div>
         <p className="text-xs text-gray-400 mb-4">
-          When a delivery order's subtotal reaches this amount, the delivery fee is automatically waived —
+          When a delivery order&apos;s subtotal reaches this amount, the delivery fee is automatically waived —
           no coupon code needed. Set to £0 to turn this off.
         </p>
         <div className="flex items-end gap-3">

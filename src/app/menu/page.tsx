@@ -205,6 +205,15 @@ function MenuContent() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loading])
 
+  // The header nav search box calls router.push('/menu?search=...') even while
+  // already on this page — same route, so Next doesn't remount and the mount-time
+  // useState(initialSearch) above never sees the new URL. Re-sync on every change.
+  useEffect(() => {
+    setSearch(initialSearch)
+    setActiveCategory(initialSearch ? 'all' : initialCategory)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialSearch])
+
   // Scroll-spy: highlight whichever category section is currently under the
   // sticky nav as the user free-scrolls, so the pill follows naturally instead
   // of only updating on click.
@@ -285,7 +294,7 @@ function MenuContent() {
                 window.scrollTo({ top: 0, behavior: 'smooth' })
                 suppressSpyTimeout.current = setTimeout(() => { suppressSpyRef.current = false }, 900)
               }}
-              className={`px-4 py-1.5 rounded-full text-sm font-black whitespace-nowrap transition-all duration-300 ease-out ${activeCategory === 'all' ? '' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
+              className={`px-4 py-1.5 rounded-[6px] text-sm font-black whitespace-nowrap transition-all duration-300 ease-out ${activeCategory === 'all' ? '' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
               style={activeCategory === 'all' ? { background: 'var(--brand-accent)', color: 'var(--brand-dark)' } : undefined}
             >
               All
@@ -295,7 +304,7 @@ function MenuContent() {
                 key={cat.id}
                 ref={(el) => { pillRefs.current[cat.slug] = el }}
                 onClick={() => scrollToCategory(cat.slug)}
-                className={`px-4 py-1.5 rounded-full text-sm font-black whitespace-nowrap transition-all duration-300 ease-out flex items-center gap-1.5 ${activeCategory === cat.slug ? '' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
+                className={`px-4 py-1.5 rounded-[6px] text-sm font-black whitespace-nowrap transition-all duration-300 ease-out flex items-center gap-1.5 ${activeCategory === cat.slug ? '' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
                 style={activeCategory === cat.slug ? { background: 'var(--brand-accent)', color: 'var(--brand-dark)' } : undefined}
               >
                 <CategoryIcon slug={cat.slug} icon={cat.icon} image={cat.image} size={18} className="rounded-full" emojiClassName="text-base leading-none" />

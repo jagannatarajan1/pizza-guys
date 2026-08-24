@@ -225,7 +225,7 @@ export default function AdminCategoriesPage() {
           <div className="text-center py-16">
             <div className="text-4xl mb-3">📂</div>
             <p className="font-black text-gray-900 mb-1">No categories yet</p>
-            <p className="text-gray-400 text-sm mb-4">Click "Add Category" or run the seed to get started</p>
+            <p className="text-gray-400 text-sm mb-4">Click &quot;Add Category&quot; or run the seed to get started</p>
           </div>
         ) : (
           <table className="w-full text-sm">

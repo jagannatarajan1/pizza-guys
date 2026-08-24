@@ -25,6 +25,11 @@ const nextConfig: NextConfig = {
     // browser downloads. `unoptimized: true` was serving every original file
     // untouched.
     formats: ['image/avif', 'image/webp'],
+    // The branding uploaded through admin can live on Cloudinary (the site
+    // logo currently does). Optimisation replaced the old `unoptimized: true`,
+    // and next/image *throws* on a remote host that isn't listed here — which
+    // takes down every page that renders the header, not just the image.
+    remotePatterns: [{ protocol: 'https', hostname: 'res.cloudinary.com' }],
     // Next's default deviceSizes starts at 640, but the menu grid is a single
     // full-width column below that (`grid-cols-1` under Tailwind's `sm`
     // breakpoint), so a ~390px phone was jumping straight to a 640px-wide

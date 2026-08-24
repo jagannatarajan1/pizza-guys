@@ -13,6 +13,19 @@ const eslintConfig = defineConfig([
     "build/**",
     "next-env.d.ts",
   ]),
+  // The maintenance scripts are plain CommonJS run directly by node, never
+  // bundled — `require()` is the correct call there, so the TypeScript/ESM
+  // rules inherited from eslint-config-next don't apply to them.
+  {
+    files: ["scripts/**/*.js"],
+    languageOptions: {
+      sourceType: "commonjs",
+      globals: { require: "readonly", module: "writable", process: "readonly", __dirname: "readonly", console: "readonly" },
+    },
+    rules: {
+      "@typescript-eslint/no-require-imports": "off",
+    },
+  },
 ]);
 
 export default eslintConfig;

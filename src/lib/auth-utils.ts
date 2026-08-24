@@ -37,6 +37,33 @@ export function signTwoFactorTempToken(userId: string): string {
   return jwt.sign({ userId, phase: '2fa' }, SECRET, { expiresIn: '5m' })
 }
 
+// Same idea as signTwoFactorTempToken: proves the password step of login was
+// already passed for this specific user, without granting a session. Redeemed
+// by /api/auth/login-otp/verify (and /resend) once the emailed code is
+// supplied — every login now passes through this step. 10 minutes covers the
+// 5-minute code plus room for one resend cycle.
+export function signLoginOtpTempToken(userId: string): string {
+  return jwt.sign({ userId, phase: 'login-otp' }, SECRET, { expiresIn: '10m' })
+}
+
+export function verifyLoginOtpTempToken(token: string): { userId: string } | null {
+  try {
+    const payload = jwt.verify(token, SECRET) as { userId: string; phase: string }
+    return payload.phase === 'login-otp' ? { userId: payload.userId } : null
+  } catch {
+    return null
+  }
+}
+
+// Privacy-friendly display of an email the user already knows, e.g. for an
+// OTP screen's "code sent to j***@gmail.com" — never used to decide anything,
+// purely cosmetic.
+export function maskEmail(email: string): string {
+  const at = email.indexOf('@')
+  if (at <= 0) return email
+  return `${email[0]}***${email.slice(at)}`
+}
+
 // Full session check: verifies the JWT itself, then confirms its embedded
 // tokenVersion still matches the database. A password change bumps the
 // database value, which makes every token issued before that moment fail

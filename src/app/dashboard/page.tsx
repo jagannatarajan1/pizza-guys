@@ -262,8 +262,8 @@ function DashboardContent() {
         <td style="padding:5px 0;vertical-align:top">${item.quantity}×</td>
         <td style="padding:5px 8px;vertical-align:top">
           ${item.name}
-          ${modLines ? `<br/><span style="font-size:10px;color:#888">${modLines}</span>` : ''}
-          ${item.specialInstructions ? `<br/><span style="font-size:10px;color:#888">Note: ${item.specialInstructions}</span>` : ''}
+          ${modLines ? `<br/><span style="font-size:12px;color:#888">${modLines}</span>` : ''}
+          ${item.specialInstructions ? `<br/><span style="font-size:12px;color:#888">Note: ${item.specialInstructions}</span>` : ''}
         </td>
         <td style="padding:5px 0;text-align:right;vertical-align:top;white-space:nowrap">${formatPrice(item.itemTotal)}</td>
       </tr>`
@@ -276,23 +276,23 @@ function DashboardContent() {
   <title>Invoice #${order.orderNumber}</title>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
-    body { font-family: 'Courier New', Courier, monospace; font-size: 13px; color: #111; background: #fff; width: 80mm; margin: 0 auto; padding: 16px 12px; }
+    body { font-family: 'Courier New', Courier, monospace; font-size: 15px; color: #111; background: #fff; width: 80mm; margin: 0 auto; padding: 16px 12px; }
     .center { text-align: center; }
     .bold { font-weight: 700; }
     .divider { border: none; border-top: 1px dashed #999; margin: 10px 0; }
     .divider-solid { border: none; border-top: 2px solid #111; margin: 10px 0; }
     table { width: 100%; border-collapse: collapse; }
-    td { font-size: 12px; }
-    .total-row td { font-size: 14px; font-weight: 900; padding-top: 6px; }
-    .badge { display:inline-block; background:${primary}; color:#fff; font-size:10px; font-weight:700; padding:2px 8px; border-radius:4px; letter-spacing:1px; }
+    td { font-size: 14px; }
+    .total-row td { font-size: 17px; font-weight: 900; padding-top: 6px; }
+    .badge { display:inline-block; background:${primary}; color:#fff; font-size:12px; font-weight:700; padding:2px 8px; border-radius:4px; letter-spacing:1px; }
     @media print { body { margin: 0; padding: 8px; } @page { margin: 0; size: 80mm auto; } }
   </style>
 </head>
 <body>
   <div class="center" style="margin-bottom:12px">
-    <div style="font-size:20px;font-weight:900;letter-spacing:1px">${bizName.toUpperCase()}</div>
-    ${bizAddr ? `<div style="font-size:11px;color:#555;margin-top:3px">${bizAddr}</div>` : ''}
-    ${bizPhone ? `<div style="font-size:11px;color:#555">Tel: ${bizPhone}</div>` : ''}
+    <div style="font-size:23px;font-weight:900;letter-spacing:1px">${bizName.toUpperCase()}</div>
+    ${bizAddr ? `<div style="font-size:13px;color:#555;margin-top:3px">${bizAddr}</div>` : ''}
+    ${bizPhone ? `<div style="font-size:13px;color:#555">Tel: ${bizPhone}</div>` : ''}
   </div>
   <hr class="divider-solid">
   <div style="margin-bottom:8px">
@@ -309,7 +309,7 @@ function DashboardContent() {
   </div>
   <hr class="divider">
   <table>
-    <thead><tr><th style="text-align:left;padding-bottom:4px;font-size:11px;color:#555" colspan="2">ITEM</th><th style="text-align:right;padding-bottom:4px;font-size:11px;color:#555">PRICE</th></tr></thead>
+    <thead><tr><th style="text-align:left;padding-bottom:4px;font-size:13px;color:#555" colspan="2">ITEM</th><th style="text-align:right;padding-bottom:4px;font-size:13px;color:#555">PRICE</th></tr></thead>
     <tbody>${itemRows}</tbody>
   </table>
   <hr class="divider">
@@ -318,12 +318,12 @@ function DashboardContent() {
     ${order.deliveryFee > 0 ? `<tr><td>Delivery</td><td style="text-align:right">${formatPrice(order.deliveryFee)}</td></tr>` : ''}
     ${order.discount > 0 ? `<tr><td>Discount</td><td style="text-align:right">−${formatPrice(order.discount)}</td></tr>` : ''}
     <tr class="total-row"><td>TOTAL</td><td style="text-align:right">${formatPrice(order.total)}</td></tr>
-    <tr><td style="font-size:11px;color:#666">Payment</td><td style="text-align:right;font-size:11px;color:#666;text-transform:capitalize">${order.paymentMethod}</td></tr>
-    <tr><td style="font-size:11px;color:#666">Status</td><td style="text-align:right;font-size:11px;color:#666">${STATUS_LABEL[order.status] ?? order.status}</td></tr>
+    <tr><td style="font-size:13px;color:#666">Payment</td><td style="text-align:right;font-size:13px;color:#666;text-transform:capitalize">${order.paymentMethod}</td></tr>
+    <tr><td style="font-size:13px;color:#666">Status</td><td style="text-align:right;font-size:13px;color:#666">${STATUS_LABEL[order.status] ?? order.status}</td></tr>
   </table>
   <hr class="divider-solid">
-  <div class="center" style="font-size:11px;color:#888;margin-top:8px">
-    <div style="font-weight:700;font-size:13px;margin-bottom:4px">Thank you for your order!</div>
+  <div class="center" style="font-size:13px;color:#888;margin-top:8px">
+    <div style="font-weight:700;font-size:15px;margin-bottom:4px">Thank you for your order!</div>
     <div>Please come again 🍕</div>
   </div>
 </body>

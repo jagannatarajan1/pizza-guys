@@ -182,6 +182,33 @@ async function main() {
     console.log(`  (${orphans.length} item(s) — review in /admin/products and delete any you don't want to keep)`)
   }
 
+  // ── 4b. Categories this menu replaces outright ────────────────────────────
+  //        Same treatment as a legacy item: switched off, never deleted, so
+  //        the storefront stops offering two contradictory prices for what is
+  //        effectively the same deal. Past orders are unaffected — they carry
+  //        their own name/price snapshot.
+  console.log('\n--- Retired categories ---')
+  const retired = await prisma.product.findMany({
+    where: { category: { in: catalogue.RETIRED_CATEGORIES }, available: true },
+  })
+  if (retired.length === 0) {
+    console.log('  none')
+  } else {
+    for (const p of retired) {
+      note(`Retiring superseded deal: "${p.name}" (${p.category}) £${(p.price / 100).toFixed(2)} — replaced by the Meal Deals menu, hidden not deleted`)
+      if (APPLY) await prisma.product.update({ where: { id: p.id }, data: { available: false } })
+    }
+    // An empty category would otherwise sit in the menu nav with nothing
+    // behind it.
+    for (const catId of catalogue.RETIRED_CATEGORIES) {
+      const left = await prisma.product.count({ where: { category: catId, available: true } })
+      if (left === 0 && APPLY) {
+        await prisma.category.updateMany({ where: { id: catId }, data: { visible: false } })
+      }
+    }
+    note(`Hid ${retired.length} superseded deal product(s) and their now-empty categories`)
+  }
+
   // ── 5. Attach the right steps to every product ─────────────────────────────
   console.log('\n--- Ordering steps ---')
   const products = await prisma.product.findMany({ orderBy: [{ category: 'asc' }, { name: 'asc' }] })

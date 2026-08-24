@@ -1,25 +1,38 @@
 'use client'
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { Eye, EyeOff, Mail, Check } from 'lucide-react'
 import toast from 'react-hot-toast'
-
-function getMailLink(email: string) {
-  const domain = email.split('@')[1]?.toLowerCase() ?? ''
-  if (domain === 'gmail.com')      return 'https://mail.google.com'
-  if (domain === 'yahoo.com')      return 'https://mail.yahoo.com'
-  if (domain === 'outlook.com' || domain === 'hotmail.com' || domain === 'live.com')
-                                   return 'https://outlook.live.com'
-  if (domain === 'icloud.com')     return 'https://www.icloud.com/mail'
-  return `https://mail.${domain}`
-}
+import { useAuth } from '@/lib/auth-context'
 
 export default function RegisterPage() {
+  const router = useRouter()
+  const { register, verifySignupOtp, resendSignupOtp } = useAuth()
+
   const [form, setForm]       = useState({ name: '', email: '', phone: '', password: '', confirm: '' })
   const [showPw, setShowPw]   = useState(false)
   const [loading, setLoading] = useState(false)
-  const [done, setDone]       = useState(false)
-  const [sentEmail, setSentEmail] = useState('')
+  const [accountExists, setAccountExists] = useState(false)
+
+  // ── Signup OTP step ──────────────────────────────────────────────────────
+  const [step, setStep]             = useState<'form' | 'otp'>('form')
+  const [otpCode, setOtpCode]       = useState('')
+  const [otpError, setOtpError]     = useState('')
+  const [maskedEmail, setMaskedEmail] = useState('')
+  const [cooldown, setCooldown]     = useState(0)
+  const [resending, setResending]   = useState(false)
+  const otpInputRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    if (step !== 'otp' || cooldown <= 0) return
+    const t = setInterval(() => setCooldown((c) => Math.max(0, c - 1)), 1000)
+    return () => clearInterval(t)
+  }, [step, cooldown])
+
+  useEffect(() => {
+    if (step === 'otp') otpInputRef.current?.focus()
+  }, [step])
 
   // Mirrors the server's validatePasswordStrength (src/lib/api-guard.ts) exactly,
   // so a password that looks good here is never rejected after submit.
@@ -38,56 +51,110 @@ export default function RegisterPage() {
     if (!form.name || !form.email || !form.phone || !form.password) { toast.error('Please fill in all fields'); return }
     if (!pwValid) { toast.error('Your password does not meet all requirements'); return }
     if (form.password !== form.confirm) { toast.error('Passwords do not match'); return }
+    setAccountExists(false)
     setLoading(true)
-    try {
-      const res  = await fetch('/api/auth/register', {
-        method:  'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({ name: form.name, email: form.email, phone: form.phone, password: form.password }),
-      })
-      const data = await res.json()
-      if (!res.ok) { toast.error(data.error ?? 'Registration failed'); return }
-      setSentEmail(form.email)
-      setDone(true)
-    } catch { toast.error('Something went wrong') }
-    finally  { setLoading(false) }
+    const result = await register(form)
+    setLoading(false)
+    if (!result.ok) {
+      if (result.accountExists) { setAccountExists(true); return }
+      toast.error(result.error)
+      return
+    }
+    setMaskedEmail(result.maskedEmail)
+    setCooldown(result.cooldownSeconds)
+    setOtpCode('')
+    setOtpError('')
+    setStep('otp')
   }
 
-  if (done) {
+  const handleOtpVerify = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (otpCode.length !== 6) { setOtpError('Enter the 6-digit code'); return }
+    setLoading(true)
+    setOtpError('')
+    const result = await verifySignupOtp(form.email, otpCode)
+    setLoading(false)
+    if (!result.ok) { setOtpError(result.error); setOtpCode(''); otpInputRef.current?.focus(); return }
+    toast.success('Account verified — welcome to Pizza Guys!')
+    router.push('/dashboard?verified=1')
+  }
+
+  const handleOtpPaste = (e: React.ClipboardEvent<HTMLInputElement>) => {
+    const digits = e.clipboardData.getData('text').replace(/\D/g, '').slice(0, 6)
+    if (digits.length === 6) { e.preventDefault(); setOtpCode(digits); setOtpError('') }
+  }
+
+  const handleResend = async () => {
+    if (cooldown > 0 || resending) return
+    setResending(true)
+    setOtpError('')
+    const result = await resendSignupOtp(form.email)
+    setResending(false)
+    if (!result.ok) {
+      setOtpError(result.error)
+      if (result.retryAfter) setCooldown(result.retryAfter)
+      return
+    }
+    setCooldown(result.cooldownSeconds)
+    setOtpCode('')
+    toast.success('New code sent!')
+  }
+
+  if (step === 'otp') {
     return (
       <div className="min-h-[80vh] flex items-center justify-center px-4 py-12">
-        <div className="w-full max-w-sm text-center">
-          <div className="w-14 h-14 bg-red-600 rounded-2xl flex items-center justify-center mx-auto mb-6">
-            <Mail size={26} className="text-white" />
+        <div className="w-full max-w-sm">
+          <div className="text-center mb-8">
+            <div className="w-14 h-14 bg-red-600 rounded-2xl flex items-center justify-center mx-auto mb-3">
+              <Mail size={26} className="text-white" />
+            </div>
+            <h1 className="text-2xl font-black text-gray-900">Verify your email</h1>
+            <p className="text-gray-500 text-sm mt-1">
+              Enter the 6-digit code sent to <strong className="text-gray-700">{maskedEmail}</strong>
+            </p>
           </div>
-          <h1 className="text-2xl font-black text-gray-900 mb-2">Check your email</h1>
-          <p className="text-gray-500 text-sm mb-6">
-            We sent a verification link to <strong>{sentEmail}</strong>. Click the link to activate your account.
-          </p>
-          <a
-            href={getMailLink(sentEmail)}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex items-center gap-2 bg-red-600 hover:bg-red-700 text-white font-bold px-6 py-3 rounded-xl transition-colors text-sm mb-4"
-          >
-            <Mail size={16} /> Open Email App
-          </a>
-          <p className="text-xs text-gray-400 mt-2">
-            Didn&apos;t receive it?{' '}
-            <button
-              onClick={async () => {
-                await fetch('/api/auth/resend-verification', {
-                  method:  'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body:    JSON.stringify({ email: sentEmail }),
-                })
-                toast.success('Verification email resent!')
-              }}
-              className="text-red-600 font-semibold hover:underline"
-            >
-              Resend
-            </button>
-          </p>
+          <div className="bg-white rounded-2xl border border-gray-100 p-6 shadow-sm">
+            <form onSubmit={handleOtpVerify} className="space-y-4">
+              <div>
+                <label className="block text-xs font-semibold text-gray-700 mb-1.5">6-digit code</label>
+                <input
+                  ref={otpInputRef}
+                  type="text"
+                  inputMode="numeric"
+                  maxLength={6}
+                  value={otpCode}
+                  onChange={(e) => { setOtpCode(e.target.value.replace(/\D/g, '').slice(0, 6)); setOtpError('') }}
+                  onPaste={handleOtpPaste}
+                  placeholder="000000"
+                  autoComplete="one-time-code"
+                  className="w-full border border-gray-200 rounded-xl px-4 py-3 text-lg tracking-[0.5em] text-center font-mono focus:outline-none focus:border-red-400"
+                />
+                {otpError && <p className="text-xs text-red-600 mt-1.5 text-center">{otpError}</p>}
+              </div>
+              <button
+                type="submit"
+                disabled={loading || otpCode.length !== 6}
+                className={`w-full py-3 rounded-xl font-bold text-white transition-colors ${loading || otpCode.length !== 6 ? 'bg-gray-400 cursor-not-allowed' : 'bg-red-600 hover:bg-red-700'}`}
+              >
+                {loading ? 'Verifying…' : 'Verify OTP'}
+              </button>
+              <button
+                type="button"
+                onClick={handleResend}
+                disabled={cooldown > 0 || resending}
+                className={`w-full text-center text-sm font-semibold ${cooldown > 0 || resending ? 'text-gray-400 cursor-not-allowed' : 'text-red-600 hover:underline'}`}
+              >
+                {resending ? 'Sending…' : cooldown > 0 ? `Resend OTP in ${cooldown}s` : 'Resend OTP'}
+              </button>
+              <button
+                type="button"
+                onClick={() => setStep('form')}
+                className="w-full text-center text-sm text-gray-500 hover:text-gray-700"
+              >
+                Change email
+              </button>
+            </form>
+          </div>
         </div>
       </div>
     )
@@ -103,6 +170,17 @@ export default function RegisterPage() {
           <h1 className="text-2xl font-black text-gray-900">Create account</h1>
           <p className="text-gray-500 text-sm mt-1">Join Pizza Guys for faster ordering</p>
         </div>
+        {accountExists && (
+          <div className="bg-red-50 border border-red-200 rounded-xl p-4 mb-4 text-center">
+            <p className="text-sm text-red-700 font-semibold mb-2">You already have an account. Please log in.</p>
+            <Link
+              href="/login"
+              className="inline-block bg-red-600 hover:bg-red-700 text-white text-sm font-bold px-5 py-2 rounded-lg transition-colors"
+            >
+              Log In
+            </Link>
+          </div>
+        )}
         <div className="bg-white rounded-2xl border border-gray-100 p-6 shadow-sm">
           <form onSubmit={handleSubmit} className="space-y-4">
             {[

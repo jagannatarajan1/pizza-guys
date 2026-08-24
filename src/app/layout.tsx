@@ -1,5 +1,5 @@
 import type { Metadata } from 'next'
-import { Nunito } from 'next/font/google'
+import { Lato, Raleway } from 'next/font/google'
 import './globals.css'
 import { AuthProvider } from '@/lib/auth-context'
 import { SiteConfigProvider } from '@/context/SiteConfigContext'
@@ -20,10 +20,19 @@ import { computeShopStatus } from '@/lib/shop-status'
 // until the app is rebuilt — this forces every request to read fresh data.
 export const dynamic = 'force-dynamic'
 
-const nunito = Nunito({
+// Same pairing dominos.co.uk loads from Google Fonts: Lato for body copy,
+// Raleway for headings/bold display text (font-bold/font-black throughout).
+const lato = Lato({
   subsets: ['latin'],
-  weight: ['400', '600', '700', '800', '900'],
-  variable: '--font-nunito',
+  weight: ['400', '700', '900'],
+  variable: '--font-lato',
+  display: 'swap',
+})
+
+const raleway = Raleway({
+  subsets: ['latin'],
+  weight: ['600', '700', '800', '900'],
+  variable: '--font-raleway',
   display: 'swap',
 })
 
@@ -42,7 +51,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   const shopStatus = computeShopStatus(config)
 
   return (
-    <html lang="en" className={`h-full ${nunito.variable}`}>
+    <html lang="en" className={`h-full ${lato.variable} ${raleway.variable}`}>
       <head>
         <ThemeScript config={config} />
       </head>
