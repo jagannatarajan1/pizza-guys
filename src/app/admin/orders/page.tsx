@@ -166,8 +166,15 @@ function PrepCountdown({ order, disabled, onSkip }: {
   )
 }
 
+type OrderItemModifier = {
+  groupId: string
+  groupName: string
+  options: { id: string; name: string; price: number }[]
+}
+
 type OrderItem = {
-  id: string; name: string; quantity: number; unitPrice: number; itemTotal: number; specialInstructions: string
+  id: string; productId: string; name: string; quantity: number; unitPrice: number; itemTotal: number
+  modifiers: OrderItemModifier[]; specialInstructions: string
 }
 
 type Order = {
@@ -226,12 +233,21 @@ export default function AdminOrdersPage() {
       ? `<img src="${logoImg}" alt="${bizName}" style="width:64px;height:64px;border-radius:50%;object-fit:cover;display:block;margin:0 auto 8px" />`
       : `<div style="width:64px;height:64px;border-radius:50%;background:${dark};color:#fff;font-size:23px;font-weight:900;line-height:64px;text-align:center;margin:0 auto 8px">${abbr}</div>`
 
-    const itemRows = order.items.map((item) => `
+    const itemRows = order.items.map((item) => {
+      const modLines = item.modifiers.map((m) =>
+        `${m.groupName}: ${m.options.map((o) => o.name).join(', ')}`
+      ).join('<br/>')
+      return `
       <tr>
         <td style="padding:5px 0;vertical-align:top">${item.quantity}×</td>
-        <td style="padding:5px 8px;vertical-align:top">${item.name}${item.specialInstructions ? `<br/><span style="font-size:12px;color:#888">${item.specialInstructions}</span>` : ''}</td>
+        <td style="padding:5px 8px;vertical-align:top">
+          ${item.name}
+          ${modLines ? `<br/><span style="font-size:12px;color:#888">${modLines}</span>` : ''}
+          ${item.specialInstructions ? `<br/><span style="font-size:12px;font-weight:700">Note: ${item.specialInstructions}</span>` : ''}
+        </td>
         <td style="padding:5px 0;text-align:right;vertical-align:top;white-space:nowrap">${formatPrice(item.itemTotal)}</td>
-      </tr>`).join('')
+      </tr>`
+    }).join('')
 
     const html = `<!DOCTYPE html>
 <html>
@@ -506,14 +522,26 @@ export default function AdminOrdersPage() {
                   <div className="mb-4">
                     <div className="text-xs text-gray-500 mb-2">Items</div>
                     {order.items.map((item, idx) => (
-                      <div key={idx} className="flex justify-between text-sm py-1.5 border-b border-gray-50 last:border-0">
-                        <div>
-                          <span className="text-gray-700">{item.quantity}× {item.name}</span>
+                      <div key={idx} className="flex justify-between text-sm py-2 border-b border-gray-50 last:border-0 gap-3">
+                        <div className="min-w-0">
+                          <span className="text-gray-700 font-semibold">{item.quantity}× {item.name}</span>
+                          {item.modifiers.length > 0 && (
+                            <ul className="mt-1 space-y-0.5">
+                              {item.modifiers.map((mod) => (
+                                <li key={mod.groupId} className="text-xs text-gray-500">
+                                  <span className="font-medium text-gray-600">{mod.groupName}:</span>{' '}
+                                  {mod.options.map((o) => o.name).join(', ')}
+                                </li>
+                              ))}
+                            </ul>
+                          )}
                           {item.specialInstructions && (
-                            <div className="text-xs text-gray-400 mt-0.5 italic">Note: {item.specialInstructions}</div>
+                            <div className="text-xs text-amber-700 bg-amber-50 border border-amber-100 rounded-md px-2 py-1 mt-1.5 inline-block font-medium">
+                              Note: {item.specialInstructions}
+                            </div>
                           )}
                         </div>
-                        <span className="font-medium">{formatPrice(item.itemTotal)}</span>
+                        <span className="font-medium shrink-0">{formatPrice(item.itemTotal)}</span>
                       </div>
                     ))}
                     <div className="pt-2 mt-1 space-y-0.5 text-sm border-t border-gray-100">

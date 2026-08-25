@@ -56,10 +56,15 @@ export async function GET(req: NextRequest) {
       createdAt: o.createdAt,
       items: o.items.map((i) => ({
         id: i.id,
+        productId: i.productId,
         name: i.productName,
         quantity: i.quantity,
         unitPrice: i.unitPrice / 100,
         itemTotal: i.itemTotal / 100,
+        // Full customization snapshot — same shape the customer-facing order
+        // APIs already return (see /api/orders and /api/orders/[orderNumber]).
+        // Staff need this to know exactly what to make, not just the product name.
+        modifiers: (() => { try { return JSON.parse(i.modifiers || '[]') } catch { return [] } })(),
         specialInstructions: i.specialInstructions,
       })),
     })),
