@@ -18,6 +18,7 @@ orderEvents.setMaxListeners(200)
 
 export type NewOrderEvent = { orderNumber: string }
 export type StatusChangedEvent = { orderNumber: string; status: string }
+export type OrderMessageEvent = { orderNumber: string }
 
 export function emitNewOrder(payload: NewOrderEvent) {
   orderEvents.emit('new-order', payload)
@@ -25,4 +26,11 @@ export function emitNewOrder(payload: NewOrderEvent) {
 
 export function emitStatusChanged(payload: StatusChangedEvent) {
   orderEvents.emit('status-changed', payload)
+}
+
+// The customer's tracking page treats every SSE message the same way — an
+// unconditional "something changed, refetch the order" — so this only needs
+// to carry the order number the message belongs to.
+export function emitOrderMessage(payload: OrderMessageEvent) {
+  orderEvents.emit('order-message', payload)
 }

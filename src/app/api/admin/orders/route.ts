@@ -27,7 +27,7 @@ export async function GET(req: NextRequest) {
   const [orders, total] = await Promise.all([
     prisma.order.findMany({
       where,
-      include: { items: true },
+      include: { items: true, messages: { orderBy: { createdAt: 'asc' } } },
       orderBy: { createdAt: 'desc' },
       take: limit,
       skip: (page - 1) * limit,
@@ -67,6 +67,7 @@ export async function GET(req: NextRequest) {
         modifiers: (() => { try { return JSON.parse(i.modifiers || '[]') } catch { return [] } })(),
         specialInstructions: i.specialInstructions,
       })),
+      messages: o.messages.map((m) => ({ id: m.id, message: m.message, createdBy: m.createdBy, createdAt: m.createdAt })),
     })),
     total,
     page,

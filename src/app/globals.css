@@ -116,3 +116,46 @@ input:focus, textarea:focus, select:focus {
 }
 .float { animation: float 4s ease-in-out infinite; }
 .float-delay { animation: float 4s ease-in-out 1s infinite; }
+
+/* ── Ticket motif ─────────────────────────────
+   Homepage signature element — same visual vocabulary as the real 80mm
+   thermal order tickets this shop prints (see printReceipt/printInvoice):
+   receipt paper, dashed rules, monospace data. Additive only — never
+   overrides --brand-*, which stays admin-configurable from site settings. */
+:root {
+  --paper: #FBF6EC;
+  --paper-line: #E4DCC8;
+}
+
+.font-ticket {
+  font-family: 'Courier New', Courier, ui-monospace, Menlo, Consolas, monospace;
+}
+
+.ticket-divider {
+  border: none;
+  border-top: 1px dashed var(--paper-line);
+}
+
+/* Perforated edge — a row of half-circle "bites" along the top/bottom,
+   matching where a real receipt tears off the printer. Purely decorative;
+   falls back to a plain edge in browsers that don't render the gradient. */
+.ticket-perforated::before,
+.ticket-perforated::after {
+  content: '';
+  position: absolute;
+  left: 0; right: 0;
+  height: 10px;
+  background-image: radial-gradient(circle at 5px 5px, var(--background) 5px, transparent 5.5px);
+  background-size: 16px 10px;
+  background-repeat: repeat-x;
+}
+.ticket-perforated::before { top: -5px; }
+.ticket-perforated::after  { bottom: -5px; transform: rotate(180deg); }
+
+@keyframes ticket-print {
+  from { opacity: 0; transform: translateY(-6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.ticket-line {
+  animation: ticket-print 0.4s ease-out both;
+}

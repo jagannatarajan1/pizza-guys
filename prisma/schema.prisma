@@ -152,6 +152,7 @@ model Order {
   prepMinutes     Int?        @map("prep_minutes")
   createdAt       DateTime    @default(now()) @map("created_at")
   items           OrderItem[]
+  messages        OrderMessage[]
   user            User?       @relation(fields: [userId], references: [id])
 
   @@index([status])
@@ -161,6 +162,25 @@ model Order {
   // index otherwise available on this column.
   @@index([paymentIntentId])
   @@map("orders")
+}
+
+// Free-text updates staff can send a customer about their order while it's
+// still active (see /api/admin/orders/[id]/messages) — "your order's running
+// 10 minutes late", "we've swapped X for Y", etc. Delivered by adding it to
+// the same live order-tracking page the customer already has open, over the
+// SSE connection that already pushes status changes there — no separate
+// notification channel. An append-only log, not a single overwritable field,
+// so an earlier message is never silently lost when a later one is sent.
+model OrderMessage {
+  id        String   @id @default(uuid())
+  orderId   String   @map("order_id")
+  message   String
+  createdBy String?  @map("created_by")
+  createdAt DateTime @default(now()) @map("created_at")
+  order     Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@index([orderId])
+  @@map("order_messages")
 }
 
 model Category {

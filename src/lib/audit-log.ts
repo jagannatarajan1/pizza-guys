@@ -13,6 +13,7 @@ export type AuditAction =
   | 'signup_otp_verified'
   | 'signup_otp_failed'
   | 'signup_blocked_existing_account'
+  | 'order_message_sent'
 
 // Best-effort — a logging failure must never take down the request that
 // triggered it, so this never throws.

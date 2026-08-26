@@ -1,14 +1,13 @@
 'use client'
-import { useState, useEffect, useMemo, useRef } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import Image from 'next/image'
-import { X, Plus, Minus, Check, Pencil, ChevronRight } from 'lucide-react'
+import { X, Plus, Minus, Check, ChevronDown } from 'lucide-react'
 import type { Product, ModifierGroup, ModifierOption } from '@/lib/types'
 import type { CartItem, CartItemModifier } from '@/lib/cart-store'
 import { useCartStore } from '@/lib/cart-store'
 import { formatPrice } from '@/lib/utils'
 import {
   activeGroups,
-  isGroupSatisfied,
   maxPerOption,
   modifiersTotal,
   optionUnitPrice,
@@ -26,27 +25,59 @@ type Props = {
   editingItem?: CartItem | null
 }
 
-const INSTRUCTIONS_STEP = '__instructions__'
+// Pre-fills the one obvious choice for a plain pick-one required group (pizza
+// size, crust) so the customer opens the modal with Add to Cart already live,
+// exactly like the reference flow — nothing to type, just change your mind if
+// you want to. Groups that need an actual decision (pick 2 toppings, min > 1)
+// are deliberately left empty. Runs in passes because picking a default can
+// unlock a dependent group that itself needs a default.
+function defaultSelections(product: Product): Selections {
+  let sel: Selections = {}
+  const passes = (product.modifiers?.length ?? 0) + 1
+  for (let i = 0; i < passes; i++) {
+    const active = activeGroups(product, sel)
+    let changed = false
+    for (const g of active) {
+      if (g.required && !g.multiSelect && !(sel[g.id]?.length) && g.options.length > 0) {
+        sel = { ...sel, [g.id]: [g.options[0].id] }
+        changed = true
+      }
+    }
+    if (!changed) break
+  }
+  return sel
+}
+
+// What to show in the collapsed row's pill — the whole point of collapsing a
+// group is that you can still see what you picked without opening it back up.
+function selectionSummary(group: ModifierGroup, chosen: string[]): string | null {
+  if (chosen.length === 0) return null
+  if (!group.multiSelect) {
+    return group.options.find((o) => o.id === chosen[0])?.name ?? null
+  }
+  const counts = new Map<string, number>()
+  for (const id of chosen) counts.set(id, (counts.get(id) ?? 0) + 1)
+  const parts = [...counts.entries()].map(([id, n]) => {
+    const name = group.options.find((o) => o.id === id)?.name ?? ''
+    return n > 1 ? `${name} ×${n}` : name
+  })
+  if (parts.length <= 2) return parts.join(', ')
+  return `${parts.slice(0, 2).join(', ')} +${parts.length - 2} more`
+}
 
 export default function ProductModal({ product, onClose, editingItem = null }: Props) {
   const addItem = useCartStore((s) => s.addItem)
   const updateItem = useCartStore((s) => s.updateItem)
   const [quantity, setQuantity] = useState(1)
   const [selections, setSelections] = useState<Selections>({})
-  const [doneGroups, setDoneGroups] = useState<string[]>([])
-  const [editingGroupId, setEditingGroupId] = useState<string | null>(null)
   const [instructions, setInstructions] = useState('')
-  const stepRefs = useRef<Record<string, HTMLDivElement | null>>({})
-  const scrollBodyRef = useRef<HTMLDivElement | null>(null)
+  const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({})
+  const groupRefs = useRef<Record<string, HTMLDivElement | null>>({})
 
   useEffect(() => {
     if (!product) return
-    setEditingGroupId(null)
 
     if (editingItem) {
-      // Pre-fill from the existing cart line, then treat every step as already
-      // answered so the customer lands on a full summary they can edit rather
-      // than being walked through the whole flow again.
       setQuantity(editingItem.quantity)
       setInstructions(editingItem.specialInstructions)
       const restored: Selections = {}
@@ -54,30 +85,33 @@ export default function ProductModal({ product, onClose, editingItem = null }: P
         restored[m.groupId] = m.options.map((o) => o.id)
       })
       setSelections(restored)
-      setDoneGroups(activeGroups(product, restored).map((g) => g.id))
+      const v = validateSelections(product, restored)
+      setExpandedGroups(v.ok ? {} : { [v.groupId!]: true })
       return
     }
 
     setQuantity(1)
     setInstructions('')
-    setSelections({})
-    setDoneGroups([])
+    const defaults = defaultSelections(product)
+    setSelections(defaults)
+    // Only the section still blocking Add to Cart opens itself — everything
+    // else (defaulted or genuinely optional) starts collapsed.
+    const v = validateSelections(product, defaults)
+    setExpandedGroups(v.ok ? {} : { [v.groupId!]: true })
   }, [product, editingItem])
 
-  // Steps are recomputed from the current choices, so a group that depends on
-  // another (the meal drink) appears the moment its trigger is picked and
-  // disappears again if it is unpicked.
-  const steps = useMemo(
-    () => (product ? activeGroups(product, selections) : []),
-    [product, selections]
-  )
+  // Every active group renders at once — no step gating, so this is just
+  // "all the customization the customer can currently see," recomputed live
+  // (a dependent group like the meal drink appears the moment its trigger is
+  // picked and disappears again if it's unpicked).
+  const groups = product ? activeGroups(product, selections) : []
 
-  const firstUnfinished = steps.find((g) => !doneGroups.includes(g.id)) ?? null
-  const allStepsDone = steps.length > 0 && !firstUnfinished
-  const currentStepId = editingGroupId ?? firstUnfinished?.id ?? INSTRUCTIONS_STEP
-
+  // The single rulebook for "is this a legal, complete set of choices" — the
+  // same function the server re-runs over whatever actually arrives. Required
+  // groups need their minimum; optional groups are satisfied from empty, so
+  // this is already exactly "all required selections made," nothing more.
   const verdict = product ? validateSelections(product, selections) : { ok: true as const }
-  const readyToAdd = verdict.ok && !firstUnfinished
+  const readyToAdd = verdict.ok
 
   const total = product ? (product.price + modifiersTotal(product, selections)) * quantity : 0
 
@@ -86,9 +120,11 @@ export default function ProductModal({ product, onClose, editingItem = null }: P
   const countOf = (groupId: string, optionId: string) =>
     (selections[groupId] ?? []).filter((id) => id === optionId).length
 
-  // Every change goes through here so a step that stops being offered can't
-  // leave stale choices behind it — they would otherwise be quietly priced, or
-  // sit unanswered and block the Add button forever.
+  const toggleExpanded = (groupId: string) =>
+    setExpandedGroups((prev) => ({ ...prev, [groupId]: !prev[groupId] }))
+
+  // Every change goes through here so a group that stops being offered can't
+  // leave stale choices behind it — they would otherwise be quietly priced.
   const commit = (next: Selections) => {
     const liveIds = new Set(activeGroups(product, next).map((g) => g.id))
     const pruned: Selections = {}
@@ -96,25 +132,10 @@ export default function ProductModal({ product, onClose, editingItem = null }: P
       if (liveIds.has(groupId)) pruned[groupId] = ids
     }
     setSelections(pruned)
-    setDoneGroups((prev) => prev.filter((id) => liveIds.has(id)))
-  }
-
-  const markDone = (groupId: string) => {
-    setDoneGroups((prev) => (prev.includes(groupId) ? prev : [...prev, groupId]))
-    setEditingGroupId(null)
-  }
-
-  const scrollToStep = (stepId: string) => {
-    // Wait a frame so the newly-opened step has been laid out before scrolling.
-    requestAnimationFrame(() => {
-      stepRefs.current[stepId]?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
-    })
   }
 
   const chooseSingle = (group: ModifierGroup, optionId: string) => {
     commit({ ...selections, [group.id]: [optionId] })
-    markDone(group.id)
-    scrollToStep(INSTRUCTIONS_STEP)
   }
 
   const addOne = (group: ModifierGroup, optionId: string) => {
@@ -142,23 +163,18 @@ export default function ProductModal({ product, onClose, editingItem = null }: P
     addOne(group, optionId)
   }
 
-  const skipStep = (group: ModifierGroup) => {
-    commit({ ...selections, [group.id]: [] })
-    markDone(group.id)
-    scrollToStep(INSTRUCTIONS_STEP)
-  }
-
   const handleAdd = () => {
-    if (firstUnfinished) {
-      setEditingGroupId(firstUnfinished.id)
-      scrollToStep(firstUnfinished.id)
-      return
-    }
+    // Re-validated here regardless of the button's visual state — the same
+    // check the button's enabled state is derived from, run fresh at the
+    // moment of adding, so nothing incomplete can ever reach the cart.
     if (!verdict.ok) {
       toast.error(verdict.error)
       if (verdict.groupId) {
-        setEditingGroupId(verdict.groupId)
-        scrollToStep(verdict.groupId)
+        const blockingId = verdict.groupId
+        setExpandedGroups((prev) => ({ ...prev, [blockingId]: true }))
+        requestAnimationFrame(() => {
+          groupRefs.current[blockingId]?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+        })
       }
       return
     }
@@ -166,7 +182,7 @@ export default function ProductModal({ product, onClose, editingItem = null }: P
     // Every option is stored with the price it was actually charged at — a
     // cheesy crust on a mega pizza costs more than on a medium, and the cart
     // line has to remember which one this was.
-    const modifiers: CartItemModifier[] = steps
+    const modifiers: CartItemModifier[] = groups
       .map((group) => {
         const chosen = selections[group.id] ?? []
         const options = chosen
@@ -189,248 +205,239 @@ export default function ProductModal({ product, onClose, editingItem = null }: P
     onClose()
   }
 
-  const summaryFor = (group: ModifierGroup) => {
-    const chosen = selections[group.id] ?? []
-    if (chosen.length === 0) return 'Skipped'
-    const counts = new Map<string, number>()
-    chosen.forEach((id) => counts.set(id, (counts.get(id) ?? 0) + 1))
-    return [...counts.entries()]
-      .map(([id, n]) => {
-        const name = group.options.find((o) => o.id === id)?.name ?? id
-        return n > 1 ? `${name} ×${n}` : name
-      })
-      .join(', ')
-  }
-
   const limitLabel = (group: ModifierGroup) => {
     const parts: string[] = []
     if (group.multiSelect && group.max > 1) parts.push(`Choose up to ${group.max}`)
+    else if (group.multiSelect) parts.push('Choose any')
     else parts.push('Choose 1')
     if (maxPerOption(group) > 1) parts.push(`each up to ${maxPerOption(group)}×`)
-    parts.push(group.required ? 'Required' : 'Optional')
     return parts.join(' · ')
   }
-
-  const stepNumber = (group: ModifierGroup) => steps.findIndex((g) => g.id === group.id) + 1
 
   return (
     <div
       className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/60 p-0 sm:p-4"
       onClick={(e) => e.target === e.currentTarget && onClose()}
     >
-      <div className="bg-white w-full sm:max-w-lg rounded-t-3xl sm:rounded-2xl overflow-hidden max-h-[95vh] flex flex-col">
-        {/* Image */}
-        <div className="relative aspect-video shrink-0 bg-gray-100">
-          {product.image ? (
-            <Image
-              src={product.image}
-              alt={product.name}
-              fill
-              sizes="(max-width: 640px) 100vw, 512px"
-              className="object-cover"
-            />
-          ) : (
-            <div className="w-full h-full flex items-center justify-center text-6xl">🍕</div>
-          )}
-          <button
-            onClick={onClose}
-            aria-label="Close"
-            className="absolute top-3 right-3 bg-white/90 backdrop-blur rounded-full p-2 hover:bg-white transition-colors shadow"
-          >
-            <X size={18} />
-          </button>
-        </div>
+      <div className="relative bg-white w-full sm:max-w-lg rounded-t-3xl sm:rounded-2xl overflow-hidden max-h-[95vh] flex flex-col">
+        {/* Close button floats over everything and stays put while the image
+            and details underneath it scroll as one unit — it's the only
+            thing that's actually fixed here. */}
+        <button
+          onClick={onClose}
+          aria-label="Close"
+          className="absolute top-3 right-3 z-10 bg-white/90 backdrop-blur rounded-full p-2 hover:bg-white transition-colors shadow"
+        >
+          <X size={18} />
+        </button>
 
-        {/* Content */}
-        <div ref={scrollBodyRef} className="overflow-y-auto flex-1 p-5">
-          <h2 className="text-xl font-bold text-gray-900 mb-1">{product.name}</h2>
-          {product.description && <p className="text-gray-500 text-sm mb-4">{product.description}</p>}
+        {/* Image + content scroll together — the photo is not pinned, so on
+            a large image it scrolls out of the way like the rest of the page. */}
+        <div className="overflow-y-auto flex-1">
+         <div className="relative aspect-[4/3] bg-gray-100">
+            {product.image ? (
+              <Image
+                src={product.image}
+                alt={product.name}
+                fill
+                sizes="(max-width: 640px) 100vw, 512px"
+                className="object-cover"
+              />
+            ) : (
+              <div className="w-full h-full flex items-center justify-center text-6xl">🍕</div>
+            )}
+          </div>
 
-          {product.allergens && product.allergens.length > 0 && (
-            <div className="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-800">
-              <strong>Allergens:</strong> {product.allergens.join(', ')}
-            </div>
-          )}
+          <div className="px-5 pt-5">
+            <h2 className="text-2xl font-bold text-gray-900 mb-1">{product.name}</h2>
+            <p className="text-gray-500 text-sm font-semibold mb-2">From {formatPrice(product.price)}</p>
+            {product.description && <p className="text-gray-500 text-sm mb-4">{product.description}</p>}
 
-          {steps.length > 0 && (
-            <p className="text-xs font-semibold text-gray-400 mb-3 uppercase tracking-wide">
-              {allStepsDone
-                ? `All ${steps.length} step${steps.length === 1 ? '' : 's'} complete`
-                : `Step ${stepNumber(firstUnfinished ?? steps[0])} of ${steps.length}`}
-            </p>
-          )}
-
-          {/* One step at a time: finished steps collapse to a summary, the
-              current one is open, and later ones stay hidden until reached. */}
-          {steps.map((group) => {
-            const isOpen = currentStepId === group.id
-            const isDone = doneGroups.includes(group.id)
-            if (!isOpen && !isDone) return null
-
-            if (!isOpen) {
-              return (
-                <div
-                  key={group.id}
-                  ref={(el) => { stepRefs.current[group.id] = el }}
-                  className="mb-3 flex items-start justify-between gap-3 rounded-xl border border-gray-100 bg-gray-50 px-3 py-2.5"
-                >
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-1.5">
-                      <Check size={14} className="text-green-600 shrink-0" />
-                      <span className="text-sm font-bold text-gray-800 truncate">{group.name}</span>
-                    </div>
-                    <p className="text-xs text-gray-500 mt-0.5 break-words">{summaryFor(group)}</p>
-                  </div>
-                  <button
-                    onClick={() => { setEditingGroupId(group.id); scrollToStep(group.id) }}
-                    className="shrink-0 flex items-center gap-1 text-xs font-bold text-red-600 hover:text-red-700"
-                  >
-                    <Pencil size={12} /> Edit
-                  </button>
-                </div>
-              )
-            }
-
-            const chosen = selections[group.id] ?? []
-            const atMax = group.max > 0 && chosen.length >= group.max
-            const canContinue = isGroupSatisfied(group, selections)
-
-            return (
-              <div
-                key={group.id}
-                ref={(el) => { stepRefs.current[group.id] = el }}
-                className="mb-5 rounded-xl border-2 border-red-100 bg-white p-3"
-              >
-                <div className="flex items-center justify-between mb-1">
-                  <h3 className="font-bold text-gray-900">
-                    <span className="text-red-600 mr-1.5">{stepNumber(group)}.</span>{group.name}
-                  </h3>
-                  <span
-                    className={`text-[11px] font-bold px-2 py-0.5 rounded-full ${
-                      group.required ? 'bg-red-100 text-red-600' : 'bg-gray-100 text-gray-500'
-                    }`}
-                  >
-                    {group.required ? 'Required' : 'Optional'}
-                  </span>
-                </div>
-                <p className="text-xs text-gray-500 mb-3">{group.description || limitLabel(group)}</p>
-
-                <div className="space-y-2">
-                  {group.options.map((option) => {
-                    const n = countOf(group.id, option.id)
-                    const selected = n > 0
-                    const price = optionUnitPrice(group, option, selections)
-                    const cap = maxPerOption(group)
-                    const canAddMore = !atMax && n < cap
-
-                    return (
-                      <div
-                        key={option.id}
-                        className={`w-full flex items-center justify-between gap-2 p-3 rounded-xl border-2 transition-all ${
-                          selected ? 'border-red-500 bg-red-50' : 'border-gray-100 bg-gray-50'
-                        }`}
-                      >
-                        <button
-                          type="button"
-                          onClick={() =>
-                            group.multiSelect ? toggleMulti(group, option.id) : chooseSingle(group, option.id)
-                          }
-                          // Only a multi-pick step can run out of room. On a
-                          // pick-one step the choice replaces whatever was
-                          // there, so its other options must stay clickable —
-                          // otherwise editing a size would lock you into the
-                          // one already chosen.
-                          disabled={group.multiSelect && !selected && atMax}
-                          className="flex items-center gap-3 flex-1 min-w-0 text-left disabled:opacity-40"
-                        >
-                          <div
-                            className={`w-5 h-5 shrink-0 border-2 flex items-center justify-center ${
-                              group.multiSelect ? 'rounded-md' : 'rounded-full'
-                            } ${selected ? 'border-red-500 bg-red-500' : 'border-gray-300'}`}
-                          >
-                            {selected && <Check size={12} className="text-white" strokeWidth={3} />}
-                          </div>
-                          <span className="text-sm font-medium text-gray-800 truncate">
-                            {option.name}
-                            {option.tag && (
-                              <span className="ml-1.5 text-[10px] font-bold uppercase tracking-wide text-amber-600">
-                                {option.tag}
-                              </span>
-                            )}
-                          </span>
-                        </button>
-
-                        <div className="flex items-center gap-2 shrink-0">
-                          {price > 0 && (
-                            <span className="text-sm text-gray-500 font-semibold">+{formatPrice(price)}</span>
-                          )}
-                          {cap > 1 && (
-                            <div className="flex items-center gap-1 bg-white rounded-lg border border-gray-200 p-0.5">
-                              <button
-                                type="button"
-                                onClick={() => removeOne(group, option.id)}
-                                disabled={n === 0}
-                                aria-label={`Remove one ${option.name}`}
-                                className="w-6 h-6 flex items-center justify-center rounded hover:bg-gray-100 disabled:opacity-30"
-                              >
-                                <Minus size={12} />
-                              </button>
-                              <span className="w-4 text-center text-xs font-bold">{n}</span>
-                              <button
-                                type="button"
-                                onClick={() => addOne(group, option.id)}
-                                disabled={!canAddMore}
-                                aria-label={`Add one ${option.name}`}
-                                className="w-6 h-6 flex items-center justify-center rounded hover:bg-gray-100 disabled:opacity-30"
-                              >
-                                <Plus size={12} />
-                              </button>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    )
-                  })}
-                </div>
-
-                {/* Single-choice steps advance on tap, so they need no footer.
-                    Everything else needs an explicit way forward. */}
-                {(group.multiSelect || !group.required) && (
-                  <div className="flex items-center gap-2 mt-3">
-                    {group.multiSelect && (
-                      <button
-                        type="button"
-                        onClick={() => { markDone(group.id); scrollToStep(INSTRUCTIONS_STEP) }}
-                        disabled={!canContinue}
-                        className={`flex-1 py-2.5 rounded-xl text-sm font-bold flex items-center justify-center gap-1 transition-colors ${
-                          canContinue ? 'bg-red-600 text-white hover:bg-red-700' : 'bg-gray-200 text-gray-400'
-                        }`}
-                      >
-                        Continue <ChevronRight size={15} />
-                      </button>
-                    )}
-                    {!group.required && (
-                      <button
-                        type="button"
-                        onClick={() => skipStep(group)}
-                        className="px-4 py-2.5 rounded-xl text-sm font-bold text-gray-500 hover:text-gray-800 hover:bg-gray-100 transition-colors"
-                      >
-                        Skip
-                      </button>
-                    )}
-                  </div>
-                )}
+            {product.allergens && product.allergens.length > 0 && (
+              <div className="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-800">
+                <strong>Allergens:</strong> {product.allergens.join(', ')}
               </div>
-            )
-          })}
+            )}
 
-          {/* Special instructions — the final step, only once the choices are in */}
-          {(allStepsDone || steps.length === 0) && (
-            <div ref={(el) => { stepRefs.current[INSTRUCTIONS_STEP] = el }} className="mb-2">
-              <label className="block text-sm font-bold text-gray-800 mb-1">
-                {steps.length > 0 && <span className="text-red-600 mr-1.5">{steps.length + 1}.</span>}
-                Special instructions
-              </label>
+            {/* Every applicable group is on the page at once — required and
+                optional alike — as a collapsible row rather than a locked step.
+                Nothing gates a later group behind an earlier one; the customer
+                opens whatever they want to change, in whatever order, and Add
+                to Cart in the footer is the only "next" they ever need. */}
+            <div className="border-t border-gray-100">
+              {groups.map((group) => {
+                const chosen = selections[group.id] ?? []
+                const atMax = group.max > 0 && chosen.length >= group.max
+                const groupInvalid = !verdict.ok && verdict.groupId === group.id
+                const expanded = !!expandedGroups[group.id]
+                const summary = selectionSummary(group, chosen)
+                const isGridStyle = !group.multiSelect
+                const cap = maxPerOption(group)
+
+                return (
+                  <div
+                    key={group.id}
+                    ref={(el) => { groupRefs.current[group.id] = el }}
+                    className={`border-b border-gray-100 ${groupInvalid ? 'bg-red-50/60 -mx-5 px-5' : ''}`}
+                  >
+                    <button
+                      type="button"
+                      onClick={() => toggleExpanded(group.id)}
+                      className="w-full flex items-center justify-between gap-3 py-4 text-left"
+                    >
+                      <span className={`font-bold text-[15px] ${groupInvalid ? 'text-red-600' : 'text-gray-900'}`}>
+                        {group.name}
+                        {group.required ? (
+                          <span className="text-red-500 ml-0.5">*</span>
+                        ) : (
+                          <span className="text-gray-400 font-medium text-xs ml-1.5">(Optional)</span>
+                        )}
+                      </span>
+                      <span className="flex items-center gap-2 shrink-0">
+                        {summary ? (
+                          <span className="text-xs font-semibold text-gray-600 bg-gray-100 rounded-full px-2.5 py-1 max-w-[150px] truncate">
+                            {summary}
+                          </span>
+                        ) : group.required ? (
+                          <span className="text-xs font-semibold text-red-500 bg-red-50 rounded-full px-2.5 py-1">
+                            Select
+                          </span>
+                        ) : null}
+                        <ChevronDown
+                          size={18}
+                          className={`text-gray-400 transition-transform ${expanded ? 'rotate-180' : ''}`}
+                        />
+                      </span>
+                    </button>
+
+                    {expanded && (
+                      <div className="pb-4">
+                        <p className="text-xs text-gray-500 mb-3">{group.description || limitLabel(group)}</p>
+
+                        {isGridStyle ? (
+                          <div className="grid grid-cols-2 gap-2">
+                            {group.options.map((option) => {
+                              const selected = countOf(group.id, option.id) > 0
+                              const price = optionUnitPrice(group, option, selections)
+                              return (
+                                <button
+                                  key={option.id}
+                                  type="button"
+                                  onClick={() => chooseSingle(group, option.id)}
+                                  className={`text-left p-3 rounded-xl border-2 transition-colors ${
+                                    selected ? 'border-red-500 bg-red-50' : 'border-gray-200 bg-white hover:border-gray-300'
+                                  }`}
+                                >
+                                  <span className="block text-sm font-semibold text-gray-800">{option.name}</span>
+                                  {option.tag && (
+                                    <span className="block text-[10px] font-bold uppercase tracking-wide text-amber-600 mt-0.5">
+                                      {option.tag}
+                                    </span>
+                                  )}
+                                  {price > 0 && (
+                                    <span className="block text-xs text-gray-500 font-medium mt-1">+{formatPrice(price)}</span>
+                                  )}
+                                </button>
+                              )
+                            })}
+                          </div>
+                        ) : (
+                          <div className="space-y-2">
+                            {group.options.map((option) => {
+                              const n = countOf(group.id, option.id)
+                              const selected = n > 0
+                              const price = optionUnitPrice(group, option, selections)
+                              const canAddMore = !atMax && n < cap
+
+                              return (
+                                <div
+                                  key={option.id}
+                                  className={`flex items-center justify-between gap-2 ${
+                                    cap === 1
+                                      ? `p-3 rounded-xl border-2 transition-all ${
+                                          selected ? 'border-red-500 bg-red-50' : 'border-gray-100 bg-gray-50'
+                                        }`
+                                      : 'py-2'
+                                  }`}
+                                >
+                                  {cap === 1 ? (
+                                    <button
+                                      type="button"
+                                      onClick={() => toggleMulti(group, option.id)}
+                                      disabled={!selected && atMax}
+                                      className="flex items-center gap-3 flex-1 min-w-0 text-left disabled:opacity-40"
+                                    >
+                                      <div
+                                        className={`w-5 h-5 shrink-0 rounded-md border-2 flex items-center justify-center ${
+                                          selected ? 'border-red-500 bg-red-500' : 'border-gray-300'
+                                        }`}
+                                      >
+                                        {selected && <Check size={12} className="text-white" strokeWidth={3} />}
+                                      </div>
+                                      <span className="text-sm font-medium text-gray-800 truncate">
+                                        {option.name}
+                                        {option.tag && (
+                                          <span className="ml-1.5 text-[10px] font-bold uppercase tracking-wide text-amber-600">
+                                            {option.tag}
+                                          </span>
+                                        )}
+                                      </span>
+                                    </button>
+                                  ) : (
+                                    <span className="text-sm font-medium text-gray-800 flex-1 min-w-0 truncate">
+                                      {option.name}
+                                      {option.tag && (
+                                        <span className="ml-1.5 text-[10px] font-bold uppercase tracking-wide text-amber-600">
+                                          {option.tag}
+                                        </span>
+                                      )}
+                                    </span>
+                                  )}
+
+                                  <div className="flex items-center gap-2 shrink-0">
+                                    {price > 0 && (
+                                      <span className="text-sm text-gray-500 font-semibold">+{formatPrice(price)}</span>
+                                    )}
+                                    {cap > 1 && (
+                                      <div className="flex items-center gap-1 bg-white rounded-lg border border-gray-200 p-0.5">
+                                        <button
+                                          type="button"
+                                          onClick={() => removeOne(group, option.id)}
+                                          disabled={n === 0}
+                                          aria-label={`Remove one ${option.name}`}
+                                          className="w-6 h-6 flex items-center justify-center rounded hover:bg-gray-100 disabled:opacity-30"
+                                        >
+                                          <Minus size={12} />
+                                        </button>
+                                        <span className="w-4 text-center text-xs font-bold">{n}</span>
+                                        <button
+                                          type="button"
+                                          onClick={() => addOne(group, option.id)}
+                                          disabled={!canAddMore}
+                                          aria-label={`Add one ${option.name}`}
+                                          className="w-6 h-6 flex items-center justify-center rounded hover:bg-gray-100 disabled:opacity-30"
+                                        >
+                                          <Plus size={12} />
+                                        </button>
+                                      </div>
+                                    )}
+                                  </div>
+                                </div>
+                              )
+                            })}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+
+            {/* Special instructions — always visible; it's optional, so it
+                never needs to be unlocked by anything else. */}
+            <div className="py-4">
+              <label className="block text-sm font-bold text-gray-800 mb-1">Special instructions</label>
               <p className="text-xs text-gray-500 mb-2">You may be charged for extras.</p>
               <textarea
                 value={instructions}
@@ -440,13 +447,19 @@ export default function ProductModal({ product, onClose, editingItem = null }: P
                 className="w-full border border-gray-200 rounded-xl p-3 text-sm resize-none h-20 focus:outline-none focus:border-red-400"
               />
             </div>
-          )}
+          </div>
         </div>
 
         {/* Footer */}
-        <div className="p-5 border-t border-gray-100 bg-white shrink-0">
-          <div className="flex items-center gap-4 mb-4">
-            <div className="flex items-center gap-2 bg-gray-100 rounded-xl p-1">
+        <div className="p-4 sm:p-5 border-t border-gray-100 bg-white shrink-0">
+          {/* Persistent, specific reason the button is greyed out — the
+              customer shouldn't have to tap it to find out what's missing. */}
+          {!readyToAdd && (
+            <p className="text-xs font-semibold text-red-600 mb-2 text-center">{verdict.ok ? '' : verdict.error}</p>
+          )}
+
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-1 bg-gray-100 rounded-xl p-1 shrink-0">
               <button
                 onClick={() => setQuantity((q) => Math.max(1, q - 1))}
                 aria-label="Decrease quantity"
@@ -454,7 +467,7 @@ export default function ProductModal({ product, onClose, editingItem = null }: P
               >
                 <Minus size={16} />
               </button>
-              <span className="font-bold text-lg w-8 text-center">{quantity}</span>
+              <span className="font-bold text-base w-7 text-center">{quantity}</span>
               <button
                 onClick={() => setQuantity((q) => Math.min(99, q + 1))}
                 aria-label="Increase quantity"
@@ -463,18 +476,18 @@ export default function ProductModal({ product, onClose, editingItem = null }: P
                 <Plus size={16} />
               </button>
             </div>
-            <span className="text-gray-500 text-sm flex-1">Select quantity</span>
+
+            <button
+              onClick={handleAdd}
+              aria-disabled={!readyToAdd}
+              className={`flex-1 py-4 rounded-xl font-bold text-white flex items-center justify-between px-5 transition-colors ${
+                readyToAdd ? 'bg-red-600 hover:bg-red-700' : 'bg-gray-300 hover:bg-gray-400'
+              }`}
+            >
+              <span>{editingItem ? 'Update Cart' : 'Add to Cart'}</span>
+              <span>{formatPrice(total)}</span>
+            </button>
           </div>
-          <button
-            onClick={handleAdd}
-            aria-disabled={!readyToAdd}
-            className={`w-full py-4 rounded-xl font-bold text-white flex items-center justify-between px-5 transition-colors ${
-              readyToAdd ? 'bg-red-600 hover:bg-red-700' : 'bg-gray-300 hover:bg-gray-400'
-            }`}
-          >
-            <span>{editingItem ? 'Update Cart' : 'Add to Cart'}</span>
-            <span>{formatPrice(total)}</span>
-          </button>
         </div>
       </div>
     </div>

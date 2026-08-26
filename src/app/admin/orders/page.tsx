@@ -1,6 +1,6 @@
 'use client'
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { Search, Check, X, ChevronDown, RefreshCw, Loader2, Printer, Timer, FastForward } from 'lucide-react'
+import { Search, Check, X, ChevronDown, RefreshCw, Loader2, Printer, Timer, FastForward, Send, MessageCircle } from 'lucide-react'
 import { formatPrice } from '@/lib/utils'
 import toast from 'react-hot-toast'
 import { useSiteConfig } from '@/context/SiteConfigContext'
@@ -177,6 +177,12 @@ type OrderItem = {
   modifiers: OrderItemModifier[]; specialInstructions: string
 }
 
+type OrderMessage = { id: string; message: string; createdBy: string | null; createdAt: string }
+
+// Matches TERMINAL_STATUSES in the messages API — an order in either state
+// has nothing left to send an update about.
+const TERMINAL_STATUSES = ['Completed', 'Cancelled']
+
 type Order = {
   id: string
   orderNumber: string
@@ -195,6 +201,7 @@ type Order = {
   prepMinutes: number | null
   createdAt: string
   items: OrderItem[]
+  messages: OrderMessage[]
 }
 
 export default function AdminOrdersPage() {
@@ -207,6 +214,8 @@ export default function AdminOrdersPage() {
   const [updatingId, setUpdatingId]     = useState<string | null>(null)
   const [total, setTotal]               = useState(0)
   const [presets, setPresets]           = useState<Preset[]>([])
+  const [messageDrafts, setMessageDrafts] = useState<Record<string, string>>({})
+  const [sendingMessageId, setSendingMessageId] = useState<string | null>(null)
 
   useEffect(() => {
     fetch('/api/admin/prep-time-presets')
@@ -404,6 +413,30 @@ export default function AdminOrdersPage() {
     }
   }
 
+  const sendMessage = async (order: Order) => {
+    const text = (messageDrafts[order.id] ?? '').trim()
+    if (!text) return
+    setSendingMessageId(order.id)
+    try {
+      const res  = await fetch(`/api/admin/orders/${order.id}/messages`, {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ message: text }),
+      })
+      const data = await res.json().catch(() => null)
+      if (!res.ok) { toast.error(data?.error ?? 'Failed to send message'); return }
+      setOrders((prev) => prev.map((o) =>
+        o.id === order.id ? { ...o, messages: [...o.messages, data.message] } : o
+      ))
+      setMessageDrafts((prev) => ({ ...prev, [order.id]: '' }))
+      toast.success(`Message sent to ${order.customerName}`)
+    } catch {
+      toast.error('Failed to send message')
+    } finally {
+      setSendingMessageId(null)
+    }
+  }
+
   const fmtTime = (iso: string) =>
     new Date(iso).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })
   const fmtDate = (iso: string) =>
@@ -559,6 +592,47 @@ export default function AdminOrdersPage() {
                         <span>Total</span><span>{formatPrice(order.total)}</span>
                       </div>
                     </div>
+                  </div>
+
+                  {/* Messages to the customer — shown live on their /order-tracking
+                      page over the same connection that already pushes status
+                      changes. Sendable any time up until the order is done. */}
+                  <div className="mb-4">
+                    <div className="text-xs text-gray-500 mb-2 flex items-center gap-1.5">
+                      <MessageCircle size={13} /> Messages to customer
+                    </div>
+                    {order.messages.length > 0 && (
+                      <div className="space-y-1.5 mb-2">
+                        {order.messages.map((m) => (
+                          <div key={m.id} className="bg-blue-50 border border-blue-100 rounded-lg px-3 py-2">
+                            <p className="text-sm text-gray-800">{m.message}</p>
+                            <p className="text-[11px] text-gray-400 mt-0.5">{fmtTime(m.createdAt)} · {fmtDate(m.createdAt)}</p>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    {TERMINAL_STATUSES.includes(order.status) ? (
+                      <p className="text-xs text-gray-400 italic">This order is complete — no further messages can be sent.</p>
+                    ) : (
+                      <div className="flex items-center gap-2">
+                        <input
+                          value={messageDrafts[order.id] ?? ''}
+                          onChange={(e) => setMessageDrafts((prev) => ({ ...prev, [order.id]: e.target.value }))}
+                          onKeyDown={(e) => e.key === 'Enter' && sendMessage(order)}
+                          maxLength={500}
+                          placeholder="e.g. Running about 10 minutes late — sorry!"
+                          className="flex-1 border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-red-400"
+                        />
+                        <button
+                          onClick={() => sendMessage(order)}
+                          disabled={sendingMessageId === order.id || !(messageDrafts[order.id] ?? '').trim()}
+                          className="shrink-0 flex items-center gap-1.5 bg-red-600 hover:bg-red-700 disabled:opacity-40 text-white text-xs font-bold px-3 py-2 rounded-xl transition-colors"
+                        >
+                          {sendingMessageId === order.id ? <Loader2 size={13} className="animate-spin" /> : <Send size={13} />}
+                          Send
+                        </button>
+                      </div>
+                    )}
                   </div>
 
                   <div className="flex flex-wrap gap-2">

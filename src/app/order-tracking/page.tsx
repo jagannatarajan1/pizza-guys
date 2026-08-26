@@ -2,7 +2,7 @@
 import { useState, useEffect, Suspense } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { CheckCircle, Package, ChefHat, Bike, Home, Loader2, AlertCircle, Search } from 'lucide-react'
+import { CheckCircle, Package, ChefHat, Bike, Home, Loader2, AlertCircle, Search, MessageCircle } from 'lucide-react'
 import { formatPrice } from '@/lib/utils'
 import { useAuth } from '@/lib/auth-context'
 import { useSiteConfig } from '@/context/SiteConfigContext'
@@ -178,6 +178,7 @@ type OrderData = {
     modifiers: { groupId: string; groupName: string; options: { id: string; name: string; price: number }[] }[]
     specialInstructions: string
   }[]
+  messages: { id: string; message: string; createdAt: string }[]
 }
 
 function TrackingContent() {
@@ -305,6 +306,26 @@ function TrackingContent() {
               </div>
             )
           })}
+        </div>
+      )}
+
+      {/* Messages from the shop — pushed here live over the same connection
+          driving the status above, the instant staff send one. */}
+      {order.messages.length > 0 && (
+        <div className="bg-white rounded-2xl border border-gray-100 p-5 mb-5">
+          <h3 className="font-bold text-gray-900 mb-3 flex items-center gap-2">
+            <MessageCircle size={16} className="text-red-600" /> Updates from {biz_name || 'the shop'}
+          </h3>
+          <div className="space-y-2">
+            {order.messages.map((m) => (
+              <div key={m.id} className="bg-blue-50 border border-blue-100 rounded-xl px-3.5 py-2.5">
+                <p className="text-sm text-gray-800">{m.message}</p>
+                <p className="text-[11px] text-gray-400 mt-1">
+                  {new Date(m.createdAt).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}
+                </p>
+              </div>
+            ))}
+          </div>
         </div>
       )}
 

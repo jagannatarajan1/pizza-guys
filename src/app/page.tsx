@@ -397,12 +397,12 @@ export default function HomePage() {
       <section className="max-w-7xl mx-auto px-4 sm:px-6 mt-14">
         <div className="flex items-center justify-between mb-6">
           <div>
-            <h2 className="text-2xl sm:text-3xl font-black text-gray-900">
+            <span className="font-ticket text-xs tracking-[0.2em] text-gray-400 uppercase">
+              Pick your craving
+            </span>
+            <h2 className="text-2xl sm:text-3xl font-black text-gray-900 mt-1">
               Browse Menu
             </h2>
-            <p className="text-gray-500 text-sm mt-1">
-              Find what you&apos;re craving
-            </p>
           </div>
           <Link
             href="/menu"
@@ -449,12 +449,12 @@ export default function HomePage() {
       <section className="max-w-7xl mx-auto px-4 sm:px-6 mt-16">
         <div className="flex items-center justify-between mb-6">
           <div>
-            <h2 className="text-2xl sm:text-3xl font-black text-gray-900">
+            <span className="font-ticket text-xs tracking-[0.2em] text-gray-400 uppercase">
+              Tear off &amp; save
+            </span>
+            <h2 className="text-2xl sm:text-3xl font-black text-gray-900 mt-1">
               Special Offers
             </h2>
-            <p className="text-gray-500 text-sm mt-1">
-              Save more with our exclusive deals
-            </p>
           </div>
           <Link
             href="/offers"
@@ -475,26 +475,23 @@ export default function HomePage() {
             <motion.div
               key={coupon.code}
               variants={fadeUp}
-              className="relative bg-[#111] text-white p-6 rounded-2xl overflow-hidden border border-white/8 hover:-translate-y-1 transition-transform duration-200"
+              className="relative ticket-perforated bg-[#111] text-white p-6 overflow-hidden border border-white/8 hover:-translate-y-1 transition-transform duration-200"
             >
-              {/* Decorative circles */}
-              <div className="absolute right-0 top-0 w-28 h-28 bg-[#FFD700]/8 rounded-full -mr-10 -mt-10" />
-              <div className="absolute right-8 bottom-0 w-20 h-20 bg-[#FFD700]/5 rounded-full -mb-10" />
-              <div className="relative">
-                <div className="text-3xl font-black text-[#FFD700] mb-2">
-                  {coupon.type === "percentage" && `${coupon.value}% OFF`}
-                  {coupon.type === "fixed" && `£${coupon.value} OFF`}
-                  {coupon.type === "freeDelivery" && "FREE DELIVERY"}
-                </div>
-                <p className="text-gray-400 text-sm mb-4">
-                  {coupon.description}
-                </p>
-                <div className="inline-flex items-center gap-2 bg-[#FFD700]/15 border border-[#FFD700]/30 rounded-lg px-3 py-1.5">
-                  <span className="text-xs text-gray-400">Code:</span>
-                  <span className="font-black text-[#FFD700] tracking-wider">
-                    {coupon.code}
-                  </span>
-                </div>
+              <div className="text-3xl font-black text-[#FFD700] mb-2">
+                {coupon.type === "percentage" && `${coupon.value}% OFF`}
+                {coupon.type === "fixed" && `£${coupon.value} OFF`}
+                {coupon.type === "freeDelivery" && "FREE DELIVERY"}
+              </div>
+              <p className="text-gray-400 text-sm mb-4">
+                {coupon.description}
+              </p>
+              <div className="border-t border-dashed border-white/15 pt-3 flex items-center justify-between">
+                <span className="font-ticket text-[10px] text-gray-500 uppercase tracking-wide">
+                  Redeem at checkout
+                </span>
+                <span className="font-ticket font-bold text-[#FFD700] tracking-wider text-sm">
+                  {coupon.code}
+                </span>
               </div>
             </motion.div>
           ))}
@@ -505,15 +502,15 @@ export default function HomePage() {
       <section className="max-w-7xl mx-auto px-4 sm:px-6 mt-16">
         <div className="flex items-center justify-between mb-6">
           <div>
-            <h2 className="text-2xl sm:text-3xl font-black text-gray-900">
+            <span className="font-ticket text-xs tracking-[0.2em] text-gray-400 uppercase">
+              Feed the table
+            </span>
+            <h2 className="text-2xl sm:text-3xl font-black text-gray-900 mt-1">
               Meal Deals
             </h2>
-            <p className="text-gray-500 text-sm mt-1">
-              Great value combos for one or the whole family
-            </p>
           </div>
           <Link
-            href="/menu?category=pizza-meal"
+            href="/menu?category=meal-deals"
             className="text-[#E53935] font-bold text-sm hover:underline flex items-center gap-1"
           >
             See All <ChevronRight size={14} />
@@ -542,12 +539,12 @@ export default function HomePage() {
       <section className="max-w-7xl mx-auto px-4 sm:px-6 mt-16">
         <div className="flex items-center justify-between mb-6">
           <div>
-            <h2 className="text-2xl sm:text-3xl font-black text-gray-900">
+            <span className="font-ticket text-xs tracking-[0.2em] text-gray-400 uppercase">
+              Shepperton&apos;s regulars
+            </span>
+            <h2 className="text-2xl sm:text-3xl font-black text-gray-900 mt-1">
               Most Popular
             </h2>
-            <p className="text-gray-500 text-sm mt-1">
-              Our customers can&apos;t get enough of these
-            </p>
           </div>
           <Link
             href="/menu"
@@ -577,61 +574,33 @@ export default function HomePage() {
 
       {/* ── WHY US ──────────────────────────────────────── */}
       <section className="max-w-7xl mx-auto px-4 sm:px-6 mt-16">
-        <div className="text-center mb-8">
-          <h2 className="text-2xl sm:text-3xl font-black text-gray-900">
+        <div className="text-center mb-6">
+          <span className="font-ticket text-xs tracking-[0.2em] text-gray-400 uppercase">
+            The tally
+          </span>
+          <h2 className="text-2xl sm:text-3xl font-black text-gray-900 mt-1">
             Why Choose Pizza Guys?
           </h2>
         </div>
         <motion.div
-          variants={stagger}
-          initial="hidden"
-          whileInView="show"
+          initial={{ opacity: 0, y: 16 }}
+          whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true, margin: "-60px" }}
-          className="grid grid-cols-2 lg:grid-cols-4 gap-4"
+          transition={{ duration: 0.5 }}
+          className="max-w-2xl mx-auto bg-white rounded-2xl border-2 border-gray-100 divide-y divide-dashed divide-gray-200"
         >
           {[
-            {
-              icon: <Zap size={26} className="text-[#FFD700]" />,
-              bg: "bg-yellow-50",
-              title: "Lightning Fast",
-              desc: "30–45 min average delivery",
-            },
-            {
-              icon: (
-                <Star size={26} className="text-[#E53935]" fill="#E53935" />
-              ),
-              bg: "bg-red-50",
-              title: "Top Rated",
-              desc: "4.8★ from 2,000+ reviews",
-            },
-            {
-              icon: <Heart size={26} className="text-pink-500" />,
-              bg: "bg-pink-50",
-              title: "Fresh Every Day",
-              desc: "Made fresh to order",
-            },
-            {
-              icon: <Award size={26} className="text-[#27AE60]" />,
-              bg: "bg-green-50",
-              title: "Since 2009",
-              desc: "Trusted by local families",
-            },
+            { icon: <Zap size={18} className="text-[#FFD700]" />, title: "Lightning Fast", desc: "30–45 min average delivery" },
+            { icon: <Star size={18} className="text-[#E53935]" fill="#E53935" />, title: "Top Rated", desc: "4.8★ from 2,000+ reviews" },
+            { icon: <Heart size={18} className="text-pink-500" />, title: "Fresh Every Day", desc: "Made fresh to order" },
+            { icon: <Award size={18} className="text-[#27AE60]" />, title: "Since 2009", desc: "Trusted by local families" },
           ].map((item) => (
-            <motion.div
-              key={item.title}
-              variants={fadeUp}
-              className="bg-white rounded-2xl p-5 sm:p-6 text-center border-2 border-gray-100 hover:border-[#FFD700] hover:shadow-lg hover:shadow-yellow-100 transition-all duration-200"
-            >
-              <div
-                className={`${item.bg} w-12 h-12 rounded-xl flex items-center justify-center mx-auto mb-3`}
-              >
-                {item.icon}
-              </div>
-              <h3 className="font-black text-gray-900 mb-1 text-sm sm:text-base">
-                {item.title}
-              </h3>
-              <p className="text-gray-500 text-xs sm:text-sm">{item.desc}</p>
-            </motion.div>
+            <div key={item.title} className="flex items-center gap-3 px-5 sm:px-6 py-4">
+              <span className="shrink-0">{item.icon}</span>
+              <span className="font-black text-gray-900 text-sm">{item.title}</span>
+              <span className="flex-1 border-b border-dotted border-gray-300 translate-y-[-2px]" />
+              <span className="font-ticket text-xs sm:text-sm text-gray-500 shrink-0">{item.desc}</span>
+            </div>
           ))}
         </motion.div>
       </section>
@@ -677,10 +646,10 @@ export default function HomePage() {
                 </Link>
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-x-8 gap-y-2 text-sm w-full sm:w-auto">
+            <div className="font-ticket grid grid-cols-2 gap-x-8 gap-y-2 text-sm w-full sm:w-auto border-l border-dashed border-white/15 pl-6 sm:pl-8">
               {openingHours.map((h) => (
                 <div key={h.day} className="flex gap-4 items-center">
-                  <span className="text-gray-500 w-10 shrink-0 text-xs">
+                  <span className="text-gray-500 w-10 shrink-0 text-xs uppercase">
                     {h.day.slice(0, 3)}
                   </span>
                   <span className="font-bold text-gray-200 text-xs">

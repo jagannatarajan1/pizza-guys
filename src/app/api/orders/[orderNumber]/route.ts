@@ -27,7 +27,14 @@ export async function GET(
 
   const order = await prisma.order.findUnique({
     where: { orderNumber },
-    include: { items: { select: { productId: true, productName: true, quantity: true, unitPrice: true, itemTotal: true, modifiers: true, specialInstructions: true } } },
+    include: {
+      items: { select: { productId: true, productName: true, quantity: true, unitPrice: true, itemTotal: true, modifiers: true, specialInstructions: true } },
+      // Operational updates from the shop (e.g. "running 10 minutes late") —
+      // visible to anyone holding the order number, same as status/items;
+      // not gated behind canSeePrivateDetails since there's nothing private
+      // in them, only useful for anyone tracking this specific order.
+      messages: { orderBy: { createdAt: 'asc' }, select: { id: true, message: true, createdAt: true } },
+    },
   })
 
   if (!order) return NextResponse.json({ error: 'Order not found' }, { status: 404 })
@@ -84,5 +91,6 @@ export async function GET(
       specialInstructions: i.specialInstructions,
       image:     imageMap[i.productId] ?? '',
     })),
+    messages: order.messages.map((m) => ({ id: m.id, message: m.message, createdAt: m.createdAt })),
   })
 }
