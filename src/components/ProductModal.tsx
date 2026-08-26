@@ -1,7 +1,7 @@
 'use client'
 import { useState, useEffect, useRef } from 'react'
 import Image from 'next/image'
-import { X, Plus, Minus, Check, ChevronDown } from 'lucide-react'
+import { X, Plus, Minus, Check, ChevronDown, UtensilsCrossed } from 'lucide-react'
 import type { Product, ModifierGroup, ModifierOption } from '@/lib/types'
 import type { CartItem, CartItemModifier } from '@/lib/cart-store'
 import { useCartStore } from '@/lib/cart-store'
@@ -63,6 +63,25 @@ function selectionSummary(group: ModifierGroup, chosen: string[]): string | null
   })
   if (parts.length <= 2) return parts.join(', ')
   return `${parts.slice(0, 2).join(', ')} +${parts.length - 2} more`
+}
+
+// Small square photo next to a topping/ingredient row. `option.image` only
+// exists when the server matched this option's name to a real product photo
+// (see /api/menu/products); most raw ingredients (salad, plain sauces) won't
+// have one, so every row still gets a same-sized neutral placeholder rather
+// than the list jumping around between rows with and without a photo.
+function OptionThumb({ src, alt }: { src?: string; alt: string }) {
+  return (
+    <div className="relative w-9 h-9 shrink-0 rounded-lg overflow-hidden bg-gray-100">
+      {src ? (
+        <Image src={src} alt={alt} fill sizes="36px" className="object-cover" />
+      ) : (
+        <div className="w-full h-full flex items-center justify-center text-gray-300">
+          <UtensilsCrossed size={15} />
+        </div>
+      )}
+    </div>
+  )
 }
 
 export default function ProductModal({ product, onClose, editingItem = null }: Props) {
@@ -367,6 +386,7 @@ export default function ProductModal({ product, onClose, editingItem = null }: P
                                       disabled={!selected && atMax}
                                       className="flex items-center gap-3 flex-1 min-w-0 text-left disabled:opacity-40"
                                     >
+                                      <OptionThumb src={option.image} alt={option.name} />
                                       <div
                                         className={`w-5 h-5 shrink-0 rounded-md border-2 flex items-center justify-center ${
                                           selected ? 'border-red-500 bg-red-500' : 'border-gray-300'
@@ -384,14 +404,17 @@ export default function ProductModal({ product, onClose, editingItem = null }: P
                                       </span>
                                     </button>
                                   ) : (
-                                    <span className="text-sm font-medium text-gray-800 flex-1 min-w-0 truncate">
-                                      {option.name}
-                                      {option.tag && (
-                                        <span className="ml-1.5 text-[10px] font-bold uppercase tracking-wide text-amber-600">
-                                          {option.tag}
-                                        </span>
-                                      )}
-                                    </span>
+                                    <div className="flex items-center gap-3 flex-1 min-w-0">
+                                      <OptionThumb src={option.image} alt={option.name} />
+                                      <span className="text-sm font-medium text-gray-800 truncate">
+                                        {option.name}
+                                        {option.tag && (
+                                          <span className="ml-1.5 text-[10px] font-bold uppercase tracking-wide text-amber-600">
+                                            {option.tag}
+                                          </span>
+                                        )}
+                                      </span>
+                                    </div>
                                   )}
 
                                   <div className="flex items-center gap-2 shrink-0">

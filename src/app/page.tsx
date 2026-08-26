@@ -77,9 +77,9 @@ function HomeProductCard({
     <motion.div
       variants={fadeUp}
       onClick={() => onSelect(product)}
-      className="bg-white rounded-2xl border-2 border-gray-100 overflow-hidden cursor-pointer card-hover group"
+      className="cursor-pointer group"
     >
-      <div className="relative aspect-square overflow-hidden bg-gray-100">
+      <div className="relative aspect-square rounded-2xl overflow-hidden border border-gray-100" style={{ background: "var(--paper)" }}>
         {product.image ? (
           <Image
             src={product.image}
@@ -94,69 +94,51 @@ function HomeProductCard({
         <div className="absolute top-2 left-2 bg-[#FFD700] text-[#111] text-[10px] font-black px-2 py-0.5 rounded-full">
           {badge}
         </div>
-      </div>
-      <div className="p-3">
-        <h3 className="font-black text-gray-900 text-sm mb-2 line-clamp-1">
-          {product.name}
-        </h3>
-        <div className="flex items-center justify-between gap-2">
-          <span className="font-black text-gray-900 text-sm">
-            {hasModifiers
-              ? `From ${formatPrice(product.price)}`
-              : formatPrice(product.price)}
-          </span>
-          {quantity > 0 && !hasModifiers ? (
-            <div
-              className="shrink-0 flex items-center gap-1.5 rounded-full h-7 px-1"
-              style={{
-                background: "var(--brand-accent)",
-                color: "var(--brand-dark)",
-              }}
+
+        {/* Quick-add pill floats inside the image's bottom-right corner. */}
+        {quantity > 0 && !hasModifiers ? (
+          <div className="absolute bottom-2 right-2 flex items-center gap-1.5 bg-white rounded-full h-8 px-1 shadow-md">
+            <button
+              onClick={handleDecrement}
+              aria-label={`Remove one ${product.name}`}
+              className="w-6 h-6 flex items-center justify-center shrink-0 rounded-full hover:bg-gray-100"
             >
-              <button
-                onClick={handleDecrement}
-                aria-label={`Remove one ${product.name}`}
-                className="w-5 h-5 flex items-center justify-center shrink-0"
-              >
-                <Minus size={12} strokeWidth={3} />
-              </button>
-              <span className="font-black text-xs min-w-[1ch] text-center">
-                {quantity}
-              </span>
-              <button
-                onClick={handleQuickAction}
-                aria-label={`Add another ${product.name}`}
-                className="w-5 h-5 flex items-center justify-center shrink-0"
-              >
-                <Plus size={12} strokeWidth={3} />
-              </button>
-            </div>
-          ) : (
+              <Minus size={12} strokeWidth={3} />
+            </button>
+            <span className="font-black text-xs min-w-[1ch] text-center">
+              {quantity}
+            </span>
             <button
               onClick={handleQuickAction}
-              aria-label={
-                quantity > 0
-                  ? `${quantity} in cart, add another`
-                  : `Add ${product.name}`
-              }
-              className={`shrink-0 flex items-center justify-center font-black transition-colors ${
-                quantity > 0
-                  ? "h-7 min-w-7 px-2 rounded-full text-xs"
-                  : "w-7 h-7 rounded-full"
-              }`}
-              style={
-                quantity > 0
-                  ? {
-                      background: "var(--brand-accent)",
-                      color: "var(--brand-dark)",
-                    }
-                  : { background: "var(--brand-dark)", color: "#fff" }
-              }
+              aria-label={`Add another ${product.name}`}
+              className="w-6 h-6 flex items-center justify-center shrink-0 rounded-full hover:bg-gray-100"
             >
-              {quantity > 0 ? quantity : <Plus size={14} strokeWidth={3} />}
+              <Plus size={12} strokeWidth={3} />
             </button>
-          )}
-        </div>
+          </div>
+        ) : (
+          <button
+            onClick={handleQuickAction}
+            aria-label={
+              quantity > 0
+                ? `${quantity} in cart, add another`
+                : `Add ${product.name}`
+            }
+            className="absolute bottom-2 right-2 flex items-center justify-center font-bold text-xs bg-white rounded-full h-8 px-3 shadow-md hover:bg-gray-50 transition-colors"
+          >
+            {quantity > 0 ? quantity : "Add"}
+          </button>
+        )}
+      </div>
+      <div className="pt-3 px-1">
+        <h3 className="font-black text-gray-900 text-sm mb-1 line-clamp-1">
+          {product.name}
+        </h3>
+        <span className="text-gray-500 text-xs">
+          {hasModifiers
+            ? `From ${formatPrice(product.price)}`
+            : formatPrice(product.price)}
+        </span>
       </div>
     </motion.div>
   );

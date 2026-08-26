@@ -10,6 +10,11 @@ export type ModifierOption = {
   // owning group's `priceDependsOn` (a cheesy crust costs more on a bigger
   // pizza). Falls back to `price` when the driving option has no entry.
   priceBy?: Record<string, number>
+  // Populated server-side (see /api/menu/products) by matching this option's
+  // name against a real menu item's photo — e.g. the "Pepperoni Feast" pizza
+  // photo backs the "Pepperoni" topping option. Absent when no product shares
+  // the name, which is expected for most raw ingredients (salad, sauces).
+  image?: string
 }
 
 export type ModifierGroup = {

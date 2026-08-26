@@ -51,9 +51,9 @@ const ProductItem = memo(function ProductItem({ product, onSelect, priority }: {
     <motion.div
       variants={fadeUp}
       onClick={() => onSelect(product)}
-      className="bg-white rounded-2xl border-2 border-gray-100 overflow-hidden cursor-pointer card-hover group"
+      className="cursor-pointer group"
     >
-      <div className="relative aspect-4/3 bg-gray-100 overflow-hidden">
+      <div className="relative aspect-square rounded-2xl overflow-hidden border border-gray-100" style={{ background: 'var(--paper)' }}>
         {product.image ? (
           <Image
             src={product.image}
@@ -61,7 +61,7 @@ const ProductItem = memo(function ProductItem({ product, onSelect, priority }: {
             fill
             priority={priority}
             className="object-cover group-hover:scale-105 transition-transform duration-300"
-            sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 25vw"
+            sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw"
           />
         ) : (
           <div className="w-full h-full flex items-center justify-center text-5xl">🍕</div>
@@ -71,50 +71,41 @@ const ProductItem = memo(function ProductItem({ product, onSelect, priority }: {
             Popular
           </span>
         )}
-      </div>
-      <div className="p-4">
-        <h3 className="font-black text-gray-900 mb-1 line-clamp-1">{product.name}</h3>
-        <p className="text-gray-500 text-sm mb-3 line-clamp-2">{product.description}</p>
-        {product.allergens.length > 0 && (
-          <p className="text-xs text-amber-600 mb-2">⚠️ {product.allergens.join(', ')}</p>
-        )}
-        <div className="flex items-center justify-between gap-2">
-          <span className="font-black text-gray-900 text-sm">
-            {hasModifiers ? `From ${formatPrice(product.price)}` : formatPrice(product.price)}
-          </span>
-          {quantity > 0 && !hasModifiers ? (
-            <div className="shrink-0 flex items-center gap-2 rounded-full h-8 px-1" style={{ background: 'var(--brand-accent)', color: 'var(--brand-dark)' }}>
-              <button
-                onClick={handleDecrement}
-                aria-label={`Remove one ${product.name}`}
-                className="w-6 h-6 flex items-center justify-center shrink-0"
-              >
-                <Minus size={14} strokeWidth={3} />
-              </button>
-              <span className="font-black text-sm min-w-[1ch] text-center">{quantity}</span>
-              <button
-                onClick={handleQuickAction}
-                aria-label={`Add another ${product.name}`}
-                className="w-6 h-6 flex items-center justify-center shrink-0"
-              >
-                <Plus size={14} strokeWidth={3} />
-              </button>
-            </div>
-          ) : (
+
+        {/* Quick-add pill floats inside the image's bottom-right corner. */}
+        {quantity > 0 && !hasModifiers ? (
+          <div className="absolute bottom-2 right-2 flex items-center gap-1.5 bg-white rounded-full h-9 px-1 shadow-md">
+            <button
+              onClick={handleDecrement}
+              aria-label={`Remove one ${product.name}`}
+              className="w-7 h-7 flex items-center justify-center shrink-0 rounded-full hover:bg-gray-100"
+            >
+              <Minus size={14} strokeWidth={3} />
+            </button>
+            <span className="font-black text-sm min-w-[1ch] text-center">{quantity}</span>
             <button
               onClick={handleQuickAction}
-              aria-label={quantity > 0 ? `${quantity} in cart, add another` : `Add ${product.name}`}
-              className={`shrink-0 flex items-center justify-center font-black transition-colors ${
-                quantity > 0
-                  ? 'h-8 min-w-8 px-2.5 rounded-full text-sm'
-                  : 'w-8 h-8 rounded-full'
-              }`}
-              style={quantity > 0 ? { background: 'var(--brand-accent)', color: 'var(--brand-dark)' } : { background: 'var(--brand-dark)', color: '#fff' }}
+              aria-label={`Add another ${product.name}`}
+              className="w-7 h-7 flex items-center justify-center shrink-0 rounded-full hover:bg-gray-100"
             >
-              {quantity > 0 ? quantity : <Plus size={16} strokeWidth={3} />}
+              <Plus size={14} strokeWidth={3} />
             </button>
-          )}
-        </div>
+          </div>
+        ) : (
+          <button
+            onClick={handleQuickAction}
+            aria-label={quantity > 0 ? `${quantity} in cart, add another` : `Add ${product.name}`}
+            className="absolute bottom-2 right-2 flex items-center justify-center font-bold text-sm bg-white rounded-full h-9 px-4 shadow-md hover:bg-gray-50 transition-colors"
+          >
+            {quantity > 0 ? quantity : 'Add'}
+          </button>
+        )}
+      </div>
+      <div className="pt-3 px-1">
+        <h3 className="font-black text-gray-900 mb-1 line-clamp-1">{product.name}</h3>
+        <span className="text-gray-500 text-sm">
+          {hasModifiers ? `From ${formatPrice(product.price)}` : formatPrice(product.price)}
+        </span>
       </div>
     </motion.div>
   )
@@ -122,16 +113,11 @@ const ProductItem = memo(function ProductItem({ product, onSelect, priority }: {
 
 function SkeletonCard() {
   return (
-    <div className="bg-white rounded-2xl border-2 border-gray-100 overflow-hidden animate-pulse">
-      <div className="aspect-4/3 bg-gray-100" />
-      <div className="p-4 space-y-2">
+    <div className="animate-pulse">
+      <div className="aspect-square rounded-2xl border border-gray-100 bg-gray-100" />
+      <div className="pt-3 px-1 space-y-2">
         <div className="h-4 bg-gray-100 rounded w-3/4" />
-        <div className="h-3 bg-gray-100 rounded w-full" />
-        <div className="h-3 bg-gray-100 rounded w-2/3" />
-        <div className="flex justify-between items-center mt-3">
-          <div className="h-5 bg-gray-100 rounded w-16" />
-          <div className="h-8 bg-gray-100 rounded w-14" />
-        </div>
+        <div className="h-3 bg-gray-100 rounded w-1/2" />
       </div>
     </div>
   )
@@ -322,7 +308,7 @@ function MenuContent() {
             {[1, 2].map((s) => (
               <div key={s}>
                 <div className="h-8 bg-gray-100 rounded-xl w-40 mb-5 animate-pulse" />
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3 sm:gap-4">
                   {Array.from({ length: 4 }).map((_, i) => <SkeletonCard key={i} />)}
                 </div>
               </div>
@@ -340,7 +326,7 @@ function MenuContent() {
             <h2 className="text-lg font-black text-gray-900 mb-5">
               {filteredProducts.length} result{filteredProducts.length !== 1 ? 's' : ''} for &quot;{search}&quot;
             </h2>
-            <motion.div variants={stagger} initial="hidden" animate="show" className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+            <motion.div variants={stagger} initial="hidden" animate="show" className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3 sm:gap-4">
               {filteredProducts.map((product, i) => (
                 <ProductItem key={product.id} product={product} onSelect={setSelectedProduct} priority={i < 4} />
               ))}
@@ -358,7 +344,7 @@ function MenuContent() {
                   <p className="text-xs text-gray-400 font-semibold">{items.length} item{items.length !== 1 ? 's' : ''}</p>
                 </div>
               </div>
-              <motion.div variants={stagger} initial="hidden" whileInView="show" viewport={{ once: true, margin: '-40px' }} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+              <motion.div variants={stagger} initial="hidden" whileInView="show" viewport={{ once: true, margin: '-40px' }} className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3 sm:gap-4">
                 {items.map((product, i) => (
                   <ProductItem key={product.id} product={product} onSelect={setSelectedProduct} priority={groupIndex === 0 && i < 4} />
                 ))}
